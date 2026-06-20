@@ -255,7 +255,7 @@
 
 <!-- ===== MEMORY ===== -->
 <div class="screen" id="screen-memory">
-  <header><div>Story Memory</div><button class="btn sec small" onclick="addMemoryManual()">＋ Add</button></header>
+  <header><div>Story Memory</div><div style="display:flex;gap:6px"><button class="btn sec small" onclick="condenseAllNow()">🗜️ Condense</button><button class="btn sec small" onclick="addMemoryManual()">＋ Add</button></div></header>
   <div class="pad" id="memoryList"></div>
 </div>
 
@@ -312,6 +312,16 @@
         </div>
 
         <div class="card">
+          <h3>🗜️ Memory Condenser</h3>
+          <div class="desc">Summarizes a character's oldest, low-importance memories into compact recollections once they pile up — bounds growth over long sessions and sharpens retrieval. Uses the Memory model above.</div>
+          <div class="kvline"><span>Enable condenser</span>
+            <label class="switchLbl"><input type="checkbox" id="setCondenseOn" checked><span class="sl"></span></label></div>
+          <div><label>Condense when a character exceeds (memories)</label><input type="number" id="setCondenseThreshold" min="10" step="5" value="40"></div>
+          <div><label>Keep verbatim if importance ≥ (0–1)</label><input type="number" id="setCondenseKeep" min="0" max="1" step="0.05" value="0.8"></div>
+          <div><label>Memories merged per pass</label><input type="number" id="setCondenseBatch" min="3" step="1" value="15"></div>
+        </div>
+
+        <div class="card">
           <h3>🎬 Gamemaster</h3>
           <div><label>Model</label><input type="text" id="setGmModel" list="modelList" value="deepseek/deepseek-v3.2"></div>
           <div class="ovr"><div data-ovr="gm" data-kind="temp"></div><div data-ovr="gm" data-kind="tok"></div></div>
@@ -359,6 +369,9 @@
           <details class="acc"><summary>📊 Memory ranker prompt (each message)</summary>
             <textarea class="fld" id="setRanker" style="min-height:120px"></textarea>
             <div class="desc">Picks the most relevant memories. Use {{maxCount}}.</div></details>
+          <details class="acc"><summary>🗜️ Memory condenser prompt (distant memories)</summary>
+            <textarea class="fld" id="setCondensePrompt" style="min-height:160px"></textarea>
+            <div class="desc">Merges old low-importance memories into durable summaries. Use {{char}} and {{user}}.</div></details>
         </div>
         <div class="card">
           <div class="subhead">🎬 Gamemaster</div>
@@ -541,6 +554,9 @@
           <div class="kvline"><span>Storage used</span><span id="storageUsed" class="pill">—</span></div>
           <button id="installBtn" class="btn small" style="display:none" onclick="installApp()">📲 Install app</button>
           <button class="btn sec small" onclick="exportChats()">Export story (JSON)</button>
+          <button class="btn small" onclick="exportAll()">⬇️ Export everything (backup)</button>
+          <button class="btn sec small" onclick="importAllPrompt()">⬆️ Import everything (restore)</button>
+          <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importAllFile(this.files[0]); this.value='';">
           <button class="btn danger small" onclick="confirmClear('chats')">Clear all chats</button>
           <button class="btn danger small" onclick="confirmClear('memory')">Clear all memories</button>
           <button class="btn danger small" onclick="confirmClear('images')">Clear gallery</button>
@@ -663,7 +679,9 @@ const K={key:"sm_key",segkey:"sm_segkey",model:"sm_model",rewriter:"sm_rewriter"
   personas:"sm_personas",curPersona:"sm_curpersona",universes:"sm_universes",curUniverse:"sm_curuniverse",memory:"sm_memory",images:"sm_images",videos:"sm_videos",onboarded:"sm_onboarded",
   // ModelsLab + smart routing
   imgRules:"sm_imgrules",vidRules:"sm_vidrules",routeOn:"sm_routeon",routerModel:"sm_routermodel",routerPrompt:"sm_routerprompt",steps:"sm_steps",
-  fnCfg:"sm_fncfg"};
+  fnCfg:"sm_fncfg",
+  // Memory condenser (Stage 4)
+  condenseOn:"sm_condenseon",condenseThreshold:"sm_condensethresh",condenseKeep:"sm_condensekeep",condenseBatch:"sm_condensebatch",condensePrompt:"sm_condenseprompt"};
 // ModelsLab API base. Image and video endpoints live under different paths.
 const ML="https://modelslab.com/api/v6/";
 const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
@@ -682,10 +700,13 @@ const mediaDB=(function(){
   function open(){
     if(dbp) return dbp;
     dbp=new Promise((res,rej)=>{
-      let req; try{ req=indexedDB.open("storymind_media",1); }catch(e){ return rej(e); }
+      let req; try{ req=indexedDB.open("storymind_media",2); }catch(e){ return rej(e); }
       req.onupgradeneeded=()=>{ const db=req.result;
         if(!db.objectStoreNames.contains("images")) db.createObjectStore("images",{keyPath:"id"});
         if(!db.objectStoreNames.contains("videos")) db.createObjectStore("videos",{keyPath:"id"});
+        // v2: kv store for the unbounded text collections (chats, memory, universes, personas).
+        // Plain key->value (value is the whole collection); avoids localStorage's ~5MB ceiling.
+        if(!db.objectStoreNames.contains("kv")) db.createObjectStore("kv");
       };
       req.onsuccess=()=>res(req.result);
       req.onerror=()=>rej(req.error);
@@ -710,9 +731,58 @@ const mediaDB=(function(){
         r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error);
       })); }catch(e){ console.warn("idb getAll failed",storeName,e); return []; }
     },
-    async clear(storeName){ try{ await tx(storeName,"readwrite",s=>s.clear()); return true; }catch(e){ return false; } }
+    async clear(storeName){ try{ await tx(storeName,"readwrite",s=>s.clear()); return true; }catch(e){ return false; } },
+    // ---- kv helpers for the growing text collections ----
+    async kvGet(key){
+      try{ return await open().then(db=>new Promise((res,rej)=>{
+        const r=db.transaction("kv","readonly").objectStore("kv").get(key);
+        r.onsuccess=()=>res(r.result===undefined?null:r.result); r.onerror=()=>rej(r.error);
+      })); }catch(e){ console.warn("idb kvGet failed",key,e); return null; }
+    },
+    async kvSet(key,value){
+      try{ await tx("kv","readwrite",s=>s.put(value,key)); return true; }
+      catch(e){ console.warn("idb kvSet failed",key,e); return false; }
+    },
+    async kvKeys(){
+      try{ return await open().then(db=>new Promise((res,rej)=>{
+        const r=db.transaction("kv","readonly").objectStore("kv").getAllKeys();
+        r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error);
+      })); }catch(e){ return []; }
+    },
+    async kvDelete(key){ try{ await tx("kv","readwrite",s=>s.delete(key)); return true; }catch(e){ return false; } }
   };
 })();
+// Holding object populated BEFORE loadState() from IndexedDB (see preloadCollections()).
+// loadState reads the four growing collections from here instead of localStorage.
+let _idbColl=null;
+// Keys for the growing collections now living in IndexedDB's kv store.
+const IDB_COLL_KEYS={chats:"chats",memory:"memory",universes:"universes",personas:"personas"};
+// Load the four growing collections from IndexedDB into _idbColl BEFORE loadState runs.
+// First run after this upgrade: IDB is empty, so we seed it from whatever is still in
+// localStorage (non-destructive migration), then IndexedDB becomes the source of truth.
+async function preloadCollections(){
+  _idbColl={};
+  let migrated=false;
+  const defs={ chats:{}, memory:[], universes:null, personas:null };
+  const lsKey={chats:K.chats,memory:K.memory,universes:K.universes,personas:K.personas};
+  for(const name in IDB_COLL_KEYS){
+    let v=await mediaDB.kvGet(IDB_COLL_KEYS[name]);
+    if(v===null||v===undefined){
+      const legacy=store.get(lsKey[name],defs[name]);   // pull from legacy localStorage
+      v=(legacy===null||legacy===undefined)?defs[name]:legacy;
+      migrated=true;
+    }
+    _idbColl[name]=v;
+  }
+  // Seed IDB from localStorage once. We keep the localStorage copies for now as a silent
+  // fallback for one version; persist* overwrites IDB from here on.
+  if(migrated){
+    await mediaDB.kvSet("chats",_idbColl.chats);
+    await mediaDB.kvSet("memory",_idbColl.memory);
+    if(_idbColl.universes!=null) await mediaDB.kvSet("universes",_idbColl.universes);
+    if(_idbColl.personas!=null) await mediaDB.kvSet("personas",_idbColl.personas);
+  }
+}
 
 /* ===== EXPORT / IMPORT ===== back up & restore all app data (localStorage) ===== */
 const APP_PREFIX="sm_";
@@ -939,6 +1009,14 @@ const DEFAULT_RANKER=`You rank a character's memories by relevance to the curren
 You are given a SEARCH QUERY describing the current situation, and a numbered list of memories. Select the memories most relevant to the query, weighing: topical match to the query, connection to who/what is present now, importance_score, and recency.
 
 Return ONLY a JSON array of the chosen memory indices, most relevant first, at most {{maxCount}} of them. Example: [4,0,9,2,7]
+No explanation, only the JSON array.`;
+
+const DEFAULT_CONDENSE=`You consolidate a character's OLD, less-important memories into fewer, durable summary memories — the way human memory turns many small episodes into general recollections while keeping the gist.
+
+You are given a numbered list of {{char}}'s older memories (their own first-person experiences). Merge them into 1-3 consolidated memories that preserve: who was involved, key relationships and how they changed, important facts {{char}} learned, recurring places, and lasting emotional impressions. Drop trivial moment-to-moment detail. Never invent events not present in the source memories. Keep everything strictly from {{char}}'s own perspective.
+
+Return ONLY a JSON array of consolidated memory objects, each:
+{"content": "...", "location": "", "emotion": "", "importance_score": 0.0-1.0, "tags": ["lowercase","tags"], "type": "CONSOLIDATED"}
 No explanation, only the JSON array.`;
 
 /* ===== GAMEMASTER ===== an invisible director that watches for stale scenes ===== */
@@ -1372,15 +1450,20 @@ function loadState(){
     routerPrompt:store.raw(K.routerPrompt,DEFAULT_ROUTER),
     steps:+store.raw(K.steps,25),
     fnCfg:store.get(K.fnCfg,{})||{},
+    condenseOn:store.get(K.condenseOn,true),
+    condenseThreshold:+store.raw(K.condenseThreshold,40),
+    condenseKeep:+store.raw(K.condenseKeep,0.8),
+    condenseBatch:+store.raw(K.condenseBatch,15),
+    condensePrompt:store.raw(K.condensePrompt,DEFAULT_CONDENSE),
     theme:store.raw(K.theme,"dark"),
     font:+store.raw(K.font,16),
-    chats:store.get(K.chats,{}),
+    chats:(_idbColl?_idbColl.chats:store.get(K.chats,{}))||{},
     curChat:store.raw(K.curChat,null),
-    personas:store.get(K.personas,null),
+    personas:(_idbColl?_idbColl.personas:store.get(K.personas,null)),
     curPersona:store.raw(K.curPersona,"p_sera"),
-    universes:store.get(K.universes,null),
+    universes:(_idbColl?_idbColl.universes:store.get(K.universes,null)),
     curUniverse:store.raw(K.curUniverse,null),
-    memory:store.get(K.memory,[]),
+    memory:(_idbColl?_idbColl.memory:store.get(K.memory,[]))||[],
     images:store.get(K.images,[]),
     videos:[]
   };
@@ -1515,18 +1598,23 @@ function persistChatsNow(){
     // would otherwise leave them stuck true and dead-lock the gamemaster.
     Object.keys(slim[id]).forEach(k=>{if(k[0]==="_")delete slim[id][k];});
   }
-  if(!store.set(K.chats,slim)){
-    // Quota hit even after stripping media. Drop the oldest messages of the largest
-    // chats until it fits, so a long session degrades gracefully instead of silently
-    // losing the whole write (which previously left curChat unsaved on reload).
-    toast("⚠️ Storage full — trimming oldest messages");
-    const ids=Object.keys(slim).sort((a,b)=>(slim[b].messages.length)-(slim[a].messages.length));
-    let saved=false;
-    for(let pass=0; pass<20 && !saved; pass++){
-      for(const id of ids){ if(slim[id].messages.length>40) slim[id].messages=slim[id].messages.slice(-Math.ceil(slim[id].messages.length*0.8)); }
-      saved=store.set(K.chats,slim);
+  // Chats now live in IndexedDB (large quota) — no need to strip-and-pray against a 5MB
+  // ceiling. We still strip base64 media (it lives in the media stores) to keep the blob lean.
+  mediaDB.kvSet("chats",slim).then(ok=>{
+    if(!ok){
+      // IDB write failed (rare: private mode / disk pressure). Fall back to localStorage so
+      // the turn isn't lost, trimming oldest messages if even that overflows.
+      if(!store.set(K.chats,slim)){
+        toast("⚠️ Storage full — trimming oldest messages");
+        const ids=Object.keys(slim).sort((a,b)=>(slim[b].messages.length)-(slim[a].messages.length));
+        let saved=false;
+        for(let pass=0; pass<20 && !saved; pass++){
+          for(const id of ids){ if(slim[id].messages.length>40) slim[id].messages=slim[id].messages.slice(-Math.ceil(slim[id].messages.length*0.8)); }
+          saved=store.set(K.chats,slim);
+        }
+      }
     }
-  }
+  });
   store.setRaw(K.curChat,state.curChat||"");
 }
 // Debounced/coalesced persistence: a turn fires persistChats() many times (once per
@@ -1536,12 +1624,12 @@ function persistChatsNow(){
 let _persistChatsTimer=null;
 function persistChats(){
   if(_persistChatsTimer) return;
-  _persistChatsTimer=setTimeout(()=>{ _persistChatsTimer=null; persistChatsNow(); }, 400);
+  _persistChatsTimer=setTimeout(()=>{ _persistChatsTimer=null; persistChatsNow(); scheduleAutoBackup(); }, 400);
 }
 function flushPersistChats(){ if(_persistChatsTimer){ clearTimeout(_persistChatsTimer); _persistChatsTimer=null; } persistChatsNow(); }
-function persistPersonas(){store.set(K.personas,state.personas);store.setRaw(K.curPersona,state.curPersona);}
-function persistUniverses(){store.set(K.universes,state.universes);store.setRaw(K.curUniverse,state.curUniverse||"");}
-function persistMemory(){store.set(K.memory,state.memory);}
+function persistPersonas(){mediaDB.kvSet("personas",state.personas);store.setRaw(K.curPersona,state.curPersona);}
+function persistUniverses(){mediaDB.kvSet("universes",state.universes);store.setRaw(K.curUniverse,state.curUniverse||"");}
+function persistMemory(){mediaDB.kvSet("memory",state.memory);}
 function persistImages(){
   // Persist to IndexedDB (large quota). Keep a generous recent window — the in-memory
   // cap already trims base64 from older entries, so we store what's still full-res plus
@@ -3618,7 +3706,79 @@ async function maybeBuildMemory(chat){
     }catch(e){/* best-effort per character */}
   }
   persistMemory();persistChats();
+  // After building, condense each character's distant memories if they've piled up.
+  if(state.condenseOn){ for(const p of cast){ try{ await maybeCondenseMemories(p.id,p.name); }catch(e){} } }
   if(document.getElementById('screen-memory').classList.contains('active')) renderMemory();
+}
+
+/* ===== Memory condenser (Stage 4) =====
+   When a character accumulates more than `condenseThreshold` memories, summarize the OLDEST
+   ones whose importance is below `condenseKeep` into 1-3 consolidated memories, preserving
+   high-importance memories verbatim. Bounds unbounded growth over long campaigns AND improves
+   retrieval quality (the ranker wades through far fewer trivial entries). Runs at most once
+   per character per build cycle and is fully best-effort. */
+async function maybeCondenseMemories(ownerId,name){
+  if(!state.condenseOn) return;
+  const own=memoriesOf(ownerId);
+  if(own.length<=state.condenseThreshold) return;
+  // Candidates: oldest-first, only those below the keep-verbatim importance, and not already
+  // consolidated (avoid re-summarizing summaries repeatedly).
+  const keep=state.condenseKeep;
+  const sorted=own.slice().sort((a,b)=>(a.date||0)-(b.date||0));
+  const candidates=sorted.filter(m=>(typeof m.importance==="number"?m.importance:0.5)<keep && m.type!=="CONSOLIDATED");
+  if(candidates.length < Math.min(state.condenseBatch, 6)) return; // not enough to bother
+  const batch=candidates.slice(0, state.condenseBatch);
+  const listed=batch.map((m,i)=>`[${i}] ${memText(m)} | importance: ${m.importance} | day: ${m.gameDay||1} | tags: ${(m.tags||[]).join(", ")}`).join("\n");
+  const sys=fillTpl(state.condensePrompt,{char:name,user:state.user});
+  let out;
+  try{
+    out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:`${name}'s older memories to consolidate:\n\n${listed}`}
+    ],state.memModel,{temp:fnTemp("mem",0.3),max:fnTok("mem",700),dbg:"Memory condenser · "+name});
+  }catch(e){ return; }
+  const arr=parseJSON(out);
+  if(!Array.isArray(arr)||!arr.length) return;
+  // Build consolidated memory objects.
+  const earliestDay=Math.min(...batch.map(m=>m.gameDay||1));
+  const consolidated=arr.filter(j=>j&&j.content).map(j=>({
+    id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
+    content:String(j.content).trim(),
+    location:j.location||"",
+    emotion:j.emotion||"neutral",
+    importance:typeof j.importance_score==="number"?j.importance_score:0.6,
+    tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):["consolidated"],
+    type:"CONSOLIDATED",
+    ownerId, character:name, date:Date.now(), gameDay:earliestDay, source:"condenser",
+    condensedFrom:batch.length
+  }));
+  if(!consolidated.length) return;
+  // Replace the batch with the consolidated memories (remove originals by id).
+  const batchIds=new Set(batch.map(m=>m.id));
+  state.memory=state.memory.filter(m=>!batchIds.has(m.id));
+  state.memory.push(...consolidated);
+  persistMemory();
+  if(document.getElementById('screen-memory').classList.contains('active')) renderMemory();
+}
+// Manual trigger: condense every character over threshold, a few passes each, until bounded.
+async function condenseAllNow(){
+  if(!state.memory.length){ toast("No memories to condense"); return; }
+  const prev=state.condenseOn; state.condenseOn=true;   // allow manual run even if auto is off
+  toast("Condensing…");
+  try{
+    const owners=[...new Set(state.memory.map(m=>m.ownerId).filter(Boolean))];
+    for(const id of owners){
+      const name=(state.personas.find(p=>p.id===id)||{}).name||"Character";
+      for(let pass=0; pass<6; pass++){
+        const before=memoriesOf(id).length;
+        await maybeCondenseMemories(id,name);
+        if(memoriesOf(id).length>=before) break;                 // no progress → done
+        if(memoriesOf(id).length<=state.condenseThreshold) break; // within bounds → done
+      }
+    }
+    toast("Condensed ✓");
+  }catch(e){ toast("⚠️ Condense failed"); }
+  finally{ state.condenseOn=prev; renderMemory(); }
 }
 
 /* STEP 2 — generate a semantic search query from the current moment */
@@ -3705,7 +3865,7 @@ function renderMemory(){
     const owner=m.ownerId?`${ownerAvatar(m.ownerId)} ${ownerName(m.ownerId)}`:(m.character||"⚠️ unassigned");
     c.innerHTML=`<div style="font-size:12px;color:var(--accent);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span class="pill" style="border-color:var(--accent);color:var(--accent)">${esc(owner)}</span>
-        <span>${m.source==='auto'?'🤖 remembered':m.source==='day-summary'?'🌙 day':'✍️ added'} · ${esc(m.type||"EXPERIENCE")} · ${esc(m.emotion||"neutral")}${m.location?" · "+esc(m.location):""} · Day ${m.gameDay||1}</span>
+        <span>${m.source==='auto'?'🤖 remembered':m.source==='day-summary'?'🌙 day':m.source==='condenser'?'🗜️ condensed'+(m.condensedFrom?' ×'+m.condensedFrom:''):'✍️ added'} · ${esc(m.type||"EXPERIENCE")} · ${esc(m.emotion||"neutral")}${m.location?" · "+esc(m.location):""} · Day ${m.gameDay||1}</span>
       </div>
       <div>${esc(memText(m))}</div>
       ${m.importance!==undefined?`<div class="desc">importance ${imp}%</div>`:""}
@@ -3890,6 +4050,11 @@ function syncSettingsUI(){
   document.getElementById('setMemBuild').value=state.memBuild;
   document.getElementById('setQueryGen').value=state.queryGen;
   document.getElementById('setRanker').value=state.ranker;
+  document.getElementById('setCondenseOn').checked=state.condenseOn;
+  document.getElementById('setCondenseThreshold').value=state.condenseThreshold;
+  document.getElementById('setCondenseKeep').value=state.condenseKeep;
+  document.getElementById('setCondenseBatch').value=state.condenseBatch;
+  document.getElementById('setCondensePrompt').value=state.condensePrompt;
   document.getElementById('setVidPrompt').value=state.vidPrompt;
   document.getElementById('setTokens').value=state.tokens;document.getElementById('tokVal').textContent=state.tokens;
   document.getElementById('setTemp').value=state.temp;document.getElementById('tempVal').textContent=state.temp;
@@ -3937,6 +4102,11 @@ function saveSettings(notify){
   state.memBuild=document.getElementById('setMemBuild').value.trim()||DEFAULT_MEMBUILD;
   state.queryGen=document.getElementById('setQueryGen').value.trim()||DEFAULT_QUERYGEN;
   state.ranker=document.getElementById('setRanker').value.trim()||DEFAULT_RANKER;
+  state.condenseOn=document.getElementById('setCondenseOn').checked;
+  state.condenseThreshold=Math.max(10,+document.getElementById('setCondenseThreshold').value||40);
+  state.condenseKeep=Math.min(1,Math.max(0,+document.getElementById('setCondenseKeep').value));
+  state.condenseBatch=Math.max(3,+document.getElementById('setCondenseBatch').value||15);
+  state.condensePrompt=document.getElementById('setCondensePrompt').value.trim()||DEFAULT_CONDENSE;
   state.vidPrompt=document.getElementById('setVidPrompt').value.trim()||DEFAULT_VIDPROMPT;
   state.tokens=+document.getElementById('setTokens').value;
   state.temp=+document.getElementById('setTemp').value;
@@ -3952,6 +4122,7 @@ function saveSettings(notify){
   store.setRaw(K.vidPrompt,state.vidPrompt);store.setRaw(K.vidDur,state.vidDur);store.set(K.vidSound,state.vidSound);
   store.set(K.autoImg,state.autoImg);store.setRaw(K.rewritePrompt,state.rewritePrompt);
   store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
+  store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);
   store.set(K.gmOn,state.gmOn);store.setRaw(K.gmEvery,state.gmEvery);store.setRaw(K.gmSensitivity,state.gmSensitivity);store.setRaw(K.gmModel,state.gmModel);
   store.setRaw(K.gmJudge,state.gmJudge);store.setRaw(K.gmAuthor,state.gmAuthor);store.setRaw(K.daySummaryPrompt,state.daySummaryPrompt);
   store.set(K.sceneOn,state.sceneOn);store.setRaw(K.sceneSetup,state.sceneSetup);store.setRaw(K.sceneWriter,state.sceneWriter);store.setRaw(K.sceneMin,state.sceneMin);store.setRaw(K.sceneMax,state.sceneMax);
@@ -3980,9 +4151,90 @@ function testConnection(){saveSettings(false);const b=document.getElementById('t
 
 /* ---- data ---- */
 function exportChats(){const blob=new Blob([JSON.stringify({chats:state.chats,memory:state.memory},null,2)],{type:"application/json"});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download="storymind_story.json";a.click();toast("Exported ✓");}
+
+/* ===================== Full backup: Export / Import EVERYTHING =====================
+   One bundle = all settings/prompts (localStorage) + the growing collections (chats,
+   memory, universes, personas from IndexedDB) + gallery media (images/videos). This is
+   the failsafe before/after big changes, and the unit the auto-backup reuses. */
+const BACKUP_VERSION=1;
+async function buildBackup(){
+  // Flush any pending chat write so the bundle is current.
+  flushPersistChats();
+  const ls={}; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); ls[k]=localStorage.getItem(k);}
+  const images=await mediaDB.getAll("images");
+  const videos=await mediaDB.getAll("videos");
+  return {
+    app:"StoryMind", backupVersion:BACKUP_VERSION, date:Date.now(),
+    localStorage:ls,
+    collections:{ chats:state.chats, memory:state.memory, universes:state.universes, personas:state.personas },
+    media:{ images, videos }
+  };
+}
+async function exportAll(){
+  try{
+    toast("Building backup…");
+    const bundle=await buildBackup();
+    const blob=new Blob([JSON.stringify(bundle)],{type:"application/json"});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    const d=new Date(); const stamp=d.getFullYear()+""+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")+"_"+String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0");
+    a.download="storymind_backup_"+stamp+".json"; a.click();
+    toast("Backup exported ✓");
+  }catch(e){ console.warn("exportAll failed",e); toast("⚠️ Export failed"); }
+}
+/* ---- Automatic rolling backup (kept inside IndexedDB) ----
+   A safety net that needs no user action: after meaningful changes (debounced) and on
+   app-background, snapshot the full bundle into the kv store, keeping the last AUTO_KEEP.
+   These never touch the filesystem; use Export everything for an off-device copy. */
+const AUTO_KEEP=3;
+let _autoBkTimer=null;
+function scheduleAutoBackup(){
+  if(_autoBkTimer) return;
+  _autoBkTimer=setTimeout(()=>{ _autoBkTimer=null; doAutoBackup(); }, 60000); // at most ~once/min
+}
+async function doAutoBackup(){
+  try{
+    const bundle=await buildBackup();
+    const slot="autobackup_"+Date.now();
+    await mediaDB.kvSet(slot,bundle);
+    // Trim old auto-backups beyond AUTO_KEEP.
+    const keys=(await mediaDB.kvKeys()).filter(k=>typeof k==="string"&&k.indexOf("autobackup_")===0).sort();
+    while(keys.length>AUTO_KEEP){ const old=keys.shift(); await mediaDB.kvDelete(old); }
+  }catch(e){ console.warn("auto-backup failed",e); }
+}
+async function listAutoBackups(){
+  const keys=(await mediaDB.kvKeys()).filter(k=>typeof k==="string"&&k.indexOf("autobackup_")===0).sort().reverse();
+  return keys.map(k=>({key:k,date:+k.split("_")[1]}));
+}
+async function importAllFile(file){
+  if(!file) return;
+  if(!confirm("Importing will REPLACE your current settings, chats, memories, universes, characters and gallery with the backup. Continue?")) return;
+  try{
+    const text=await file.text();
+    const b=JSON.parse(text);
+    if(!b||b.app!=="StoryMind"||!b.collections) throw new Error("Not a StoryMind backup");
+    // 1) settings/prompts → localStorage (replace wholesale)
+    if(b.localStorage){
+      try{ localStorage.clear(); }catch(e){}
+      for(const k in b.localStorage){ try{ localStorage.setItem(k,b.localStorage[k]); }catch(e){} }
+    }
+    // 2) growing collections → IndexedDB kv
+    const c=b.collections||{};
+    await mediaDB.kvSet("chats",c.chats||{});
+    await mediaDB.kvSet("memory",c.memory||[]);
+    await mediaDB.kvSet("universes",c.universes||null);
+    await mediaDB.kvSet("personas",c.personas||null);
+    // 3) media → IndexedDB stores
+    if(b.media){
+      await mediaDB.putAll("images",b.media.images||[]);
+      await mediaDB.putAll("videos",b.media.videos||[]);
+    }
+    toast("Imported ✓ — reloading");
+    setTimeout(()=>location.reload(),700);
+  }catch(e){ console.warn("importAll failed",e); toast("⚠️ Import failed: "+(e.message||"bad file")); }
+}
 function confirmClear(w){
-  if(w==='chats'&&confirm("Delete ALL chats?")){state.chats={};state.curChat=null;flushPersistChats();startSceneFor(state.curUniverse);renderChat();toast("Cleared");updateStorage();}
-  if(w==='memory'&&confirm("Delete ALL memories?")){state.memory=[];persistMemory();renderMemory();toast("Cleared");updateStorage();}
+  if(w==='chats'&&confirm("Delete ALL chats?")){state.chats={};state.curChat=null;flushPersistChats();try{localStorage.removeItem(K.chats);}catch(e){}startSceneFor(state.curUniverse);renderChat();toast("Cleared");updateStorage();}
+  if(w==='memory'&&confirm("Delete ALL memories?")){state.memory=[];persistMemory();try{localStorage.removeItem(K.memory);}catch(e){}renderMemory();toast("Cleared");updateStorage();}
   if(w==='images'&&confirm("Delete ALL gallery images?")){state.images=[];persistImages();renderGallery();toast("Cleared");updateStorage();}
   if(w==='videos'&&confirm("Delete ALL gallery videos?")){state.videos=[];persistVideos();renderGallery();toast("Cleared");}
 }
@@ -4012,7 +4264,8 @@ function finishOnboard(){
 }
 
 /* ---- init ---- */
-function init(){
+async function init(){
+  await preloadCollections();   // hydrate growing collections from IndexedDB (with one-time LS migration)
   loadState();applyTheme();
   if(store.raw(K.onboarded,null)!=="1"){document.getElementById('onboard').classList.add('show');obGo(1);}
   else{init2();}
