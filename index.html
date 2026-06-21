@@ -698,6 +698,8 @@
     <div class="desc">Places in this world — homes where characters live and points of interest to travel to. You can generate a picture for each; the chat background changes when you're there.</div>
     <div id="ueLocList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
     <button class="btn sec small" type="button" onclick="addLocation()">＋ New location</button>
+    <button class="btn sec small" type="button" onclick="genAllSchedules()">🗓️ Generate schedules for cast</button>
+    <div class="desc">Builds each character's daily rhythm across these locations. Save the universe first if you just added locations.</div>
     <div class="row">
       <button class="btn danger sec small" id="ueDelete" onclick="deleteUniverse()">Delete</button>
       <button class="btn" onclick="saveUniverse()">Save</button>
@@ -1158,7 +1160,8 @@ Return ONLY a JSON object, no markdown, no commentary:
   "style": "1-2 sentences on how they speak (rhythm, vocabulary, quirks)",
   "look": "comma-separated visual details for image generation: hair, eyes, build, clothing, distinguishing features",
   "instructions": "1-2 sentences of roleplay guidance: tone, boundaries, things to always/never do",
-  "interject": "1-2 sentences: this character's pressure points — fears, desires, secrets, hooks a director engine can use"
+  "interject": "1-2 sentences: this character's pressure points — fears, desires, secrets, hooks a director engine can use",
+  "routine": "1-2 sentences describing this character's typical daily rhythm — where they tend to be in the morning, daytime, evening, and night, and how much of a homebody vs out-and-about they are. Plain English; the app turns it into a schedule."
 }`;
 
 const DEFAULT_UNIV=`You are a world-builder for an adult roleplay app. Given a short user brief and a requested number of characters, design a complete, ready-to-play universe: a world, a cast, and the player's place in it. Everything must be internally consistent — the characters belong to the world and have reasons to interact with the player.
@@ -2249,6 +2252,18 @@ function directorContext(chat){
   if(tc)parts.push(tc);
   const cl=calendarContextLine(chat);
   if(cl)parts.push(cl);
+  // Where offstage characters are right now (from their schedules) — helps the GM summon
+  // someone who'd plausibly be around, and know who could be sent for.
+  try{
+    const pos=resolveWorldPositions(chat);
+    const present=new Set(presentIds(chat));
+    const lines=[];
+    (state.personas||[]).filter(p=>p.universeId===chat.universeId && !present.has(p.id)).forEach(p=>{
+      const at=pos[p.id]; const l=at?locById(at):null;
+      lines.push(`${p.name}: ${l?("at "+l.name):"elsewhere / unavailable"}`);
+    });
+    if(lines.length)parts.push("WHO IS WHERE (offstage):\n"+lines.join("\n"));
+  }catch(e){}
   // The player's own identity in this universe — grounds events around them too.
   let pl=`PLAYER (${state.user})`;
   if(state.userBio&&state.userBio.trim()) pl+=`\nBackground: ${state.userBio.trim()}`;
@@ -2330,10 +2345,14 @@ async function travelTo(locId,companionIds){
   const fromName=chat.location||"somewhere";
   const periods=(dest.travelPeriods!=null?dest.travelPeriods:state.travelTime)||0;
   const {dayChanged}=advanceTime(chat,periods);
+  // Resolve the world for the (new) period, then who is ambiently at the destination.
+  resolveWorldPositions(chat,true);
   const companions=(companionIds||[]).map(id=>state.personas.find(p=>p.id===id)).filter(Boolean);
-  const residents=residentsOf(dest);
+  const ambient=charactersAtLocation(chat,dest.id);
   const present=[];
-  [...companions,...residents].forEach(p=>{ if(p&&!present.some(x=>x.id===p.id))present.push(p); });
+  [...companions,...ambient].forEach(p=>{ if(p&&!present.some(x=>x.id===p.id))present.push(p); });
+  // Companions you brought are now AT this location for the rest of the period.
+  companions.forEach(c=>{ if(chat.worldPositions)chat.worldPositions[c.id]=dest.id; });
   chat.presentIds=present.map(p=>p.id);
   chat.location=dest.name; chat.locationId=dest.id;
   let narration="";
@@ -2411,6 +2430,78 @@ function _doTravel(locId,withCompanions){
   _travelClose();
   travelTo(locId,ids);
 }
+// ============================ CHARACTER SCHEDULES ============================
+// Per-character per-period weighted distribution across this universe's locations. We resolve
+// EVERYONE's position once per (day,period) into chat.worldPositions so the world is stable
+// within a period. Home is the fallback anchor; companions override; the GM can summon/send.
+function personaHome(p){
+  const loc=curLocations().find(l=>Array.isArray(l.residents)&&l.residents.includes(p.id));
+  return loc?loc.id:null;
+}
+function rollPosition(p,period){
+  const locs=curLocations(); if(!locs.length)return null;
+  const sched=p.schedule&&p.schedule[period];
+  let weights={};
+  let useElsewhere=false;
+  if(sched&&Object.keys(sched).length){
+    weights=Object.assign({},sched);
+    useElsewhere=true;   // explicit schedules are out of 100; remainder = elsewhere
+  }else{
+    const home=personaHome(p);
+    if(home){ weights[home]=70; locs.forEach(l=>{ if(l.id!==home)weights[l.id]=30/Math.max(1,locs.length-1); }); }
+    else { locs.forEach(l=>{ weights[l.id]=1; }); }
+  }
+  const sum=Object.values(weights).reduce((a,b)=>a+(+b||0),0);
+  if(sum<=0)return null;
+  // If using an explicit schedule, the denominator is at least 100 so unallocated weight
+  // becomes a real "elsewhere" chance (the character isn't at any listed location).
+  const total=useElsewhere?Math.max(100,sum):sum;
+  let r=Math.random()*total;
+  for(const id in weights){ r-=(+weights[id]||0); if(r<=0)return id; }
+  return null;   // fell into the elsewhere slice
+}
+function resolveWorldPositions(chat,force){
+  const c=chat||curChat(); if(!c)return {};
+  const key=`${c.gameDay||1}|${chatPeriod(c)}`;
+  if(!c.worldPositions)c.worldPositions={};
+  if(!force && c._wpKey===key) return c.worldPositions;
+  const pos={};
+  (state.personas||[]).filter(p=>p.universeId===c.universeId).forEach(p=>{
+    pos[p.id]=rollPosition(p,chatPeriod(c));
+  });
+  c.worldPositions=pos; c._wpKey=key;
+  return pos;
+}
+function charactersAtLocation(chat,locId){
+  const pos=resolveWorldPositions(chat);
+  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && pos[p.id]===locId);
+}
+// GM movement: bring a named character INTO the current scene, or send a present one AWAY.
+// Returns the brought-in persona (so they can speak) or null.
+function gmSummonCharacter(chat,name){
+  if(!name||!chat)return null;
+  let p=state.personas.find(x=>x.universeId===chat.universeId && x.name.toLowerCase()===String(name).toLowerCase());
+  if(!p)return null;
+  if(!chat.presentIds)chat.presentIds=[];
+  if(!chat.presentIds.includes(p.id))chat.presentIds.push(p.id);
+  if(chat.worldPositions&&chat.locationId)chat.worldPositions[p.id]=chat.locationId; // they're here now
+  notePresence(chat,[p.name],[]);
+  return p;
+}
+function gmSendCharacter(chat,name){
+  if(!name||!chat)return;
+  const p=presentCast(chat).find(x=>x.name.toLowerCase()===String(name).toLowerCase());
+  if(!p)return;
+  chat.presentIds=(chat.presentIds||[]).filter(id=>id!==p.id);
+  if(chat.worldPositions)chat.worldPositions[p.id]=null; // they went elsewhere
+  notePresence(chat,[],[p.name]);
+}
+// Offstage characters who could plausibly be summoned (for GM context).
+function offstageRoster(chat){
+  const present=new Set(presentIds(chat));
+  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && !present.has(p.id));
+}
+
 // ============================ CALENDAR / PLANS ============================
 function chatCalendar(chat){ const c=chat||curChat(); if(!c)return []; if(!Array.isArray(c.calendar))c.calendar=[]; return c.calendar; }
 function addCalendarEntry(chat,entry){
@@ -2890,6 +2981,24 @@ function addLocation(){
   _ueLocs.push({id:"loc_"+Date.now().toString(36),name:"New place",description:"",type:"poi",residents:[],image:null,travelPeriods:null});
   editLocation(_ueLocs.length-1);
 }
+// Bulk-generate daily schedules for every character in the universe being edited.
+async function genAllSchedules(){
+  const uid=editingUniverse?editingUniverse.id:state.curUniverse;
+  if(!uid){ toast("Save the universe first"); return; }
+  if(!_ueLocs.length){ toast("Add locations first"); return; }
+  if(!state.key){ toast("Add your API key first"); return; }
+  // Persist current locations onto the universe so personaHome()/curLocations() see them.
+  if(editingUniverse){ editingUniverse.locations=_ueLocs.slice(); persistUniverses(); }
+  const _prev=state.curUniverse; state.curUniverse=uid;
+  const cast=state.personas.filter(p=>p.universeId===uid);
+  toast(`Generating ${cast.length} schedules…`);
+  let done=0;
+  for(const p of cast){
+    try{ const sc=await generateSchedule(p,p.routine); if(sc){p.schedule=sc;done++;persistPersonas();} }catch(e){}
+  }
+  state.curUniverse=_prev;
+  toast(`Schedules generated for ${done} character${done===1?"":"s"} ✓`);
+}
 function editLocation(i){
   const l=_ueLocs[i]; if(!l)return;
   const name=prompt("Location name:",l.name||""); if(name===null)return; l.name=name.trim()||l.name;
@@ -2962,6 +3071,11 @@ async function runUniverseGenerator(){
     toast(`Created "${u.name}" with ${made} character${made===1?"":"s"} ✓`);
     // Jump straight into the ready-to-play universe.
     state.curUniverse=uid;applyUniverseProfile(uid);
+    // Generate daily schedules for the new cast now that locations + current universe are set.
+    if(universe.locations&&universe.locations.length&&state.key){
+      const cast=state.personas.filter(p=>p.universeId===uid);
+      (async()=>{ for(const p of cast){ try{ const sc=await generateSchedule(p,p.routine); if(sc){p.schedule=sc;persistPersonas();} }catch(e){} } toast("Schedules ready ✓"); })();
+    }
     if(typeof openUniverse==="function"){ openUniverse(uid); }
     else { renderUniverses(); }
   }catch(e){ console.warn("universe gen failed",e); toast("⚠️ Generation failed"); }
@@ -3183,8 +3297,44 @@ async function generateBio(brief,context){
     style:clean(j.style),
     look:clean(j.look),
     instructions:clean(j.instructions),
-    interject:clean(j.interject)
+    interject:clean(j.interject),
+    routine:clean(j.routine)
   };
+}
+// Generate a per-period location schedule for a character from their routine + the universe's
+// locations. Returns a schedule object {Morning:{locId:weight},...} or null. The LLM works in
+// location NAMES; we map back to ids. Home (if set) is included as an anchor.
+async function generateSchedule(persona,routineText){
+  const locs=curLocations();
+  if(!locs.length||!state.key) return null;
+  const home=personaHome(persona);
+  const homeName=home?(locById(home)||{}).name:"";
+  const locList=locs.map(l=>`- ${l.name}${l.type==='home'?' (a home)':''}${l.residents&&l.residents.includes(persona.id)?' [THIS CHARACTER LIVES HERE]':''}`).join("\n");
+  const sys=`You build a believable daily schedule for a roleplay character across 5 periods: Morning, Midday, Afternoon, Evening, Night.
+
+For EACH period, distribute 100 points across the available locations to represent how likely this character is to be at each one during that period. You don't have to use every location, and the points per period don't have to sum to exactly 100 — leftover means "somewhere else / not around". Make it reflect who they are (a workaholic is at work midday, home at night; a socialite is out in the evening; a homebody mostly home).${homeName?` Their home is "${homeName}".`:""}
+
+Return ONLY strict JSON mapping each period to {locationName: points}:
+{"Morning":{"Name":40,...},"Midday":{...},"Afternoon":{...},"Evening":{...},"Night":{...}}
+Use EXACT location names from the list. No commentary.`;
+  let out;
+  try{
+    out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:`Character: ${persona.name}\nPersonality: ${persona.personality||""}\nRoutine: ${routineText||persona.routine||"(infer from personality)"}\n\nLocations:\n${locList}`}
+    ],state.bioModel,{temp:fnTemp("mem",0.4),max:fnTok("mem",500),dbg:"Schedule generator · "+persona.name});
+  }catch(e){ return null; }
+  const j=parseJSON(out); if(!j||typeof j!=="object")return null;
+  // Map names → ids per period.
+  const nameToId={}; locs.forEach(l=>nameToId[l.name.toLowerCase()]=l.id);
+  const sched={};
+  for(const period of PERIODS){
+    const row=j[period]; if(!row||typeof row!=="object")continue;
+    const w={};
+    for(const nm in row){ const id=nameToId[String(nm).toLowerCase()]; const val=+row[nm]; if(id&&val>0)w[id]=val; }
+    if(Object.keys(w).length)sched[period]=w;
+  }
+  return Object.keys(sched).length?sched:null;
 }
 // One-shot universe generator: brief + count → a full universe object with characters.
 // Returns {universe, characters[], userName/userLook/userBio} or null. Never throws.
@@ -3231,6 +3381,7 @@ async function generateBioIntoEditor(){
     set('peName',bio.name); set('peAvatar',bio.avatar); set('pePersonality',bio.personality);
     set('peBackstory',bio.backstory); set('peStyle',bio.style); set('peLook',bio.look);
     set('peInstructions',bio.instructions); set('peInterject',bio.interject);
+    if(bio.routine)_peRoutine=bio.routine;   // stashed; used to build a schedule on save
     renderAvatarPreview();
     toast("Character generated ✓ — review & save");
   }catch(e){ toast("⚠️ Generation failed"); }
@@ -3278,6 +3429,7 @@ async function fillPendingBios(chat){
     p.look=bio.look||p.look;
     p.instructions=bio.instructions||p.instructions;
     p.interject=bio.interject||p.interject;
+    if(bio.routine)p.routine=bio.routine;
     if(bio.avatar && p.avatar==="🆕") p.avatar=bio.avatar;
     p.pendingBio=false; delete p.bioBrief;
     persistPersonas();
@@ -3287,9 +3439,14 @@ async function fillPendingBios(chat){
       const url=await generatePicForLook(p.look);
       if(url){ p.image=url; persistPersonas(); if(typeof renderPersonas==="function" && state.curUniverse===p.universeId){try{renderPersonas();}catch(e){}} }
     }
+    // Auto-generate a daily schedule now that the character is fleshed out.
+    if(!p.schedule && curLocations().length){
+      const sc=await generateSchedule(p,p.routine); if(sc){p.schedule=sc;persistPersonas();}
+    }
     break; // one per cycle to avoid bursts
   }
 }
+let _peRoutine="";
 function savePersona(){
   const name=document.getElementById('peName').value.trim();
   if(!name){toast("Give your character a name");return;}
@@ -3303,9 +3460,17 @@ function savePersona(){
     style:document.getElementById('peStyle').value.trim(),
     look:document.getElementById('peLook').value.trim(),
     interject:document.getElementById('peInterject').value.trim(),
+    routine:(editingPersona&&editingPersona.routine)||_peRoutine||"",
     image:peImageData||null};
+  _peRoutine="";
   if(editingPersona)Object.assign(editingPersona,obj);else state.personas.push(obj);
   persistPersonas();
+  // Auto-generate a daily schedule in the background (if this universe has locations and the
+  // character doesn't already have one). Stored on the persona; used to resolve where they are.
+  const _savedP=editingPersona||state.personas[state.personas.length-1];
+  if(_savedP && !_savedP.schedule && curLocations().length && state.key){
+    generateSchedule(_savedP,_savedP.routine).then(sc=>{ if(sc){_savedP.schedule=sc;persistPersonas();} }).catch(()=>{});
+  }
   // Refresh the open universe (if its list is showing) and keep grid counts fresh.
   if(state.curUniverse&&!document.getElementById('charsView').classList.contains('hide'))renderPersonas();
   closeModal('personaModal');toast("Character saved ✓");
@@ -4313,6 +4478,7 @@ async function runPresenceTracker(chat){
       await playCharacterTurn(chat,p,"leaving");    // they speak/act as they go
       applyPresence(chat,[],[p.name]);
       notePresence(chat,[],[p.name]);
+      if(chat.worldPositions)chat.worldPositions[p.id]=null;  // they went elsewhere
       persistChats();appendNewBubbles();updateChatHeader();
       result.exited.push(p);result.lastBeat=p;
     }
@@ -4320,6 +4486,7 @@ async function runPresenceTracker(chat){
     for(const p of enter){
       applyPresence(chat,[p.name],[]);
       notePresence(chat,[p.name],[]);
+      if(chat.worldPositions&&chat.locationId)chat.worldPositions[p.id]=chat.locationId; // now here
       persistChats();appendNewBubbles();updateChatHeader();
       await playCharacterTurn(chat,p,"arriving");   // they speak on entry (this IS their turn)
       result.entered.push(p);result.lastBeat=p;
@@ -4620,6 +4787,12 @@ async function endDay(){
   chat.gameDay=day+1;
   chat.period="Morning"; chat.timeOfDay="Morning";   // a new day starts in the morning
   tickTrackersForDay(chat);   // apply per-day tracker increments (e.g. pregnancy day count)
+  // New period → re-resolve who is where, and refresh who's at the player's current location.
+  if(chat.locationId){
+    resolveWorldPositions(chat,true);
+    const here=charactersAtLocation(chat,chat.locationId);
+    chat.presentIds=here.map(p=>p.id);
+  }
   chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",dayMarker:true,
     dayFrom:day,dayTo:day+1,narration,
     content:`🌙 Day ${day} ends. Day ${day+1} begins.`,
