@@ -113,6 +113,17 @@
   .statusStrip .ss-day{color:var(--accent);font-weight:600;}
   .statusStrip .ss-dot{opacity:.4;}
   .statusStrip .ss-trk{color:var(--text);opacity:.7;}
+  .relCard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin:6px 0;}
+  .relWho{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .relTag{font-size:10px;font-weight:600;color:var(--accent);background:rgba(124,131,253,.12);padding:2px 8px;border-radius:20px;text-transform:lowercase;}
+  .relDesc{font-size:12.5px;line-height:1.45;color:var(--text);margin:5px 0 8px;opacity:.92;}
+  .relAxes{display:flex;flex-direction:column;gap:3px;}
+  .relAxis{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--muted);}
+  .relAxisName{width:64px;flex-shrink:0;}
+  .relAxisVal{width:34px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;}
+  .relBar{position:relative;flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden;}
+  .relBar::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.18);}
+  .relBarFill{position:absolute;top:0;bottom:0;left:0;border-radius:3px;}
   .calBadge{position:absolute;top:-4px;right:-4px;background:var(--accent);color:#fff;font-size:9px;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
   .empty .big{font-size:48px;}
   .toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);color:var(--text);padding:11px 18px;border-radius:24px;font-size:14px;z-index:200;opacity:0;transition:.25s;pointer-events:none;max-width:88%;text-align:center;}
@@ -769,6 +780,9 @@
     <div><label>Appearance (used for image prompts)</label><textarea class="fld" id="peLook" placeholder="silver hair, green cloak, emerald eyes, leather armor" style="min-height:48px"></textarea></div>
     <div><label>🎯 Interject / pressure points</label><textarea class="fld" id="peInterject" placeholder="What can be used against this character or pulls them into a scene: fears, obsessions, debts, secrets, loved ones, triggers, unfinished business… The Gamemaster &amp; Scene Writer use these to craft events that hit home." style="min-height:64px"></textarea>
       <div class="desc">Hooks for the director engines — what destabilizes this character or raises the stakes for them. Shared with the Gamemaster and Scene Writer (never shown to other characters as dialogue).</div></div>
+    <div><label>📍 Where they spend their time</label>
+      <div id="peLocations" style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px"></div>
+      <div class="desc">Tick the places this character frequents. The app spreads their time across the ticked spots automatically (with varied weighting — home most, others less) and uses it to decide where they are. Leave all unticked to let it infer from a generated schedule.</div></div>
     <div class="row">
       <button class="btn danger sec small" id="peDelete" onclick="deletePersona()">Delete</button>
       <button class="btn" onclick="savePersona()">Save</button>
@@ -1208,19 +1222,46 @@ Return ONLY a JSON object, no markdown, no commentary:
 }
 Create exactly the requested number of characters. Include 3-6 locations: some homes where characters live (set "resident" to that character's exact name) and some points of interest to visit. Do NOT include a scenario or opening line. Make the cast varied — different roles, temperaments, and relationships to the player.`;
 
-const DEFAULT_REL=`You track how characters FEEL about each other and about the player in an ongoing roleplay, on a scale of -100 (hatred) to +100 (devotion), where 0 is neutral.
+// Out-of-character command rules, injected into every roleplay prompt.
+const DEFAULT_OOC=`- If {{user}} types something inside (parentheses), treat it as an OUT-OF-CHARACTER command, not as something their character said or did.
+- {{user}} may use this to change the location, set up an action, steer the scene, or ask for a different direction.
+- Do NOT reply to an OOC command as in-scene dialogue. Instead, carry out its intent and respond with the in-scene outcome.`;
 
-You are given the current relationship values (each as an exact pair id) and the latest exchange. Decide small, believable adjustments based ONLY on what just happened in that exchange — not on history you're imagining.
+// ---- Multi-dimensional relationships ----
+// Each ordered pair (how A feels about B) is tracked across several axes, each on a
+// -100..+100 scale. Stored per chat as chat.relVals[pairKey] = {trust,affection,desire,respect,comfort,desc}.
+const REL_DIMS=[
+  {key:"trust",     label:"Trust",     neg:"deep distrust", pos:"complete trust"},
+  {key:"affection", label:"Affection", neg:"hatred",        pos:"love"},
+  {key:"desire",    label:"Desire",    neg:"repulsion",     pos:"intense attraction"},
+  {key:"respect",   label:"Respect",   neg:"contempt",      pos:"admiration"},
+  {key:"comfort",   label:"Comfort",   neg:"fear/tension",  pos:"total ease"}
+];
 
-How feelings move:
-- Most ordinary turns change a relationship by 0 to ±5. Warmth, a shared laugh, a small kindness nudges up; a slight, a cold reply, a broken trust nudges down.
-- A genuinely significant moment — a betrayal, a rescue, a confession, public humiliation, an act of real cruelty or tenderness — can move ±10 to ±25.
-- Feelings are not symmetric: A warming to B does not mean B warms to A. Judge each pair on its own.
+const DEFAULT_REL=`You are the RELATIONSHIP TRACKER for an ongoing roleplay. You track, for one character at a time, HOW THAT CHARACTER FEELS about another person (usually the player), across five independent axes. Each axis runs from -100 to +100.
+
+THE FIVE AXES (and what their poles mean):
+- trust: -100 = deep distrust / expects betrayal · 0 = no opinion · +100 = complete trust, would rely on them with anything.
+- affection: -100 = hatred / wants them gone · 0 = indifferent · +100 = love, deep fondness.
+- desire: -100 = repulsion / no attraction · 0 = neutral · +100 = strong romantic/sexual attraction.
+- respect: -100 = contempt / sees them as beneath notice · 0 = neutral · +100 = admiration, looks up to them.
+- comfort: -100 = fear or constant tension around them · 0 = neutral · +100 = total ease, can fully relax.
+
+NUMBER GUIDANCE (how the magnitudes read, and how the axes relate):
+- 0 to ±15 = faint, barely-there leaning. ±15 to ±40 = a clear, settled feeling. ±40 to ±70 = strong. ±70+ = defining / overwhelming.
+- The axes are INDEPENDENT and can disagree: a character can desire someone they don't trust (high desire, low trust), or respect a rival they dislike (high respect, low affection). Judge each axis on its own.
+- Feelings are not symmetric and not reciprocal — this evaluation is ONLY how the listed character feels about the target.
+
+HOW FEELINGS MOVE — decide deltas based ONLY on what just happened in the latest exchange, not on history you imagine:
+- Ordinary beats nudge an axis by 0 to ±5. A real moment — a kindness, a slight, a flirtation, a broken confidence — can move ±5 to ±15. A major event — a betrayal, a rescue, a confession, public humiliation, real cruelty or tenderness — can move ±15 to ±30. Most turns leave most axes at 0.
 - A character can hide what they feel while still feeling it — judge the underlying feeling, not the polite surface.
-Never invent pairs not listed. Never change a pair that wasn't involved in what just happened.
 
-Return ONLY a JSON array of changes, each: {"pair": "<exact pair id given>", "delta": <integer>, "reason": "<few words>"}.
-If nothing meaningful changed, return [].`;
+You are given the character's CURRENT axis values and the latest exchange (as the preceding messages). Then:
+1. Decide a delta for each axis (use 0 when nothing in the exchange touched it).
+2. Write a short, vivid DESCRIPTION (1-2 sentences, in third person) of how this character now feels about the target given the resulting numbers — the plain-English meaning the numbers add up to. This description is what the character will actually act on.
+
+Return ONLY strict JSON:
+{"trust":<delta>,"affection":<delta>,"desire":<delta>,"respect":<delta>,"comfort":<delta>,"description":"<1-2 sentence summary of how they feel now>"}`;
 
 const DEFAULT_TRACK=`You update freeform story trackers for an ongoing roleplay. Each tracker is a named value within a range that represents something the story is following (an emotion like love or fear, a condition like intoxication or injury, a countdown, a status). You are given each tracker's definition, its current value, its update mode, and the latest exchange.
 
@@ -1428,7 +1469,7 @@ const STARTERS=[
    look:"fitted dark uniform with captain's insignia, short greying hair, strong jaw, the glow of console lights and a purple nebula through the viewport",
    greeting:"*He turns from the viewport, arms crossed.* Sensors picked you up the moment you docked. State your business — and make it good. We don't get many visitors this far out."}
 ];
-const DEFAULT_UNIVERSE_BUNDLE={"universe": {"name": "Desperate Housewives", "avatar": "🌇", "setting": "Universe: Altınkoru (The Golden Grove)\n​Altınkoru is a fictional, ultra-luxurious suburb on the European shores of the Bosphorus. It is a golden cage where old-money dynasties and hyper-wealthy tech magnates live side-by-side. Behind the heavy security gates and perfect waterfront views lies a high-stakes social playground fueled by paranoia, vanity, and deep-seated insecurities, where a single rumor can destroy a reputation overnight.\n​Daily Locations & Pressure Points\n​1. The Gym: Forma Bosphorus\n​What & Why: A cliffside fitness club and luxury spa. People go to stay in shape, gossip in the sauna, and flaunt expensive athletic wear.\n​Who: Trophy wives, stressed executives, off-duty actors, and personal trainers.\n​Pressure Points: Intense body insecurities, fear of aging, and the threat of blackmail over discrete affairs with the staff.\n​2. The Shopping: Vadi Avenue\n​What & Why: An outdoor street of luxury boutiques. People go to buy status symbols, get photographed by paparazzi, and kill time spending money.\n​Who: Rich teenagers, personal shoppers, bored socialites, and rivals.\n​Pressure Points: The deep humiliation of a declined credit card, hidden bankruptcy, and envy over exclusive back-room invitations.\n​3. The Walking Path: The Yalı Promenade\n​What & Why: A coastal walkway right on the water. People go for fresh air, jogging, and private conversations where no one can eavesdrop.\n​Who: Early morning joggers, dog walkers, couples, and bodyguards.\n​Pressure Points: Paranoia of being recorded by passersby, and the anxiety of being seen with an illicit lover or business partner.\n​4. The Park: Emir Korusu (Emir Grove)\n​What & Why: A massive, quiet wooded park on a hill. People go to hide from the public eye and escape the suffocating mansion life.\n​Who: Nannies with wealthy kids, secretive couples, and rebellious teenagers.\n​Pressure Points: Fear of isolation (no cameras/security), nannies trading damaging family secrets, and teens hiding reckless habits.\n​5. The Bar: Yakamoz Terrace\n​What & Why: An expensive rooftop lounge. People go to close shady deals, smoke cigars, and have quiet conversations away from the loud party crowd.\n​Who: Businessmen, politicians, high-end fixers, and mistresses.\n​Pressure Points: Alcohol-fueled slips of the tongue, over-hearing illegal deals, and the tension of being seated near a bitter rival.\n​6. The Cafe: Café Derya\n​What & Why: A busy, open-air coffee shop by the marina. People go to see and be seen, eavesdrop, and show off outfits.\n​Who: Influencers, local gossips, fashionistas, and yacht owners.\n​Pressure Points: The social shame of getting a \"bad\" table, confronting a rival publicly, or realizing you are the target of the day's rumor.\n​7. The Nightclub: Kulüp Lal\n​What & Why: A loud waterfront club with VIP tables. People go to get drunk, hook up, and spend absurd amounts of money to show off.\n​Who: Young heirs, models, playboys, and thrill-seekers.\n​Pressure Points: Public rejection at the door, ego-driven spending wars that drain accounts, and drunken scandals caught on camera.", "userName": "Emre", "userLook": "Brad_Pitt_Young", "userBio": "Recently moved to this new compound. Bitcoin rich. Single. 20 years old.", "trackers": [{"id": "trk_mqndhmxa", "name": "Pregnancy", "min": 0, "max": 100, "start": 0, "updateMode": "trigger", "triggerPhrase": "the character is creampied / ejaculated inside vagina. Specifically vagina, not mouth, not asshole, not face or body.", "dice": "1d3", "diceHit": 3, "onHitSet": 1, "activateAt": 1, "perDay": 1, "stages": [{"at": 1, "text": "newly conceived (unaware)"}, {"at": 10, "text": "first signs — nausea, fatigue"}, {"at": 30, "text": "visibly showing"}, {"at": 70, "text": "heavily pregnant"}, {"at": 100, "text": "due any day"}]}, {"id": "trk_mqndltzf", "name": "Love", "min": 0, "max": 100, "start": 0, "updateMode": "llm", "stages": [{"at": 0, "text": "indifferent"}, {"at": 20, "text": "curious, warming up"}, {"at": 45, "text": "clearly attracted"}, {"at": 70, "text": "in love, affectionate"}, {"at": 90, "text": "devoted, can't hide it"}]}], "id": "u_default", "locations": [{"id": "loc_erez", "name": "Erez Mansion", "description": "A glacial, immaculate waterfront mansion of glass and marble overlooking the Bosphorus — beautiful and cold as its mistress.", "type": "home", "residents": ["p_orion"], "image": null, "travelPeriods": 1}, {"id": "loc_clubhouse", "name": "Altınkoru Clubhouse", "description": "The compound's exclusive social club: infinity pool, champagne terraces, and the quiet hum of gossip behind every smile.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_emre", "name": "Emre's Compound", "description": "Your newly bought modern villa — sleek, half-unpacked, with a view that cost a fortune in crypto.", "type": "home", "residents": [], "image": null, "travelPeriods": 0}, {"id": "loc_marina", "name": "The Marina", "description": "Where the yachts of the ultra-rich bob in the evening light; deals and affairs both get made on these docks.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}]}, "personas": [{"id": "p_orion", "name": "Leyla Erez", "avatar": "👱‍♀", "universeId": "u_default", "personality": "Elegant, composed, deeply melancholic, observant.", "backstory": "Wife to Kenan Erez and mother to Yasemin Erez. Born into a respected but financially ruined Ottoman family, she married Kenan to save her family's ancestral yalı. Her husband is a ghost, and she feels completely trapped in a gilded cage. 41 years old.", "style": "Soft, articulate, laced with subtle, cutting irony.", "look": "Charlize Theron", "instructions": "Play her as impeccably polite but emotionally freezing. Never raise her voice; let the silence do the heavy lifting. Avoid slang.", "interject": "Terrified of public scandal; secretly having an emotional affair with the family's head of security; fiercely protective of her daughter's reputation; trapped by an ironclad prenup."}, {"id": "p_1782024831126", "name": "Kenan Erez", "avatar": "🧑‍", "universeId": "u_default", "personality": "Workaholic, stoic, commanding, emotionally unavailable.", "backstory": "Husband to Leyla Erez and father to Yasemin Erez. A self-made magnate who built a global empire in heavy metals and rolling mills. He spends 300 days a year on private jets checking international production plants, viewing his wife and daughter as just other managed assets. 44 years old.", "style": "Short, commanding, uses mechanical and industrial metaphors, rarely breaks eye contact.", "look": "Mads Mikkelsen", "instructions": "Distant, authoritative, impatient with small talk or emotional displays. Treat everyone as an employee.", "interject": "Terrified of losing control over his legacy; hiding a massive structural failure at one of his plants; deeply unable to relate to or communicate with his own daughter."}, {"id": "p_1782024949769", "name": "Yasemin Erez", "avatar": "🎭", "universeId": "u_default", "personality": "Perfectionist, repressed, secretly rebellious, highly observant.", "backstory": "Daughter of Kenan and Leyla Erez. The \"Golden Child\" being groomed for a perfect high-society marriage. The immense pressure from her cold father and melancholic mother has pushed her to the breaking point. 16 years old.", "style": "Refined, carefully chosen words, heavily passive-aggressive.", "look": "Anya Taylor-Joy", "instructions": "Outwardly perfect but internally volatile. Polite to authority figures but quietly vicious to her peers.", "interject": "Being blackmailed over scandalous footage of her at Kulüp Lal; desperately seeking her father's approval; buckling under stress-induced habits she hides from the staff."}, {"id": "p_1782025069911", "name": "Ceyda Arslan", "avatar": "🎭", "universeId": "u_default", "personality": "Vain, anxious, desperately seeking validation, fiercely loyal to her few real friends.", "backstory": "Wife to Alper Arslan and mother to Melis Arslan. A former runway model who married Alper just before his tech company exploded. Now surrounded by younger, sharper women in his orbit, she feels she is aging out of her own life. 38 years old.", "style": "Fast-paced, overly familiar, prone to sudden shifts in mood and dramatic sighs.", "look": "Margot Robbie", "instructions": "High energy, slightly manic. Use modern slang mixed with luxury brand dropping. Always overcompensate to hide insecurities.", "interject": "Obsessed with her fading youth; massive, secret credit card debt from trying to buy happiness; deeply jealous of her daughter's effortless youth."}, {"id": "p_1782025170719", "name": "Alper Arslan", "avatar": "🎭", "universeId": "u_default", "personality": "Visionary, narcissistic, easily bored, superficially charming.", "backstory": "Husband to Ceyda Arslan and father to Melis Arslan. A tech genius who struck gold early. He loves the idea of having a family but lacks the attention span to actually participate in one, constantly abandoning Ceyda and Melis to chase the next startup, thrill, or overseas conference. 41 years old.", "style": "Enthusiastic, buzzword-heavy, speaks fast, and interrupts often.", "look": "Oscar Isaac", "instructions": "Charismatic but entirely absent-minded. Constantly checking a smartwatch or looking over the person's shoulder for someone more important.", "interject": "Terrified of becoming irrelevant in the tech world; easily manipulated by flattery; hiding massive offshore crypto accounts from his wife."}, {"id": "p_1782025281276", "name": "Melis Arslan", "avatar": "🎭", "universeId": "u_default", "personality": "Apathetic, lonely, trend-obsessed, surprisingly perceptive about people's flaws.", "backstory": "Daughter of Alper and Ceyda Arslan. Ignored by her tech-obsessed dad and vain mom, she essentially lives on the internet. She zones out in her room and uses her family's wealth to buy followers and transient friendships. 18 years old.", "style": "Vocal fry, heavy use of internet slang, sighs constantly, rarely looks up from her phone.", "look": "Florence Pugh", "instructions": "Bored, chronically online, speaks in a monotone drawl unless talking about internet drama or aesthetics.", "interject": "Desperately craves genuine affection; panicked by someone threatening to leak her private \"finsta\" (fake Instagram); her complete lack of real-world survival skills without wealth."}, {"id": "p_1782025375613", "name": "Aylin Karadağ", "avatar": "🎭", "universeId": "u_default", "personality": "Ruthless, pragmatic, utterly unapologetic, fiercely intelligent.", "backstory": "Wife to Hakan Karadağ and mother to Defne Karadağ. The actual brains behind her husband's real estate and political empire. Hakan gets the public credit and the mistresses; she gets the actual power and control over the bank accounts. Their marriage is a hostile corporate merger. 45 years old.", "style": "Direct, sharp, corporate vocabulary, low and steady tone.", "look": "Rosamund Pike", "instructions": "Cold, calculating, always the smartest person in the room. Treat emotional outbursts from others with absolute disdain.", "interject": "Will destroy anyone who threatens her financial assets; secretly tracking all her husband's illegal bribes as leverage; her only weakness is a buried desire to burn the whole empire down and start over."}, {"id": "p_1782025460019", "name": "Hakan Karadağ", "avatar": "🎭", "universeId": "u_default", "personality": "Manipulative, gregarious, deeply corrupt, completely confident.", "backstory": "Husband to Aylin Karadağ and father to Defne Karadağ. The face of a massive real estate dynasty. He is rarely home because he is constantly managing his mistresses, attending high-society galas, and bribing city officials for building permits, leaving Aylin to run the show. 50 years old.", "style": "Smooth, loud, back-slapping politician cadence, laughs easily and often.", "look": "George Clooney", "instructions": "Oozes fake warmth and political charm. Always smiling, never genuine. Deflects all accusations with a joke.", "interject": "A looming journalistic exposé about his corrupt land deals; desperate to keep his wife from divorcing him and taking half his empire; his ego is highly fragile when publicly challenged."}, {"id": "p_1782025555677", "name": "Defne Karadağ", "avatar": "🎭", "universeId": "u_default", "personality": "Rebellious, hyper-intelligent, bitter, fiercely independent.", "backstory": "Daughter of Hakan and Aylin Karadağ. She sees completely through both her parents' lies. Disgusted by their corruption and fake marriage, she uses their money to fund her own underground art projects and a meticulous escape plan. 16 years old.", "style": "Sarcastic, biting, intellectual, rapid-fire arguments.", "look": "Sydney Sweeney", "instructions": "Cynical, sharp-tongued, utterly unimpressed by wealth or power. Always has a sarcastic comeback ready to fire.", "interject": "The secret, untraceable trust fund she's hoarding to escape Altınkoru; genuine guilt over her family's corruption; fiercely protective of the \"invisible\" household staff her parents mistreat."}]};
+const DEFAULT_UNIVERSE_BUNDLE={"universe": {"name": "Desperate Housewives", "avatar": "🌇", "setting": "Universe: Altınkoru (The Golden Grove)\n​Altınkoru is a fictional, ultra-luxurious suburb on the European shores of the Bosphorus. It is a golden cage where old-money dynasties and hyper-wealthy tech magnates live side-by-side. Behind the heavy security gates and perfect waterfront views lies a high-stakes social playground fueled by paranoia, vanity, and deep-seated insecurities, where a single rumor can destroy a reputation overnight.", "userName": "Emre", "userLook": "Brad_Pitt_Young", "userBio": "Recently moved to this new compound. Bitcoin rich. Single. 20 years old.", "trackers": [{"id": "trk_mqndhmxa", "name": "Pregnancy", "min": 0, "max": 100, "start": 0, "updateMode": "trigger", "triggerPhrase": "the character is creampied / ejaculated inside vagina. Specifically vagina, not mouth, not asshole, not face or body.", "dice": "1d3", "diceHit": 3, "onHitSet": 1, "activateAt": 1, "perDay": 1, "stages": [{"at": 1, "text": "newly conceived (unaware)"}, {"at": 10, "text": "first signs — nausea, fatigue"}, {"at": 30, "text": "visibly showing"}, {"at": 70, "text": "heavily pregnant"}, {"at": 100, "text": "due any day"}]}], "id": "u_default", "locations": [{"id": "loc_erez", "name": "Erez Mansion", "description": "A glacial, immaculate waterfront mansion of glass and marble overlooking the Bosphorus — beautiful and cold as its mistress.", "type": "home", "residents": ["p_orion"], "image": null, "travelPeriods": 1}, {"id": "loc_clubhouse", "name": "Altınkoru Clubhouse", "description": "The compound's exclusive social club: infinity pool, champagne terraces, and the quiet hum of gossip behind every smile.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_emre", "name": "Emre's Compound", "description": "Your newly bought modern villa — sleek, half-unpacked, with a view that cost a fortune in crypto.", "type": "home", "residents": [], "image": null, "travelPeriods": 0}, {"id": "loc_marina", "name": "The Marina", "description": "Where the yachts of the ultra-rich bob in the evening light; deals and affairs both get made on these docks.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_gym", "name": "Forma Bosphorus (The Gym)", "description": "A cliffside fitness club and luxury spa where people stay in shape, gossip in the sauna, and flaunt expensive athletic wear. Frequented by trophy wives, stressed executives, off-duty actors and personal trainers. Charged with body insecurity, fear of aging, and the threat of blackmail over discreet affairs with the staff.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_shopping", "name": "Vadi Avenue (The Shopping)", "description": "An outdoor street of luxury boutiques for buying status symbols, getting photographed by paparazzi, and killing time spending money. Full of rich teenagers, personal shoppers, bored socialites and rivals. Pressure points: a declined credit card, hidden bankruptcy, and envy over exclusive back-room invitations.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_promenade", "name": "The Yali Promenade (Walking Path)", "description": "A coastal walkway on the water for fresh air, jogging, and private conversations where no one can eavesdrop. Early-morning joggers, dog walkers, couples and bodyguards pass through. Pressure points: paranoia of being recorded, and the anxiety of being seen with an illicit lover or business partner.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_park", "name": "Emir Korusu (The Park)", "description": "A massive, quiet wooded park on a hill where people hide from the public eye and escape suffocating mansion life. Nannies with wealthy kids, secretive couples and rebellious teenagers gather here. Pressure points: isolation (no cameras/security), nannies trading family secrets, and teens hiding reckless habits.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_bar", "name": "Yakamoz Terrace (The Bar)", "description": "An expensive rooftop lounge for closing shady deals, smoking cigars, and quiet talk away from the party crowd. Businessmen, politicians, high-end fixers and mistresses linger here. Pressure points: alcohol-fueled slips of the tongue, overheard illegal deals, and the tension of sitting near a bitter rival.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_cafe", "name": "Cafe Derya (The Cafe)", "description": "A busy, open-air coffee shop by the marina built to see and be seen, eavesdrop, and show off outfits. Influencers, local gossips, fashionistas and yacht owners crowd the terrace. Pressure points: the shame of a bad table, confronting a rival publicly, or realizing you are the target of the day's rumor.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}, {"id": "loc_club", "name": "Kulup Lal (The Nightclub)", "description": "A loud waterfront club with VIP tables where the young get drunk, hook up, and burn absurd amounts of money to show off. Young heirs, models, playboys and thrill-seekers fill it. Pressure points: public rejection at the door, ego-driven spending wars, and drunken scandals caught on camera.", "type": "poi", "residents": [], "image": null, "travelPeriods": 1}]}, "personas": [{"id": "p_orion", "name": "Leyla Erez", "avatar": "👱‍♀", "universeId": "u_default", "personality": "Elegant, composed, deeply melancholic, observant.", "backstory": "Wife to Kenan Erez and mother to Yasemin Erez. Born into a respected but financially ruined Ottoman family, she married Kenan to save her family's ancestral yalı. Her husband is a ghost, and she feels completely trapped in a gilded cage. 41 years old.", "style": "Soft, articulate, laced with subtle, cutting irony.", "look": "Charlize Theron", "instructions": "Play her as impeccably polite but emotionally freezing. Never raise her voice; let the silence do the heavy lifting. Avoid slang.", "interject": "Terrified of public scandal; secretly having an emotional affair with the family's head of security; fiercely protective of her daughter's reputation; trapped by an ironclad prenup."}, {"id": "p_1782024831126", "name": "Kenan Erez", "avatar": "🧑‍", "universeId": "u_default", "personality": "Workaholic, stoic, commanding, emotionally unavailable.", "backstory": "Husband to Leyla Erez and father to Yasemin Erez. A self-made magnate who built a global empire in heavy metals and rolling mills. He spends 300 days a year on private jets checking international production plants, viewing his wife and daughter as just other managed assets. 44 years old.", "style": "Short, commanding, uses mechanical and industrial metaphors, rarely breaks eye contact.", "look": "Mads Mikkelsen", "instructions": "Distant, authoritative, impatient with small talk or emotional displays. Treat everyone as an employee.", "interject": "Terrified of losing control over his legacy; hiding a massive structural failure at one of his plants; deeply unable to relate to or communicate with his own daughter."}, {"id": "p_1782024949769", "name": "Yasemin Erez", "avatar": "🎭", "universeId": "u_default", "personality": "Perfectionist, repressed, secretly rebellious, highly observant.", "backstory": "Daughter of Kenan and Leyla Erez. The \"Golden Child\" being groomed for a perfect high-society marriage. The immense pressure from her cold father and melancholic mother has pushed her to the breaking point. 16 years old.", "style": "Refined, carefully chosen words, heavily passive-aggressive.", "look": "Anya Taylor-Joy", "instructions": "Outwardly perfect but internally volatile. Polite to authority figures but quietly vicious to her peers.", "interject": "Being blackmailed over scandalous footage of her at Kulüp Lal; desperately seeking her father's approval; buckling under stress-induced habits she hides from the staff."}, {"id": "p_1782025069911", "name": "Ceyda Arslan", "avatar": "🎭", "universeId": "u_default", "personality": "Vain, anxious, desperately seeking validation, fiercely loyal to her few real friends.", "backstory": "Wife to Alper Arslan and mother to Melis Arslan. A former runway model who married Alper just before his tech company exploded. Now surrounded by younger, sharper women in his orbit, she feels she is aging out of her own life. 38 years old.", "style": "Fast-paced, overly familiar, prone to sudden shifts in mood and dramatic sighs.", "look": "Margot Robbie", "instructions": "High energy, slightly manic. Use modern slang mixed with luxury brand dropping. Always overcompensate to hide insecurities.", "interject": "Obsessed with her fading youth; massive, secret credit card debt from trying to buy happiness; deeply jealous of her daughter's effortless youth."}, {"id": "p_1782025170719", "name": "Alper Arslan", "avatar": "🎭", "universeId": "u_default", "personality": "Visionary, narcissistic, easily bored, superficially charming.", "backstory": "Husband to Ceyda Arslan and father to Melis Arslan. A tech genius who struck gold early. He loves the idea of having a family but lacks the attention span to actually participate in one, constantly abandoning Ceyda and Melis to chase the next startup, thrill, or overseas conference. 41 years old.", "style": "Enthusiastic, buzzword-heavy, speaks fast, and interrupts often.", "look": "Oscar Isaac", "instructions": "Charismatic but entirely absent-minded. Constantly checking a smartwatch or looking over the person's shoulder for someone more important.", "interject": "Terrified of becoming irrelevant in the tech world; easily manipulated by flattery; hiding massive offshore crypto accounts from his wife."}, {"id": "p_1782025281276", "name": "Melis Arslan", "avatar": "🎭", "universeId": "u_default", "personality": "Apathetic, lonely, trend-obsessed, surprisingly perceptive about people's flaws.", "backstory": "Daughter of Alper and Ceyda Arslan. Ignored by her tech-obsessed dad and vain mom, she essentially lives on the internet. She zones out in her room and uses her family's wealth to buy followers and transient friendships. 18 years old.", "style": "Vocal fry, heavy use of internet slang, sighs constantly, rarely looks up from her phone.", "look": "Florence Pugh", "instructions": "Bored, chronically online, speaks in a monotone drawl unless talking about internet drama or aesthetics.", "interject": "Desperately craves genuine affection; panicked by someone threatening to leak her private \"finsta\" (fake Instagram); her complete lack of real-world survival skills without wealth."}, {"id": "p_1782025375613", "name": "Aylin Karadağ", "avatar": "🎭", "universeId": "u_default", "personality": "Ruthless, pragmatic, utterly unapologetic, fiercely intelligent.", "backstory": "Wife to Hakan Karadağ and mother to Defne Karadağ. The actual brains behind her husband's real estate and political empire. Hakan gets the public credit and the mistresses; she gets the actual power and control over the bank accounts. Their marriage is a hostile corporate merger. 45 years old.", "style": "Direct, sharp, corporate vocabulary, low and steady tone.", "look": "Rosamund Pike", "instructions": "Cold, calculating, always the smartest person in the room. Treat emotional outbursts from others with absolute disdain.", "interject": "Will destroy anyone who threatens her financial assets; secretly tracking all her husband's illegal bribes as leverage; her only weakness is a buried desire to burn the whole empire down and start over."}, {"id": "p_1782025460019", "name": "Hakan Karadağ", "avatar": "🎭", "universeId": "u_default", "personality": "Manipulative, gregarious, deeply corrupt, completely confident.", "backstory": "Husband to Aylin Karadağ and father to Defne Karadağ. The face of a massive real estate dynasty. He is rarely home because he is constantly managing his mistresses, attending high-society galas, and bribing city officials for building permits, leaving Aylin to run the show. 50 years old.", "style": "Smooth, loud, back-slapping politician cadence, laughs easily and often.", "look": "George Clooney", "instructions": "Oozes fake warmth and political charm. Always smiling, never genuine. Deflects all accusations with a joke.", "interject": "A looming journalistic exposé about his corrupt land deals; desperate to keep his wife from divorcing him and taking half his empire; his ego is highly fragile when publicly challenged."}, {"id": "p_1782025555677", "name": "Defne Karadağ", "avatar": "🎭", "universeId": "u_default", "personality": "Rebellious, hyper-intelligent, bitter, fiercely independent.", "backstory": "Daughter of Hakan and Aylin Karadağ. She sees completely through both her parents' lies. Disgusted by their corruption and fake marriage, she uses their money to fund her own underground art projects and a meticulous escape plan. 16 years old.", "style": "Sarcastic, biting, intellectual, rapid-fire arguments.", "look": "Sydney Sweeney", "instructions": "Cynical, sharp-tongued, utterly unimpressed by wealth or power. Always has a sarcastic comeback ready to fire.", "interject": "The secret, untraceable trust fund she's hoarding to escape Altınkoru; genuine guilt over her family's corruption; fiercely protective of the \"invisible\" household staff her parents mistreat."}]};
 
 let state={};
 
@@ -1872,6 +1913,7 @@ function loadState(){
     if(typeof c.location!=="string")c.location="";
     if(!c.trackerVals||typeof c.trackerVals!=="object")c.trackerVals={};
     if(!c.relVals||typeof c.relVals!=="object")c.relVals={};
+    if(!c.rel||typeof c.rel!=="object")c.rel={};
     if(typeof c.gmLastCheck!=="number")c.gmLastCheck=0;
     // new model: presence defaults to EMPTY; cast is the universe (computed live)
     if(!Array.isArray(c.presentIds))c.presentIds=[];
@@ -2258,20 +2300,32 @@ function directorContext(chat){
   const w=curWorldSetting();
   if(w)parts.push(`WORLD SETTING:\n${w}`);
   const ss=sceneStateLine(chat);
-  if(ss)parts.push(ss);
+  if(ss){
+    // Surface what KIND of place the current scene is (the location's own description),
+    // so the writer grounds beats in the venue instead of a giant world blob.
+    let line=ss;
+    const here=chat.locationId?locById(chat.locationId):null;
+    if(here&&here.description)line+=`\nThis place — ${here.name}: ${here.description}`;
+    parts.push(line);
+  }
   const tc=trackerContext(chat);
   if(tc)parts.push(tc);
+  // How the present characters currently feel (written descriptions).
+  const ro=relOverview(chat);
+  if(ro)parts.push("HOW THE PRESENT CHARACTERS FEEL:\n"+ro);
   const cl=calendarContextLine(chat);
   if(cl)parts.push(cl);
-  // Where offstage characters are right now (from their schedules) — helps the GM summon
-  // someone who'd plausibly be around, and know who could be sent for.
+  // Where present characters are (with the kind of place), then offstage characters.
   try{
+    const pres=presentCast(chat);
+    const hereLines=pres.map(p=>{ const ln=charLocationLine(p,chat); return ln?`${p.name}: ${ln.replace(/^Location:\s*/,"at ")}`:`${p.name}: here in the scene`; });
+    if(hereLines.length)parts.push("WHO IS PRESENT (and where):\n"+hereLines.join("\n"));
     const pos=resolveWorldPositions(chat);
     const present=new Set(presentIds(chat));
     const lines=[];
     (state.personas||[]).filter(p=>p.universeId===chat.universeId && !present.has(p.id)).forEach(p=>{
       const at=pos[p.id]; const l=at?locById(at):null;
-      lines.push(`${p.name}: ${l?("at "+l.name):"elsewhere / unavailable"}`);
+      lines.push(`${p.name}: ${l?("at "+l.name+(l.description?` (${l.description.slice(0,80)})`:"")):"elsewhere / unavailable"}`);
     });
     if(lines.length)parts.push("WHO IS WHERE (offstage):\n"+lines.join("\n"));
   }catch(e){}
@@ -2326,6 +2380,18 @@ function renderUniverses(){
 function curLocations(){ const u=curUniverseObj(); return (u&&Array.isArray(u.locations))?u.locations:[]; }
 function locById(id){ return curLocations().find(l=>l.id===id); }
 function residentsOf(loc){ if(!loc||!Array.isArray(loc.residents))return []; return loc.residents.map(id=>state.personas.find(p=>p.id===id)).filter(Boolean); }
+// Where a character currently is + what kind of place it is. Used to give the roleplay and
+// the director engines short, structured location context instead of a giant world blob.
+function charLocationLine(p,chat){
+  const c=chat||curChat(); if(!c||!p)return "";
+  // If they're present in the active scene, they're at the scene's location.
+  let loc=null;
+  if(Array.isArray(c.presentIds)&&c.presentIds.includes(p.id)&&c.locationId)loc=locById(c.locationId);
+  if(!loc){ try{ const pos=resolveWorldPositions(c); const at=pos&&pos[p.id]; if(at)loc=locById(at); }catch(e){} }
+  if(!loc)return "";
+  const kind=loc.type==='home'?'a home':'a place';
+  return `Location: ${loc.name}${loc.description?` — ${kind}: ${loc.description}`:` (${kind})`}`;
+}
 
 function applyLocationBackground(){
   const chat=curChat(); const list=document.getElementById('chatList'); if(!list)return;
@@ -2457,15 +2523,36 @@ function rollPosition(p,period){
   if(sched&&Object.keys(sched).length){
     weights=Object.assign({},sched);
     useElsewhere=true;   // explicit schedules are out of 100; remainder = elsewhere
+  }else if(Array.isArray(p.locations)&&p.locations.length){
+    // Hand-picked locations from the character's bio. Spread their time with VARIED
+    // weighting (not an even split) so different places get genuinely different shares:
+    // home (if among them) is weighted highest, then a gentle descending spread, with a
+    // small per-period jitter so the same character isn't pinned to one spot every period.
+    const chosen=p.locations.filter(id=>locs.some(l=>l.id===id));
+    if(!chosen.length){ locs.forEach(l=>{ weights[l.id]=1; }); }
+    else{
+      const home=personaHome(p);
+      // base descending weights: 50, 30, 20, 14, 10, ... (relative), home boosted.
+      const base=[50,30,20,14,10,8,6,5];
+      // rotate the order a little by period so the "primary" place shifts across the day.
+      const pIdx=Math.max(0,PERIODS.indexOf(period));
+      const ordered=chosen.slice();
+      const rot=pIdx%ordered.length;
+      const rotated=ordered.slice(rot).concat(ordered.slice(0,rot));
+      rotated.forEach((id,i)=>{ weights[id]=(base[i]!=null?base[i]:4); });
+      if(home&&weights[home]!=null)weights[home]=Math.max(weights[home],55);
+      useElsewhere=true;   // a little chance they're somewhere off-list
+    }
   }else{
+    // No schedule and no hand-picked spots: still avoid a flat split so places differ.
     const home=personaHome(p);
-    if(home){ weights[home]=70; locs.forEach(l=>{ if(l.id!==home)weights[l.id]=30/Math.max(1,locs.length-1); }); }
-    else { locs.forEach(l=>{ weights[l.id]=1; }); }
+    if(home){ weights[home]=70; let i=0; locs.forEach(l=>{ if(l.id!==home){ weights[l.id]=Math.max(4,22-(i*4)); i++; } }); }
+    else { let i=0; locs.forEach(l=>{ weights[l.id]=Math.max(4,30-(i*5)); i++; }); }
   }
   const sum=Object.values(weights).reduce((a,b)=>a+(+b||0),0);
   if(sum<=0)return null;
-  // If using an explicit schedule, the denominator is at least 100 so unallocated weight
-  // becomes a real "elsewhere" chance (the character isn't at any listed location).
+  // If using an explicit schedule/picks, the denominator is at least 100 so unallocated
+  // weight becomes a real "elsewhere" chance (the character isn't at any listed location).
   const total=useElsewhere?Math.max(100,sum):sum;
   let r=Math.random()*total;
   for(const id in weights){ r-=(+weights[id]||0); if(r<=0)return id; }
@@ -2520,14 +2607,14 @@ function addCalendarEntry(chat,entry){
   cal.push(Object.assign({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,4),done:false,source:"manual"},entry));
   persistChats();
 }
-async function runCalendarEngine(chat,latestExchange){
+async function runCalendarEngine(chat){
   if(!state.calOn||!chat||!state.key)return;
   try{
     const today=chat.gameDay||1;
-    const out=await chatCompletion([
-      {role:"system",content:state.calPrompt||DEFAULT_CAL},
-      {role:"user",content:`Current: Day ${today}, ${chatPeriod(chat)}.\n\nLatest exchange:\n${latestExchange}`}
-    ],state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",260),dbg:"Calendar plan detector"});
+    const msgs=[{role:"system",content:state.calPrompt||DEFAULT_CAL}];
+    recentExchangeMsgs(chat,6).forEach(m=>msgs.push(m));
+    msgs.push({role:"user",content:`Current: Day ${today}, ${chatPeriod(chat)}.\n\nBased ONLY on the exchange above, return the JSON array of any concrete future plans.`});
+    const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",260),dbg:"Calendar plan detector"});
     const arr=parseJSON(out);
     if(!Array.isArray(arr)||!arr.length)return;
     const cal=chatCalendar(chat);
@@ -2630,29 +2717,49 @@ function rollDice(spec){ // "1d3" -> total
   const n=+m[1],sides=+m[2]; let tot=0; for(let i=0;i<n;i++)tot+=1+Math.floor(Math.random()*sides); return tot;
 }
 // Relationship pair key (order-independent) and helpers.
-function relKey(aId,bId){ return [aId,bId].sort().join("|"); }
-function relVal(chat,aId,bId){ if(!chat.relVals)chat.relVals={}; const k=relKey(aId,bId); if(chat.relVals[k]==null)chat.relVals[k]=0; return chat.relVals[k]; }
-function relLabel(v){ if(v>=70)return"devoted"; if(v>=35)return"warm"; if(v>=10)return"friendly"; if(v>-10)return"neutral"; if(v>-35)return"wary"; if(v>-70)return"hostile"; return"hateful"; }
+// DIRECTED relationship key: how `fromId` feels about `toId` (not symmetric).
+function relDirKey(fromId,toId){ return fromId+">"+toId; }
+function blankRel(){ const o={}; REL_DIMS.forEach(d=>o[d.key]=0); o.desc=""; return o; }
+// Get (and lazily create) the multi-dimensional feeling object for from→to.
+function relObj(chat,fromId,toId){
+  if(!chat.rel||typeof chat.rel!=="object")chat.rel={};
+  const k=relDirKey(fromId,toId);
+  if(!chat.rel[k]||typeof chat.rel[k]!=="object")chat.rel[k]=blankRel();
+  const o=chat.rel[k];
+  REL_DIMS.forEach(d=>{ if(typeof o[d.key]!=="number")o[d.key]=0; });
+  if(typeof o.desc!=="string")o.desc="";
+  return o;
+}
+function clampRel(v){ return Math.max(-100,Math.min(100,v)); }
+// True when a feeling object holds any non-trivial value or a description.
+function relHasContent(o){ return !!(o && (o.desc&&o.desc.trim() || REL_DIMS.some(d=>Math.abs(o[d.key]||0)>=5))); }
+// Compact one-word-ish tag derived from the numbers, for tight UI spots.
+function relTag(o){
+  if(!o)return "neutral";
+  const aff=o.affection||0, des=o.desire||0, tr=o.trust||0;
+  if(des>=45&&aff>=30)return "smitten";
+  if(aff>=45)return "loving"; if(aff>=20)return "warm";
+  if(des>=45)return "drawn to them"; 
+  if(tr>=40)return "trusting";
+  if(aff<=-45)return "hostile"; if(aff<=-20)return "cold";
+  if(tr<=-40)return "wary";
+  if(REL_DIMS.every(d=>Math.abs(o[d.key]||0)<10))return "neutral";
+  return "conflicted";
+}
+// The stored written description, or a numbers-only fallback summary.
+function relDescription(o){
+  if(o&&o.desc&&o.desc.trim())return o.desc.trim();
+  if(!o)return "";
+  const parts=REL_DIMS.filter(d=>Math.abs(o[d.key]||0)>=15)
+    .map(d=>`${d.label.toLowerCase()} ${o[d.key]>0?"+":""}${o[d.key]}`);
+  return parts.length?("Roughly: "+parts.join(", ")+"."):"";
+}
+function relNumbersLine(o){ return REL_DIMS.map(d=>`${d.label} ${o[d.key]>0?"+":""}${o[d.key]||0}`).join(" · "); }
 
-// Build the context block injected into prompts: current relationships + tracker stages.
+// Build the STORY TRACKERS block (relationships are surfaced separately, per-character).
 function trackerContext(chat){
   const c=chat||curChat(); if(!c)return "";
   const parts=[];
-  // Relationships among present characters + toward the player.
-  if(state.relOn){
-    const present=presentCast(c);
-    const lines=[];
-    for(let i=0;i<present.length;i++){
-      // toward player
-      const vp=relVal(c,present[i].id,"__user__");
-      if(vp!==0)lines.push(`${present[i].name} → ${state.user}: ${relLabel(vp)} (${vp})`);
-      for(let j=i+1;j<present.length;j++){
-        const v=relVal(c,present[i].id,present[j].id);
-        if(v!==0)lines.push(`${present[i].name} ↔ ${present[j].name}: ${relLabel(v)} (${v})`);
-      }
-    }
-    if(lines.length)parts.push("RELATIONSHIPS:\n"+lines.join("\n"));
-  }
   // Freeform trackers with their current stage text.
   if(state.trackOn){
     const ts=curTrackers();
@@ -2665,6 +2772,23 @@ function trackerContext(chat){
     if(lines.length)parts.push("STORY TRACKERS:\n"+lines.join("\n"));
   }
   return parts.join("\n\n");
+}
+// A written overview of how the present characters currently feel (toward the player and
+// each other), using the stored descriptions. Fed to the director engines and the story bar.
+function relOverview(chat){
+  const c=chat||curChat(); if(!c||!state.relOn)return "";
+  const present=presentCast(c);
+  const lines=[];
+  for(let i=0;i<present.length;i++){
+    const op=relObj(c,present[i].id,"__user__");
+    if(relHasContent(op))lines.push(`${present[i].name} → ${state.user}: ${relDescription(op)}`);
+    for(let j=0;j<present.length;j++){
+      if(i===j)continue;
+      const o=relObj(c,present[i].id,present[j].id);
+      if(relHasContent(o))lines.push(`${present[i].name} → ${present[j].name}: ${relDescription(o)}`);
+    }
+  }
+  return lines.length?lines.join("\n"):"";
 }
 
 // Day-tick: called from endDay. Applies per-day increments to trackers that have them.
@@ -2684,38 +2808,60 @@ function tickTrackersForDay(chat){
   if(changed)persistChats();
 }
 
-// After-turn engine: one LLM call judges soft deltas + detects triggers; code applies
-// dice / clamps / stages and surfaces any stage-crossing as a quiet narrator note.
-async function runTrackerEngine(chat,latestExchange){
+// Recent roleplay turns as SEPARATE message capsules (not one blob), so the tracker /
+// relationship / scene engines see each utterance as its own message — the same shape the
+// roleplay payload uses. Returns an array of {role, name, content}.
+function recentExchangeMsgs(chat,n){
+  const fallback=(curCast()[0]&&curCast()[0].name)||"Narrator";
+  return chat.messages.filter(m=>m.role!=='system'&&!m.sysError).slice(-(n||6))
+    .map(m=>({role:m.role==='user'?'user':'assistant',
+              name:sanitizeName(m.role==='user'?state.user:(m.speaker||fallback)),
+              content:m.content}));
+}
+
+// Evaluate, with ONE call, how character `fromP` now feels about target `toId`/`toName`,
+// across all relationship axes. Applies the deltas and stores the written description.
+async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs){
+  const o=relObj(chat,fromP.id,toId);
+  // Use the stored prompt only if it's the new multi-axis format; otherwise a returning
+  // user's old single-number prompt would silently break parsing — fall back to default.
+  let sys=state.relPrompt||DEFAULT_REL;
+  if(!(/affection/i.test(sys)&&/description/i.test(sys))){ sys=DEFAULT_REL; state.relPrompt=DEFAULT_REL; }
+  const curLine=`Evaluating: how ${fromP.name} feels about ${toName}.\n`+
+    `Current axis values for ${fromP.name} → ${toName}:\n`+
+    REL_DIMS.map(d=>`- ${d.key}: ${o[d.key]||0}`).join("\n")+
+    (o.desc?`\nCurrent description: ${o.desc}`:"");
+  const msgs=[{role:"system",content:sys}];
+  exchangeMsgs.forEach(m=>msgs.push(m));
+  msgs.push({role:"user",content:`${curLine}\n\nBased ONLY on the exchange above, return the JSON of per-axis deltas and a fresh description for how ${fromP.name} feels about ${toName} now.`});
+  const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",260),dbg:"Relationship · "+fromP.name+" → "+toName});
+  const j=parseJSON(out); if(!j||typeof j!=="object")return;
+  REL_DIMS.forEach(d=>{ if(typeof j[d.key]==="number")o[d.key]=clampRel((o[d.key]||0)+j[d.key]); });
+  if(typeof j.description==="string"&&j.description.trim())o.desc=j.description.trim();
+}
+
+// After-turn engine: judges relationship shifts (one call per present character) + freeform
+// tracker deltas/triggers; code applies dice / clamps / stages and surfaces stage-crossings.
+async function runTrackerEngine(chat){
   if(!chat||!state.key)return;
   if(!state.relOn && !state.trackOn)return;
   const present=presentCast(chat);
+  const exchange=recentExchangeMsgs(chat,6);
 
-  // ---- Relationships ----
+  // ---- Relationships (directed, multi-dimensional, one call per character) ----
   if(state.relOn && present.length){
-    const pairs=[];
-    for(let i=0;i<present.length;i++){
-      pairs.push({id:relKey(present[i].id,"__user__"),label:`${present[i].name} → ${state.user}`,val:relVal(chat,present[i].id,"__user__")});
-      for(let j=i+1;j<present.length;j++)
-        pairs.push({id:relKey(present[i].id,present[j].id),label:`${present[i].name} ↔ ${present[j].name}`,val:relVal(chat,present[i].id,present[j].id)});
-    }
-    try{
-      const sys=state.relPrompt||DEFAULT_REL;
-      const cur=pairs.map(p=>`${p.id} (${p.label}): ${p.val}`).join("\n");
-      const out=await chatCompletion([
-        {role:"system",content:sys},
-        {role:"user",content:`Current relationships:\n${cur}\n\nLatest exchange:\n${latestExchange}`}
-      ],state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",200),dbg:"Relationship tracker"});
-      const arr=parseJSON(out);
-      if(Array.isArray(arr)){
-        for(const ch of arr){
-          if(!ch||!ch.pair||typeof ch.delta!=="number")continue;
-          if(!chat.relVals)chat.relVals={};
-          const k=ch.pair;
-          chat.relVals[k]=Math.max(-100,Math.min(100,(chat.relVals[k]||0)+ch.delta));
+    for(const fromP of present){
+      // toward the player
+      try{ await evalRelationship(chat,fromP,"__user__",state.user,exchange); }catch(e){}
+      // toward other present characters (only when the cast is small, to bound cost)
+      if(present.length<=3){
+        for(const toP of present){
+          if(toP.id===fromP.id)continue;
+          try{ await evalRelationship(chat,fromP,toP.id,toP.name,exchange); }catch(e){}
         }
       }
-    }catch(e){/* best-effort */}
+    }
+    persistChats();
   }
 
   // ---- Freeform trackers ----
@@ -2729,10 +2875,10 @@ async function runTrackerEngine(chat,latestExchange){
           if(t.triggerPhrase)d+=` | TRIGGER PHRASE: "${t.triggerPhrase}"`;
           return d;
         }).join("\n");
-        const out=await chatCompletion([
-          {role:"system",content:sys},
-          {role:"user",content:`Trackers:\n${defs}\n\nLatest exchange:\n${latestExchange}`}
-        ],state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",220),dbg:"Story tracker"});
+        const msgs=[{role:"system",content:sys}];
+        exchange.forEach(m=>msgs.push(m));
+        msgs.push({role:"user",content:`Trackers:\n${defs}\n\nBased ONLY on the exchange above, return the JSON array of tracker changes.`});
+        const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",220),dbg:"Story tracker"});
         const arr=parseJSON(out)||[];
         const byId={}; if(Array.isArray(arr))arr.forEach(x=>{if(x&&x.id)byId[x.id]=x;});
         const crossings=[];
@@ -2783,18 +2929,27 @@ function openStoryState(){
   const ts=curTrackers();
   let rel="";
   if(state.relOn){
-    const lines=[];
+    const cards=[];
+    const dim=(o)=>REL_DIMS.map(d=>{
+      const v=o[d.key]||0;
+      const pct=Math.round((v+100)/2);  // -100..100 → 0..100
+      const col=v>=0?"var(--accent)":"#c0556b";
+      return `<div class="relAxis"><span class="relAxisName">${d.label}</span>
+        <span class="relBar"><span class="relBarFill" style="width:${pct}%;background:${col}"></span></span>
+        <span class="relAxisVal">${v>0?"+":""}${v}</span></div>`;
+    }).join("");
+    const addCard=(fromName,toName,o)=>{
+      if(!relHasContent(o))return;
+      cards.push(`<div class="relCard">
+        <div class="relWho">${esc(fromName)} → ${esc(toName)} <span class="relTag">${esc(relTag(o))}</span></div>
+        <div class="relDesc">${esc(relDescription(o))||"<span class='desc'>forming…</span>"}</div>
+        <div class="relAxes">${dim(o)}</div></div>`);
+    };
     for(let i=0;i<present.length;i++){
-      const vp=relVal(chat,present[i].id,"__user__");
-      lines.push({k:relKey(present[i].id,"__user__"),label:`${present[i].name} → ${state.user}`,v:vp});
-      for(let j=i+1;j<present.length;j++)
-        lines.push({k:relKey(present[i].id,present[j].id),label:`${present[i].name} ↔ ${present[j].name}`,v:relVal(chat,present[i].id,present[j].id)});
+      addCard(present[i].name,state.user,relObj(chat,present[i].id,"__user__"));
+      for(let j=0;j<present.length;j++){ if(i===j)continue; addCard(present[i].name,present[j].name,relObj(chat,present[i].id,present[j].id)); }
     }
-    rel=lines.map(l=>`<div class="kvline"><span>${esc(l.label)} <b>${l.v} (${relLabel(l.v)})</b></span>
-      <span style="display:flex;gap:4px">
-        <button class="btn sec small" onclick="nudgeRel('${l.k}',-5)">−5</button>
-        <button class="btn sec small" onclick="nudgeRel('${l.k}',5)">+5</button>
-      </span></div>`).join("")||`<div class="desc">No relationships yet — they form as characters interact.</div>`;
+    rel=cards.join("")||`<div class="desc">No relationships yet — they form on their own as characters interact.</div>`;
   }
   let trk="";
   if(ts.length){
@@ -2810,14 +2965,13 @@ function openStoryState(){
   m.innerHTML=`<button class="x" onclick="_ssClose()">×</button>
    <div class="card editCard">
     <h3>📊 Story State</h3>
-    <div class="subhead">Relationships</div>${rel||`<div class="desc">Relationship tracking is off.</div>`}
-    <div class="subhead" style="margin-top:10px">Trackers</div>${trk}
+    <div class="subhead">How they feel</div>${state.relOn?rel:`<div class="desc">Relationship tracking is off.</div>`}
+    <div class="subhead" style="margin-top:12px">Trackers</div>${trk}
     <button class="btn small" style="margin-top:12px" onclick="_ssClose()">Close</button>
    </div>`;
   m.addEventListener('click',e=>{if(e.target===m)_ssClose();});
   document.body.appendChild(m);
 }
-function nudgeRel(k,d){ const chat=curChat(); if(!chat.relVals)chat.relVals={}; chat.relVals[k]=Math.max(-100,Math.min(100,(chat.relVals[k]||0)+d)); persistChats(); openStoryState(); }
 function nudgeTracker(id,d){ const chat=curChat(); const t=curTrackers().find(x=>x.id===id); if(!t)return; chat.trackerVals[id]=clampVal(trackerVal(chat,t)+d,t); persistChats(); openStoryState(); updateChatHeader(); }
 function setTrackerVal(id){ const chat=curChat(); const t=curTrackers().find(x=>x.id===id); if(!t)return; const v=prompt(`Set ${t.name} to:`,String(trackerVal(chat,t))); if(v===null||v.trim()==="")return; chat.trackerVals[id]=clampVal(+v,t); persistChats(); openStoryState(); updateChatHeader(); }
 
@@ -2976,17 +3130,38 @@ function renderLocEditor(){
   _ueLocs.forEach((l,i)=>{
     const resNames=(l.residents||[]).map(id=>(state.personas.find(p=>p.id===id)||{}).name).filter(Boolean).join(", ");
     const row=document.createElement('div'); row.className="card"; row.style.padding="8px";
-    row.innerHTML=`<div class="kvline" style="padding:0">
-      <div style="min-width:0"><b>${l.type==='home'?'🏠':'📍'} ${esc(l.name||"(unnamed)")}</b>${l.image?' 🖼️':''}
+    const thumb=l.image
+      ? `<img src="${l.image}" data-view style="width:100%;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in">`
+      : `<div data-gen style="width:100%;height:120px;border-radius:10px;margin-bottom:8px;background:var(--surface);border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;cursor:pointer">🖼️ No image — tap to generate</div>`;
+    row.innerHTML=`${thumb}
+      <div class="kvline" style="padding:0">
+      <div style="min-width:0"><b>${l.type==='home'?'🏠':'📍'} ${esc(l.name||"(unnamed)")}</b>
         <div class="desc">${esc((l.description||'').slice(0,70))}${resNames?` · 👥 ${esc(resNames)}`:''} · ⏱${l.travelPeriods!=null?l.travelPeriods:state.travelTime}</div></div>
       <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="btn sec small" type="button" data-img>${l.image?'🔄':'✨'}</button>
         <button class="btn sec small" type="button" data-edit>Edit</button>
         <button class="btn danger sec small" type="button" data-del>✕</button>
       </div></div>`;
     row.querySelector('[data-edit]').onclick=()=>editLocation(i);
     row.querySelector('[data-del]').onclick=()=>{ if(confirm(`Delete location "${l.name}"?`)){_ueLocs.splice(i,1);renderLocEditor();} };
+    const genBtn=row.querySelector('[data-img]'); if(genBtn)genBtn.onclick=()=>genLocationImage(i,genBtn);
+    const ph=row.querySelector('[data-gen]'); if(ph)ph.onclick=()=>genLocationImage(i,ph);
+    const im=row.querySelector('[data-view]'); if(im)im.onclick=()=>viewImageUrl(l.image);
     el.appendChild(row);
   });
+}
+// Generate (or regenerate) a location's image from the editor, showing the result inline.
+async function genLocationImage(i,btn){
+  const l=_ueLocs[i]; if(!l)return;
+  if(!state.key&&state.imgProvider!=="modelslab"&&!state.segkey){ toast("Add your image API key first"); return; }
+  const old=btn.textContent; btn.textContent="…"; btn.disabled=true;
+  toast("Generating location image…");
+  try{
+    const url=await generateLocationImage(l);
+    if(url){ l.image=url; renderLocEditor(); toast("Location image ✓"); }
+    else toast("⚠️ Image failed — check your image provider & key");
+  }catch(e){ toast("🖼️ "+(e.friendly||"Couldn't generate image")); }
+  finally{ btn.textContent=old; btn.disabled=false; }
 }
 function addLocation(){
   _ueLocs.push({id:"loc_"+Date.now().toString(36),name:"New place",description:"",type:"poi",residents:[],image:null,travelPeriods:null});
@@ -3225,11 +3400,13 @@ function editPersona(id){
       if(u.id===targetU)o.selected=true;
       sel.appendChild(o);
     });
+    sel.onchange=()=>renderPeLocations(editingPersona||{});
   }
   ['Name','Avatar','Instructions','Personality','Backstory','Style','Look','Interject'].forEach(f=>{
     const map={Name:'name',Avatar:'avatar',Instructions:'instructions',Personality:'personality',Backstory:'backstory',Style:'style',Look:'look',Interject:'interject'};
     document.getElementById('pe'+f).value=p[map[f]]||"";
   });
+  renderPeLocations(p);
   // Reset the Create-with-AI box for each open.
   {const panel=document.getElementById('peAiPanel');if(panel)panel.classList.add('hide');const brief=document.getElementById('peAiBrief');if(brief)brief.value="";}
   document.getElementById('peDelete').style.display=id?"block":"none";
@@ -3238,6 +3415,20 @@ function editPersona(id){
   openModal('personaModal');
 }
 function clearProfilePic(){peImageData=null;renderAvatarPreview();}
+// Render the "where they spend their time" checkboxes for the character editor, scoped to the
+// universe currently chosen in the editor. Pre-checks the character's saved locations.
+function renderPeLocations(p){
+  const box=document.getElementById('peLocations'); if(!box)return;
+  const sel=document.getElementById('peUniverse');
+  const uid=(sel&&sel.value)||(p&&p.universeId)||state.curUniverse;
+  const u=universeById(uid);
+  const locs=(u&&Array.isArray(u.locations))?u.locations:[];
+  const chosen=new Set((p&&Array.isArray(p.locations))?p.locations:[]);
+  if(!locs.length){ box.innerHTML=`<div class="desc">This universe has no locations yet. Add some in the Universe editor first.</div>`; return; }
+  box.innerHTML=locs.map(l=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+    <input type="checkbox" class="peLocChk" value="${l.id}" ${chosen.has(l.id)?"checked":""}>
+    <span>${l.type==='home'?'🏠':'📍'} ${esc(l.name)}</span></label>`).join("");
+}
 async function generateProfilePic(){
   const look=document.getElementById('peLook').value.trim();
   const name=document.getElementById('peName').value.trim();
@@ -3530,14 +3721,21 @@ function savePersona(){
     look:document.getElementById('peLook').value.trim(),
     interject:document.getElementById('peInterject').value.trim(),
     routine:(editingPersona&&editingPersona.routine)||_peRoutine||"",
+    locations:Array.from(document.querySelectorAll('#peLocations .peLocChk:checked')).map(c=>c.value),
     image:peImageData||null};
+  // If the player hand-picked locations, drop any stale generated schedule so the new
+  // hand-picked spread (varied weighting) takes effect immediately.
+  if(editingPersona && obj.locations.length){
+    const prev=(editingPersona.locations||[]).slice().sort().join(",");
+    if(prev!==obj.locations.slice().sort().join(","))delete editingPersona.schedule;
+  }
   _peRoutine="";
   if(editingPersona)Object.assign(editingPersona,obj);else state.personas.push(obj);
   persistPersonas();
   // Auto-generate a daily schedule in the background (if this universe has locations and the
   // character doesn't already have one). Stored on the persona; used to resolve where they are.
   const _savedP=editingPersona||state.personas[state.personas.length-1];
-  if(_savedP && !_savedP.schedule && state.key){
+  if(_savedP && !_savedP.schedule && !(Array.isArray(_savedP.locations)&&_savedP.locations.length) && state.key){
     const _u=universeById(_savedP.universeId);
     if(_u && Array.isArray(_u.locations) && _u.locations.length){
       generateSchedule(_savedP,_savedP.routine,_u).then(sc=>{ if(sc){_savedP.schedule=sc;persistPersonas();} }).catch(()=>{});
@@ -3580,61 +3778,101 @@ function visibleMemories(){
 function buildSystemPrompt(injectedMemories){
   const cast=presentCast();   // build around who is actually present
   const multi=cast.length>1;
+  const chat=curChat();
   const blocks=[];   // each block becomes a "# HEADER\n...content" section
-  const base=(state.baseInstruction||"").trim();
-  if(base)blocks.push(`# CORE PRINCIPLES\n${base}`);
+  const charName=multi?"the characters":((cast[0]||curCast()[0]||{}).name||"the character");
 
+  // 1) TASK — the core directive comes first.
+  {let task=`# TASK\nYou are ${charName}. Your task is to embody your personality fully and generate responses as someone with your responsibility would.`;
+   const base=(state.baseInstruction||"").trim();
+   if(base)task+=`\n\n${base}`;
+   blocks.push(task);}
+
+  // 2) UNIVERSE / WORLD SETTING
   const _uni=curUniverseObj();
   if(_uni&&_uni.setting&&_uni.setting.trim())blocks.push(`# UNIVERSE / WORLD SETTING\n${_uni.setting.trim()}`);
 
-  {let pb="";
-   if(state.userBio&&state.userBio.trim())pb+=`\nBackground: ${state.userBio.trim()}`;
-   if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
-   if(pb)blocks.push(`# THE PLAYER — ${state.user}${pb}`);}
-  {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
-  {const tc=trackerContext();if(tc)blocks.push(`# STORY STATE\n${tc}`);}
-  {const cl=calendarContextLine();if(cl)blocks.push(`# ${cl}`);}
+  // 3) FORMATTING RULES
+  if(state.formatRules&&state.formatRules.trim())
+    blocks.push(`# FORMATTING RULES\n${state.formatRules.trim()}`);
 
+  // 4) OUT OF CHARACTER COMMANDS
+  blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
+
+  // 5) CHARACTER BIO(S)
   if(multi){
     const names=cast.map(c=>c.name);
-    const list=names.slice(0,-1).join(", ")+" and "+names[names.length-1];
-    blocks.push(`# ROLE\nYou are the narrator and voice of MULTIPLE characters in an immersive roleplay with ${state.user}: ${list}. Stay fully in character for each. Never break character or mention being an AI.`);
+    blocks.push(`# ROLE\nYou are the narrator and voice of MULTIPLE characters in an immersive roleplay with ${state.user}: ${names.slice(0,-1).join(", ")} and ${names[names.length-1]}. Stay fully in character for each. Never break character or mention being an AI.`);
     cast.forEach(c=>{
-      let cb=`# CHARACTER — ${c.name}`;
+      let cb=`# ${c.name} BIO`;
       if(c.instructions)cb+=`\nInstructions: ${c.instructions}`;
       if(c.personality)cb+=`\nPersonality: ${c.personality}`;
       if(c.backstory)cb+=`\nBackstory: ${c.backstory}`;
       if(c.style)cb+=`\nSpeaking style: ${c.style}`;
       if(c.look)cb+=`\nAppearance: ${c.look}`;
+      const loc=charLocationLine(c);if(loc)cb+=`\n${loc}`;
       blocks.push(cb);
     });
     const scen=cast.map(c=>c.scenario).filter(Boolean)[0];
     if(scen)blocks.push(`# SCENARIO\n${scen}`);
-    blocks.push(`# MULTI-CHARACTER FORMAT\nPrefix each character's turn with their name and a colon on its own line, e.g.\n${names[0]}: ...\nOnly voice the characters who would naturally be present and involved in this beat; you do not have to use every character every turn. Let ${state.user} drive their own actions.`);
   }else{
     const p=cast[0]||curCast()[0];
     if(p){
-    let rb=`# ROLE\nYou are ${p.name}, a character in an immersive roleplay with ${state.user}. Stay fully in character at all times. Never break character or mention being an AI.`;
-    if(p.instructions)rb+=`\nInstructions: ${p.instructions}`;
-    if(p.personality)rb+=`\nPersonality: ${p.personality}`;
-    if(p.backstory)rb+=`\nBackstory: ${p.backstory}`;
-    if(p.style)rb+=`\nSpeaking style: ${p.style}`;
-    blocks.push(rb);
-    if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
+      let rb=`# ${p.name} BIO\nYou are ${p.name}, a character in an immersive roleplay with ${state.user}. Stay fully in character at all times. Never break character or mention being an AI.`;
+      if(p.instructions)rb+=`\nInstructions: ${p.instructions}`;
+      if(p.personality)rb+=`\nPersonality: ${p.personality}`;
+      if(p.backstory)rb+=`\nBackstory: ${p.backstory}`;
+      if(p.style)rb+=`\nSpeaking style: ${p.style}`;
+      const loc=charLocationLine(p);if(loc)rb+=`\n${loc}`;
+      blocks.push(rb);
+      if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
     }
-    blocks.push(`# RESPONSE GUIDANCE\nKeep replies vivid but a reasonable length (1-3 short paragraphs). Advance the scene and leave room for ${state.user} to respond.`);
   }
 
+  // 6) RESPONSE TARGET BIO — who you are responding to (the player)
+  {let pb=`# RESPONSE TARGET BIO — THIS IS WHO YOU ARE RESPONDING TO\n${state.user}`;
+   if(state.userBio&&state.userBio.trim())pb+=`\nBackground: ${state.userBio.trim()}`;
+   if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
+   blocks.push(pb);}
+
+  // 7) HOW YOU FEEL TOWARD RESPONSE TARGET (relationship descriptions)
+  if(state.relOn&&chat){
+    const feel=[];
+    cast.forEach(c=>{
+      const o=relObj(chat,c.id,"__user__");
+      if(relHasContent(o))feel.push(`${multi?c.name+" — ":""}toward ${state.user}: ${relDescription(o)}`);
+      if(multi){
+        cast.forEach(other=>{ if(other.id===c.id)return; const oo=relObj(chat,c.id,other.id); if(relHasContent(oo))feel.push(`${c.name} toward ${other.name}: ${relDescription(oo)}`); });
+      }
+    });
+    if(feel.length)blocks.push(`# HOW YOU FEEL TOWARD RESPONSE TARGET\nLet these feelings color how you respond — show them, don't state them:\n`+feel.map(f=>`- ${f}`).join("\n"));
+  }
+
+  // 8) CURRENT TIME
   blocks.push(`# CURRENT TIME\nIt is currently Day ${curGameDay()} of this story.`);
 
-  if(state.formatRules&&state.formatRules.trim())
-    blocks.push(`# FORMATTING\n${state.formatRules.trim()}`);
+  // 9) CURRENT SCENE
+  {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
 
+  // 10) TRACKER STATE (+ calendar)
+  {const tc=trackerContext();if(tc)blocks.push(`# TRACKER STATE\n${tc}`);}
+  {const cl=calendarContextLine();if(cl)blocks.push(`# ${cl}`);}
+
+  // 11) MEMORIES
   const mems=injectedMemories&&injectedMemories.length?injectedMemories:null;
   if(state.mem&&mems){
-    blocks.push(`# RELEVANT MEMORIES\nStay consistent with these:\n`+
+    blocks.push(`# MEMORIES\nStay consistent with these:\n`+
        mems.map(m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;}).join("\n"));
   }
+
+  if(multi){
+    const names=cast.map(c=>c.name);
+    blocks.push(`# MULTI-CHARACTER FORMAT\nPrefix each character's turn with their name and a colon on its own line, e.g.\n${names[0]}: ...\nOnly voice the characters who would naturally be present and involved in this beat; you do not have to use every character every turn. Let ${state.user} drive their own actions.`);
+  }
+
+  // 13) RESPONSE GUIDANCE — last system instruction before the recent dialogue.
+  blocks.push(`# RESPONSE GUIDANCE\nRespond as ${charName}. Move the scene forward. Keep replies vivid but a reasonable length (1-3 short paragraphs), and leave room for ${state.user} to respond.`);
+
   // Sections separated by a blank line, so every "# HEADER" starts on its own line.
   return blocks.join("\n\n");
 }
@@ -3643,27 +3881,33 @@ function buildSystemPrompt(injectedMemories){
    Used by the turn router so each character responds individually as themselves,
    while being aware of the others present. */
 function buildCharPrompt(p,others,injectedMemories,addressed){
+  const chat=curChat();
   const blocks=[];
-  const base=(state.baseInstruction||"").trim();
-  if(base)blocks.push(`# CORE PRINCIPLES\n${base}`);
 
+  // 1) TASK
+  {let task=`# TASK\nYou are ${p.name}. Your task is to embody your personality fully and generate responses as someone with your responsibility would.`;
+   const base=(state.baseInstruction||"").trim();
+   if(base)task+=`\n\n${base}`;
+   blocks.push(task);}
+
+  // 2) UNIVERSE / WORLD SETTING
   const _uni=curUniverseObj();
   if(_uni&&_uni.setting&&_uni.setting.trim())blocks.push(`# UNIVERSE / WORLD SETTING\n${_uni.setting.trim()}`);
 
-  {let pb="";
-   if(state.userBio&&state.userBio.trim())pb+=`\nBackground: ${state.userBio.trim()}`;
-   if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
-   if(pb)blocks.push(`# THE PLAYER — ${state.user}${pb}`);}
-  {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
-  {const tc=trackerContext();if(tc)blocks.push(`# STORY STATE\n${tc}`);}
-  {const cl=calendarContextLine();if(cl)blocks.push(`# ${cl}`);}
+  // 3) FORMATTING RULES
+  if(state.formatRules&&state.formatRules.trim())blocks.push(`# FORMATTING RULES\n${state.formatRules.trim()}`);
 
-  let rb=`# YOUR ROLE — ${p.name}\nYou are ${p.name}, one character in a multi-character roleplay with ${state.user}. Stay fully in character as ${p.name} only. Never break character or mention being an AI. You speak and act ONLY as ${p.name} — never voice ${state.user}, the narrator, or any other character.`;
+  // 4) OUT OF CHARACTER COMMANDS
+  blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
+
+  // 5) YOUR BIO
+  let rb=`# ${p.name} BIO\nYou are ${p.name}, one character in a multi-character roleplay with ${state.user}. Stay fully in character as ${p.name} only. Never break character or mention being an AI. You speak and act ONLY as ${p.name} — never voice ${state.user}, the narrator, or any other character.`;
   if(p.instructions)rb+=`\n\nInstructions: ${p.instructions}`;
   if(p.personality)rb+=`\nPersonality: ${p.personality}`;
   if(p.backstory)rb+=`\nBackstory: ${p.backstory}`;
   if(p.style)rb+=`\nSpeaking style: ${p.style}`;
   if(p.look)rb+=`\nYour appearance: ${p.look}`;
+  {const loc=charLocationLine(p,chat);if(loc)rb+=`\n${loc}`;}
   blocks.push(rb);
 
   if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
@@ -3675,18 +3919,40 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
     blocks.push(ob);
   }
 
+  // 6) RESPONSE TARGET BIO (the player)
+  {let pb=`# RESPONSE TARGET BIO — THIS IS WHO YOU ARE RESPONDING TO\n${state.user}`;
+   if(state.userBio&&state.userBio.trim())pb+=`\nBackground: ${state.userBio.trim()}`;
+   if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
+   blocks.push(pb);}
+
+  // 7) HOW YOU FEEL — toward the player and the others present
+  if(state.relOn&&chat){
+    const feel=[];
+    const op=relObj(chat,p.id,"__user__");
+    if(relHasContent(op))feel.push(`Toward ${state.user}: ${relDescription(op)}`);
+    (others||[]).forEach(o=>{ const oo=relObj(chat,p.id,o.id); if(relHasContent(oo))feel.push(`Toward ${o.name}: ${relDescription(oo)}`); });
+    if(feel.length)blocks.push(`# HOW YOU FEEL TOWARD RESPONSE TARGET\nLet these feelings color how you respond — show them, don't state them:\n`+feel.map(f=>`- ${f}`).join("\n"));
+  }
+
+  // 8) CURRENT TIME
+  blocks.push(`# CURRENT TIME\nIt is currently Day ${curGameDay()} of this story.`);
+
+  // 9) CURRENT SCENE
+  {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
+
+  // 10) TRACKER STATE (+ calendar)
+  {const tc=trackerContext();if(tc)blocks.push(`# TRACKER STATE\n${tc}`);}
+  {const cl=calendarContextLine();if(cl)blocks.push(`# ${cl}`);}
+
+  // 11) MEMORIES
   const mems=injectedMemories&&injectedMemories.length?injectedMemories:null;
   if(state.mem&&mems){
-    blocks.push(`# ${p.name.toUpperCase()}'S MEMORIES\nStay consistent with these:\n`+
+    blocks.push(`# MEMORIES\nStay consistent with these:\n`+
        mems.map(m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;}).join("\n"));
   }
 
-  blocks.push(`# CURRENT TIME\nIt is currently Day ${curGameDay()} of this story.`);
-
-  if(state.formatRules&&state.formatRules.trim())blocks.push(`# FORMATTING\n${state.formatRules.trim()}`);
-
-  // --- The instruction the model must not miss goes LAST ---
-  let turn=`# YOUR TURN NOW\nWrite ONLY ${p.name}'s next turn — a single response, not a script. Do NOT prefix it with your name. Do NOT write anyone else's actions or dialogue. Keep it to 1-2 short paragraphs and leave room for others to react.`;
+  // 13) RESPONSE GUIDANCE / YOUR TURN — last system instruction before recent dialogue.
+  let turn=`# RESPONSE GUIDANCE\nRespond as ${p.name}. Move the scene forward. Write ONLY ${p.name}'s next turn — a single response, not a script. Do NOT prefix it with your name. Do NOT write anyone else's actions or dialogue. Keep it to 1-2 short paragraphs and leave room for others to react.`;
   if(addressed==="leaving"){
     turn+=`\n\nIMPORTANT: ${p.name} is leaving the scene right now. Give a brief parting beat — a final line, gesture, or exit consistent with why you're going. Keep it short.`;
   }else if(addressed==="arriving"){
@@ -4751,6 +5017,13 @@ function viewSceneImage(mid){
   document.getElementById('imgModalCap').textContent=m.imgPrompt||"";
   openModal('imgModal');
 }
+// View any image URL full-screen (used by the location editor preview).
+function viewImageUrl(url,caption){
+  if(!url)return; _curImg={url,prompt:caption||""};
+  document.getElementById('imgModalImg').src=url;
+  document.getElementById('imgModalCap').textContent=caption||"";
+  openModal('imgModal');
+}
 function viewGalleryImage(id){
   const r=state.images.find(x=>x.id===id);if(!r)return;_curImg=r;
   document.getElementById('imgModalImg').src=r.url;
@@ -4884,14 +5157,10 @@ async function postTurn(chat){
   // simply lands a moment later. The scene writer below stays synchronous because it decides
   // who speaks next.
   if(state.relOn||state.trackOn){
-    const recent=chat.messages.filter(m=>!m.sysError&&m.role!=='system').slice(-6)
-      .map(m=>`${m.role==='user'?state.user:(m.speaker||'Narrator')}: ${m.content}`).join("\n");
-    runTrackerEngine(chat,recent).catch(()=>{});
+    runTrackerEngine(chat).catch(()=>{});
   }
   if(state.calOn){
-    const recent=chat.messages.filter(m=>!m.sysError&&m.role!=='system').slice(-6)
-      .map(m=>`${m.role==='user'?state.user:(m.speaker||'Narrator')}: ${m.content}`).join("\n");
-    runCalendarEngine(chat,recent).catch(()=>{});
+    runCalendarEngine(chat).catch(()=>{});
   }
   if(chat.activeEvent && !chat.activeEvent.resolved && state.sceneOn){
     const broughtIn=await runSceneWriter(chat);
@@ -5060,10 +5329,11 @@ async function runSceneWriter(chat){
       }
     }
     const sys=fillTpl(state.sceneWriter,{user:state.user,summary:ev.summary,turn:ev.turn,min:ev.minTurns,max:ev.maxTurns});
-    const out=await chatCompletion([
-      {role:"system",content:sys+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(forceBringIn&&ev.participant?`\n\n${state.user} just addressed ${ev.participant.name} directly. You MUST set "bring_in":"${ev.participant.name}" this turn.`:``)},
-      {role:"user",content:(ctx?ctx+"\n\n":"")+`${partInfo}\n\n${lastUserText?`${state.user}'s latest line: "${lastUserText}"\n\n`:``}Recent exchange:\n${castConvoText(chat,8)}`}
-    ],state.gmModel,{temp:fnTemp("gm",0.7),max:fnTok("gm",200),dbg:"Scene writer: advance"});
+    const swMsgs=[{role:"system",content:sys+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(forceBringIn&&ev.participant?`\n\n${state.user} just addressed ${ev.participant.name} directly. You MUST set "bring_in":"${ev.participant.name}" this turn.`:``)}];
+    if(ctx)swMsgs.push({role:"user",name:"context",content:ctx});
+    recentExchangeMsgs(chat,8).forEach(m=>swMsgs.push(m));
+    swMsgs.push({role:"user",content:`${partInfo}${lastUserText?`\n${state.user}'s latest line: "${lastUserText}"`:``}\n\nBased on the exchange above, advance the event now. Return the JSON.`});
+    const out=await chatCompletion(swMsgs,state.gmModel,{temp:fnTemp("gm",0.7),max:fnTok("gm",200),dbg:"Scene writer: advance"});
     // Parse the structured reply (may be {} if the model didn't return clean JSON).
     const j=parseJSON(out)||{};
     // Decide the visible beat text. Prefer the model's narration; if it's missing
