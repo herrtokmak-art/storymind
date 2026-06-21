@@ -98,6 +98,9 @@
   .ovr>div{flex:1;}
   .ovr input{padding:8px 10px;font-size:14px;}
   .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);text-align:center;padding:40px;}
+  .recap{margin:8px 10px 0;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;font-size:13px;line-height:1.45;display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;}
+  .recapTag{color:var(--accent);font-weight:600;flex-shrink:0;}
+  .recapX{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;}
   .empty .big{font-size:48px;}
   .toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);color:var(--text);padding:11px 18px;border-radius:24px;font-size:14px;z-index:200;opacity:0;transition:.25s;pointer-events:none;max-width:88%;text-align:center;}
   .toast.show{opacity:1;}
@@ -188,15 +191,17 @@
       <span class="av" id="chatAv">🌙</span>
       <div style="min-width:0">
         <div id="chatName">Character</div>
-        <div class="sub" id="chatScene">—</div>
+        <div class="sub" id="chatScene" onclick="setSceneState()" style="cursor:pointer">—</div>
       </div>
     </div>
     <div style="display:flex;gap:6px">
       <button class="btn sec small" onclick="endDay()">🌙 End Day</button>
+      <button class="btn sec small" onclick="openStoryState()">📊 State</button>
       <button class="btn sec small" onclick="openCast()">🎭 Nearby</button>
       <button class="btn sec small" onclick="restartScene()">↺ Restart</button>
     </div>
   </header>
+  <div id="recapBanner" class="hide"></div>
   <div id="chatList"></div>
   <div class="inputBar">
     <button class="iconBtn" id="gmBtn" onclick="forceGamemaster()" title="Nudge the story (Gamemaster)" style="background:var(--surface)">🎬</button>
@@ -275,11 +280,15 @@
           <div class="desc">⚠️ ModelsLab's API may block direct browser calls (CORS). If images/videos fail here, they'll work from the packaged mobile app or through a small proxy.</div>
         </div>
         <div class="card">
-          <h3>You</h3>
+          <h3>You (global defaults)</h3>
+          <div class="desc">Used when a universe hasn't set its own player identity. Each universe can override these in its editor.</div>
           <div><label>Your name</label><input type="text" id="setUser" placeholder="Alex"></div>
           <div><label>Your appearance (used when you're in generated images)</label>
             <textarea class="fld" id="setUserLook" placeholder="e.g. tall man, late 20s, short dark hair, stubble, worn leather jacket…" style="min-height:64px"></textarea>
             <div class="desc">When a scene image includes you, this description is used so you look consistent.</div></div>
+          <div><label>Your background</label>
+            <textarea class="fld" id="setUserBio" placeholder="who you are: history, role, anything the Gamemaster & Scene Writer should know" style="min-height:64px"></textarea>
+            <div class="desc">Given to the director engines to ground events in your character too.</div></div>
         </div>
       </div>
     </details>
@@ -357,6 +366,22 @@
             <label class="switchLbl"><input type="checkbox" id="setStripNarr"><span class="sl"></span></label></div>
           <div><label>Keep this many recent messages full</label><input type="number" id="setStripKeepFull" min="2" step="1" value="6"></div>
         </div>
+
+        <div class="card">
+          <h3>📊 Story Systems</h3>
+          <div class="kvline"><span>Relationship tracking</span>
+            <label class="switchLbl"><input type="checkbox" id="setRelOn" checked><span class="sl"></span></label></div>
+          <div class="desc">Characters build feelings (-100…+100) toward each other and you, fed back into the story.</div>
+          <div class="kvline"><span>Freeform trackers</span>
+            <label class="switchLbl"><input type="checkbox" id="setTrackOn" checked><span class="sl"></span></label></div>
+          <div class="desc">Per-universe values (love, pregnancy, trust…) with staged consequences. Define them in the Universe editor.</div>
+          <div class="kvline"><span>Voice consistency check</span>
+            <label class="switchLbl"><input type="checkbox" id="setVoiceCheckOn"><span class="sl"></span></label></div>
+          <div class="desc">Flags clearly out-of-character replies with a ⚠ hint. Costs one extra small call per reply.</div>
+          <div class="kvline"><span>Scene recap on resume</span>
+            <label class="switchLbl"><input type="checkbox" id="setRecapOn" checked><span class="sl"></span></label></div>
+          <div class="desc">Shows a “Previously…” line when you reopen a chat after a break.</div>
+        </div>
       </div>
     </details>
 
@@ -396,6 +421,18 @@
           <details class="acc"><summary>🪪 Character bio generator prompt</summary>
             <textarea class="fld" id="setBioPrompt" style="min-height:200px"></textarea>
             <div class="desc">Turns a brief (or conversation context) into a full character card as JSON. Used by "Create with AI" and auto-character.</div></details>
+        </div>
+        <div class="card">
+          <div class="subhead">📊 Story Systems</div>
+          <details class="acc"><summary>❤️ Relationship tracker prompt</summary>
+            <textarea class="fld" id="setRelPrompt" style="min-height:160px"></textarea>
+            <div class="desc">Decides how feelings shift each turn. Returns JSON deltas.</div></details>
+          <details class="acc"><summary>📊 Freeform tracker prompt</summary>
+            <textarea class="fld" id="setTrackPrompt" style="min-height:160px"></textarea>
+            <div class="desc">Judges soft deltas and detects trigger phrases. Dice/day-counting handled by the app.</div></details>
+          <details class="acc"><summary>⚠️ Voice consistency prompt</summary>
+            <textarea class="fld" id="setVoiceCheckPrompt" style="min-height:120px"></textarea>
+            <div class="desc">Flags out-of-character replies. Returns {ok, note}.</div></details>
         </div>
         <div class="card">
           <div class="subhead">🎬 Gamemaster</div>
@@ -615,6 +652,19 @@
     <div><label>Name</label><input type="text" id="ueName" placeholder="Neo-Tokyo 2099"></div>
     <div><label>Icon (emoji)</label><input type="text" id="ueAvatar" placeholder="🌌" maxlength="4"></div>
     <div><label>Universe setting (world prompt)</label><textarea class="fld" id="ueSetting" placeholder="Era, place, rules, tone, ongoing situation shared by everyone in this universe…" style="min-height:100px"></textarea></div>
+    <div class="subhead" style="margin-top:10px">🧑 Your character in this universe</div>
+    <div class="desc">Leave blank to use your global defaults from Settings.</div>
+    <div><label>Your name (this universe)</label><input type="text" id="ueUserName" placeholder="(global default)"></div>
+    <div><label>Your appearance (this universe)</label><textarea class="fld" id="ueUserLook" placeholder="tall, late 20s, short dark hair, worn leather jacket…" style="min-height:56px"></textarea></div>
+    <div><label>Your background (this universe)</label><textarea class="fld" id="ueUserBio" placeholder="who you are here: history, role, ties to this world — used by the Gamemaster & Scene Writer" style="min-height:72px"></textarea></div>
+    <div class="subhead" style="margin-top:10px">📊 Trackers</div>
+    <div class="desc">Named values the story tracks (love, trust, pregnancy…). Define them here per universe; each new chat starts fresh. The AI nudges them as the scene unfolds; stage text is fed back into the story.</div>
+    <div id="ueTrackerList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn sec small" type="button" onclick="addTracker()">＋ New tracker</button>
+      <button class="btn sec small" type="button" onclick="addTrackerPreset('love')">❤️ Love preset</button>
+      <button class="btn sec small" type="button" onclick="addTrackerPreset('pregnancy')">🤰 Pregnancy preset</button>
+    </div>
     <div class="row">
       <button class="btn danger sec small" id="ueDelete" onclick="deleteUniverse()">Delete</button>
       <button class="btn" onclick="saveUniverse()">Save</button>
@@ -702,7 +752,7 @@
 <script>
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
-  user:"sm_user",userLook:"sm_userlook",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
+  user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidSound:"sm_vidsound",
   memModel:"sm_memmodel",memBuild:"sm_membuild",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",baseInstruction:"sm_baseinstr",
@@ -718,7 +768,11 @@ const K={key:"sm_key",segkey:"sm_segkey",model:"sm_model",rewriter:"sm_rewriter"
   // Character bio generator + auto-character (Stages 5/6)
   bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
   // History compaction (tiered narration stripping)
-  stripNarr:"sm_stripnarr",stripKeepFull:"sm_stripkeepfull"};
+  stripNarr:"sm_stripnarr",stripKeepFull:"sm_stripkeepfull",
+  // Quality-of-life features
+  recapOn:"sm_recapon",
+  // Relationships + freeform trackers
+  relOn:"sm_relon",relPrompt:"sm_relprompt",trackOn:"sm_trackon",trackPrompt:"sm_trackprompt",voiceCheckOn:"sm_voicecheckon",voiceCheckPrompt:"sm_voicecheckprompt"};
 // ModelsLab API base. Image and video endpoints live under different paths.
 const ML="https://modelslab.com/api/v6/";
 const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
@@ -1072,6 +1126,26 @@ Return ONLY a JSON object, no markdown, no commentary:
   "interject": "1-2 sentences: this character's pressure points — fears, desires, secrets, hooks a director engine can use"
 }`;
 
+const DEFAULT_REL=`You track how characters FEEL about each other and about the player in an ongoing roleplay, on a -100 (hatred) to +100 (devotion) scale where 0 is neutral.
+
+You are given the current relationship values and the latest exchange. Decide small, believable adjustments based ONLY on what just happened. Most turns change little (±0 to ±5); a major moment (betrayal, rescue, confession) can be larger. Never invent relationships not listed.
+
+Return ONLY a JSON array of changes, each: {"pair": "<exact pair id given>", "delta": <integer>, "reason": "<few words>"}.
+If nothing meaningful changed, return [].`;
+
+const DEFAULT_TRACK=`You update freeform story trackers for an ongoing roleplay. Each tracker is a named value with a range. You are given each tracker's definition, its current value, and the latest exchange.
+
+For each tracker:
+- If its update mode includes scene-judgement, decide a believable delta based ONLY on what just happened (usually small).
+- If it has a TRIGGER PHRASE, report whether that trigger occurred in the latest exchange (true/false). Do NOT apply dice or counters yourself — the app handles those.
+
+Return ONLY a JSON array, each: {"id":"<tracker id>", "delta": <number, 0 if none>, "triggered": <true|false>}.
+Return [] if nothing changed and no triggers fired.`;
+
+const DEFAULT_VOICECHECK=`You are a subtle quality checker for a roleplay. Given a character's profile (personality, speaking style) and their latest line, judge whether the line is clearly OUT of character — wrong voice, contradicts their personality, or breaks immersion.
+
+Be conservative: only flag clear breaks, not minor variation. Return ONLY JSON: {"ok": <true|false>, "note": "<short reason if not ok>"}.`;
+
 /* ===== GAMEMASTER ===== an invisible director that watches for stale scenes ===== */
 // STAGE 1 — judge whether the scene needs help. Cheap, returns strict JSON.
 const DEFAULT_GM_JUDGE=`You are an invisible GAMEMASTER observing an ongoing roleplay between {{user}} and the character(s). Your ONLY job right now is to judge whether the story needs a push.
@@ -1241,13 +1315,29 @@ let _dbgc=0;
 function dbg(label,service,endpoint,payload){
   const entry={id:"dbg_"+(Date.now().toString(36))+"_"+(_dbgc++),
     label,service,endpoint,t:Date.now(),
-    payload,status:"sent",result:null};
+    payload,status:"sent",result:null,tokens:estTokens(payload)};
   dbgLog.push(entry);
   if(dbgLog.length>DBG_MAX)dbgLog=dbgLog.slice(-DBG_MAX);
   // live-refresh if the Debug tab is open
   const scr=document.getElementById('screen-debug');
   if(scr&&scr.classList.contains('active'))renderDebug();
   return entry;
+}
+// Rough token estimate (~4 chars/token) of a request payload's text content. Approximate,
+// but consistent — good enough to watch payload size grow and to see compaction savings.
+function estTokens(payload){
+  try{
+    let chars=0;
+    if(payload&&Array.isArray(payload.messages)){
+      for(const m of payload.messages){
+        if(typeof m.content==="string")chars+=m.content.length;
+        else if(Array.isArray(m.content))chars+=m.content.map(c=>c.text||"").join("").length;
+        if(m.name)chars+=m.name.length;
+      }
+    }else if(payload&&typeof payload.prompt==="string"){chars=payload.prompt.length;}
+    else{chars=JSON.stringify(payload||"").length;}
+    return Math.round(chars/4);
+  }catch(e){ return null; }
 }
 // attach an outcome to a previously-created entry
 function dbgDone(entry,status,result){
@@ -1364,6 +1454,7 @@ function renderDebug(){
           <div class="desc" style="margin-top:2px">${esc(e.service)} · ${time} · ${esc(e.status)}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+          ${e.tokens!=null?`<span class="pill" style="font-variant-numeric:tabular-nums" title="Estimated prompt tokens (~4 chars/token)">~${e.tokens} tok</span>`:""}
           <span class="pill" style="border-color:${durColor};color:${durColor};font-variant-numeric:tabular-nums">${dur||"—"}</span>
           <span class="pill" data-arrow>▸</span>
         </div>
@@ -1465,6 +1556,9 @@ function loadState(){
     vidSound:store.get(K.vidSound,false),
     user:store.raw(K.user,"You"),
     userLook:store.raw(K.userLook,""),
+    userBio:store.raw(K.userBio,""),
+    // Global defaults above are the fallback; the ACTIVE values are resolved per-universe
+    // by applyUniverseProfile() whenever a universe is opened (see openUniverse/enterUniverseChat).
     tokens:+store.raw(K.tokens,1200),
     temp:+store.raw(K.temp,0.85),
     mem:store.get(K.mem,true),
@@ -1514,6 +1608,13 @@ function loadState(){
     autoCharDelay:+store.raw(K.autoCharDelay,5),
     stripNarr:store.get(K.stripNarr,false),
     stripKeepFull:+store.raw(K.stripKeepFull,6),
+    recapOn:store.get(K.recapOn,true),
+    relOn:store.get(K.relOn,true),
+    relPrompt:store.raw(K.relPrompt,DEFAULT_REL),
+    trackOn:store.get(K.trackOn,true),
+    trackPrompt:store.raw(K.trackPrompt,DEFAULT_TRACK),
+    voiceCheckOn:store.get(K.voiceCheckOn,false),
+    voiceCheckPrompt:store.raw(K.voiceCheckPrompt,DEFAULT_VOICECHECK),
     theme:store.raw(K.theme,"dark"),
     font:+store.raw(K.font,16),
     chats:(_idbColl?_idbColl.chats:store.get(K.chats,{}))||{},
@@ -1624,6 +1725,10 @@ function loadState(){
   }
   Object.values(state.chats||{}).forEach(c=>{
     if(typeof c.gameDay!=="number")c.gameDay=1;
+    if(typeof c.timeOfDay!=="string")c.timeOfDay="";
+    if(typeof c.location!=="string")c.location="";
+    if(!c.trackerVals||typeof c.trackerVals!=="object")c.trackerVals={};
+    if(!c.relVals||typeof c.relVals!=="object")c.relVals={};
     if(typeof c.gmLastCheck!=="number")c.gmLastCheck=0;
     // new model: presence defaults to EMPTY; cast is the universe (computed live)
     if(!Array.isArray(c.presentIds))c.presentIds=[];
@@ -1966,10 +2071,29 @@ function castBackstorySheet(chat){
   return lines.join("\n");
 }
 // A compact world+pressure-points context block for gamemaster/scene-writer user messages.
+// Current scene's time/place — surfaced to director engines and roleplay so events and
+// dialogue respect "it's night at the tavern" instead of drifting.
+function sceneStateLine(chat){
+  const c=chat||curChat(); if(!c)return "";
+  const bits=[];
+  bits.push(`Day ${c.gameDay||1}`);
+  if(c.timeOfDay&&c.timeOfDay.trim())bits.push(c.timeOfDay.trim());
+  if(c.location&&c.location.trim())bits.push("at "+c.location.trim());
+  return "CURRENT SCENE: "+bits.join(", ");
+}
 function directorContext(chat){
   const parts=[];
   const w=curWorldSetting();
   if(w)parts.push(`WORLD SETTING:\n${w}`);
+  const ss=sceneStateLine(chat);
+  if(ss)parts.push(ss);
+  const tc=trackerContext(chat);
+  if(tc)parts.push(tc);
+  // The player's own identity in this universe — grounds events around them too.
+  let pl=`PLAYER (${state.user})`;
+  if(state.userBio&&state.userBio.trim()) pl+=`\nBackground: ${state.userBio.trim()}`;
+  if(state.userLook&&state.userLook.trim()) pl+=`\nAppearance: ${state.userLook.trim()}`;
+  if(state.userBio&&state.userBio.trim()||state.userLook&&state.userLook.trim()) parts.push(pl);
   const bg=castBackstorySheet(chat);
   if(bg)parts.push(`CHARACTER BACKGROUNDS (ground events in who these characters are):\n${bg}`);
   const ij=castInterjectSheet(chat);
@@ -2008,10 +2132,266 @@ function renderUniverses(){
   add.addEventListener('click',()=>editUniverse(null));
   el.appendChild(add);
 }
+// ============================ TRACKER + RELATIONSHIP ENGINE ============================
+// Per-universe TEMPLATES define trackers; per-chat VALUES hold live state. Deterministic
+// math (dice, day-tick, clamp, stage lookup) is done in code; the LLM only judges soft
+// deltas and detects trigger phrases. Both relationships and freeform trackers flow through
+// here and both get injected into directorContext + the roleplay system prompt.
+
+function curTrackers(){ const u=curUniverseObj(); return (u&&Array.isArray(u.trackers))?u.trackers:[]; }
+function clampVal(v,t){ const lo=(t.min!=null?t.min:0), hi=(t.max!=null?t.max:100); return Math.max(lo,Math.min(hi,v)); }
+function trackerVal(chat,t){
+  if(!chat.trackerVals)chat.trackerVals={};
+  if(chat.trackerVals[t.id]==null)chat.trackerVals[t.id]=(t.start!=null?t.start:(t.min!=null?t.min:0));
+  return chat.trackerVals[t.id];
+}
+// Find the active stage for a value: highest threshold (`at`) the value has reached.
+function activeStage(t,v){
+  if(!Array.isArray(t.stages)||!t.stages.length)return null;
+  const sorted=t.stages.slice().sort((a,b)=>(a.at||0)-(b.at||0));
+  let cur=null; for(const s of sorted){ if(v>=(s.at||0))cur=s; }
+  return cur;
+}
+function rollDice(spec){ // "1d3" -> total
+  const m=/^(\d+)d(\d+)$/i.exec((spec||"").trim()); if(!m)return null;
+  const n=+m[1],sides=+m[2]; let tot=0; for(let i=0;i<n;i++)tot+=1+Math.floor(Math.random()*sides); return tot;
+}
+// Relationship pair key (order-independent) and helpers.
+function relKey(aId,bId){ return [aId,bId].sort().join("|"); }
+function relVal(chat,aId,bId){ if(!chat.relVals)chat.relVals={}; const k=relKey(aId,bId); if(chat.relVals[k]==null)chat.relVals[k]=0; return chat.relVals[k]; }
+function relLabel(v){ if(v>=70)return"devoted"; if(v>=35)return"warm"; if(v>=10)return"friendly"; if(v>-10)return"neutral"; if(v>-35)return"wary"; if(v>-70)return"hostile"; return"hateful"; }
+
+// Build the context block injected into prompts: current relationships + tracker stages.
+function trackerContext(chat){
+  const c=chat||curChat(); if(!c)return "";
+  const parts=[];
+  // Relationships among present characters + toward the player.
+  if(state.relOn){
+    const present=presentCast(c);
+    const lines=[];
+    for(let i=0;i<present.length;i++){
+      // toward player
+      const vp=relVal(c,present[i].id,"__user__");
+      if(vp!==0)lines.push(`${present[i].name} → ${state.user}: ${relLabel(vp)} (${vp})`);
+      for(let j=i+1;j<present.length;j++){
+        const v=relVal(c,present[i].id,present[j].id);
+        if(v!==0)lines.push(`${present[i].name} ↔ ${present[j].name}: ${relLabel(v)} (${v})`);
+      }
+    }
+    if(lines.length)parts.push("RELATIONSHIPS:\n"+lines.join("\n"));
+  }
+  // Freeform trackers with their current stage text.
+  if(state.trackOn){
+    const ts=curTrackers();
+    const lines=[];
+    for(const t of ts){
+      const v=trackerVal(c,t);
+      const st=activeStage(t,v);
+      lines.push(`${t.name}: ${v}${t.max!=null?"/"+t.max:""}`+(st&&st.text?` — ${st.text}`:""));
+    }
+    if(lines.length)parts.push("STORY TRACKERS:\n"+lines.join("\n"));
+  }
+  return parts.join("\n\n");
+}
+
+// Day-tick: called from endDay. Applies per-day increments to trackers that have them.
+function tickTrackersForDay(chat){
+  if(!state.trackOn||!chat)return;
+  let changed=false;
+  for(const t of curTrackers()){
+    if(t.perDay && Number(t.perDay)!==0){
+      // Only tick if the tracker has been "activated" (for pregnancy-style: only count once pregnant).
+      // Convention: if t.activateAt is set, only tick once value >= activateAt.
+      const v=trackerVal(chat,t);
+      if(t.activateAt!=null && v<t.activateAt) continue;
+      chat.trackerVals[t.id]=clampVal(v+Number(t.perDay),t);
+      changed=true;
+    }
+  }
+  if(changed)persistChats();
+}
+
+// After-turn engine: one LLM call judges soft deltas + detects triggers; code applies
+// dice / clamps / stages and surfaces any stage-crossing as a quiet narrator note.
+async function runTrackerEngine(chat,latestExchange){
+  if(!chat||!state.key)return;
+  if(!state.relOn && !state.trackOn)return;
+  const present=presentCast(chat);
+
+  // ---- Relationships ----
+  if(state.relOn && present.length){
+    const pairs=[];
+    for(let i=0;i<present.length;i++){
+      pairs.push({id:relKey(present[i].id,"__user__"),label:`${present[i].name} → ${state.user}`,val:relVal(chat,present[i].id,"__user__")});
+      for(let j=i+1;j<present.length;j++)
+        pairs.push({id:relKey(present[i].id,present[j].id),label:`${present[i].name} ↔ ${present[j].name}`,val:relVal(chat,present[i].id,present[j].id)});
+    }
+    try{
+      const sys=state.relPrompt||DEFAULT_REL;
+      const cur=pairs.map(p=>`${p.id} (${p.label}): ${p.val}`).join("\n");
+      const out=await chatCompletion([
+        {role:"system",content:sys},
+        {role:"user",content:`Current relationships:\n${cur}\n\nLatest exchange:\n${latestExchange}`}
+      ],state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",200),dbg:"Relationship tracker"});
+      const arr=parseJSON(out);
+      if(Array.isArray(arr)){
+        for(const ch of arr){
+          if(!ch||!ch.pair||typeof ch.delta!=="number")continue;
+          if(!chat.relVals)chat.relVals={};
+          const k=ch.pair;
+          chat.relVals[k]=Math.max(-100,Math.min(100,(chat.relVals[k]||0)+ch.delta));
+        }
+      }
+    }catch(e){/* best-effort */}
+  }
+
+  // ---- Freeform trackers ----
+  if(state.trackOn){
+    const ts=curTrackers();
+    if(ts.length){
+      try{
+        const sys=state.trackPrompt||DEFAULT_TRACK;
+        const defs=ts.map(t=>{
+          let d=`id:${t.id} | name:${t.name} | range:${t.min!=null?t.min:0}..${t.max!=null?t.max:100} | current:${trackerVal(chat,t)} | mode:${t.updateMode||"llm"}`;
+          if(t.triggerPhrase)d+=` | TRIGGER PHRASE: "${t.triggerPhrase}"`;
+          return d;
+        }).join("\n");
+        const out=await chatCompletion([
+          {role:"system",content:sys},
+          {role:"user",content:`Trackers:\n${defs}\n\nLatest exchange:\n${latestExchange}`}
+        ],state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",220),dbg:"Story tracker"});
+        const arr=parseJSON(out)||[];
+        const byId={}; if(Array.isArray(arr))arr.forEach(x=>{if(x&&x.id)byId[x.id]=x;});
+        const crossings=[];
+        for(const t of ts){
+          const before=trackerVal(chat,t);
+          const beforeStage=activeStage(t,before);
+          let v=before;
+          const rep=byId[t.id]||{};
+          const mode=t.updateMode||"llm";
+          // soft delta (llm-judged)
+          if((mode==="llm"||mode==="both") && typeof rep.delta==="number") v+=rep.delta;
+          // trigger fired → dice (if any) decides; else apply triggerDelta
+          if((mode==="trigger"||mode==="both") && rep.triggered){
+            if(t.dice){
+              const roll=rollDice(t.dice);
+              const hit=(t.diceHit!=null)?(roll===Number(t.diceHit)):(roll!=null);
+              if(hit) v=clampVal((t.onHitSet!=null?t.onHitSet:(v+(t.triggerDelta||1))),t);
+            }else{
+              v=v+(t.triggerDelta!=null?t.triggerDelta:1);
+            }
+          }
+          v=clampVal(v,t);
+          chat.trackerVals[t.id]=v;
+          const afterStage=activeStage(t,v);
+          if(afterStage && afterStage!==beforeStage && afterStage.text){
+            crossings.push(`${t.name}: ${afterStage.text}`);
+          }
+        }
+        // Surface stage crossings as a quiet narrator beat (visible, in-scene).
+        if(crossings.length){
+          chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",narratorEvent:true,trackerBeat:true,
+            present:presentIds(chat).slice(),content:"— "+crossings.join(" · ")+" —",
+            img:null,imgState:"idle",vidState:"idle",video:null});
+          appendNewBubbles();
+        }
+      }catch(e){/* best-effort */}
+    }
+  }
+  persistChats();
+}
+
+// ===== Per-universe user profile =====
+function _ssClose(){ const m=document.getElementById('storyStateModal'); if(m)m.remove(); }
+function openStoryState(){
+  const chat=curChat(); if(!chat)return;
+  _ssClose();
+  const present=presentCast(chat);
+  const ts=curTrackers();
+  let rel="";
+  if(state.relOn){
+    const lines=[];
+    for(let i=0;i<present.length;i++){
+      const vp=relVal(chat,present[i].id,"__user__");
+      lines.push({k:relKey(present[i].id,"__user__"),label:`${present[i].name} → ${state.user}`,v:vp});
+      for(let j=i+1;j<present.length;j++)
+        lines.push({k:relKey(present[i].id,present[j].id),label:`${present[i].name} ↔ ${present[j].name}`,v:relVal(chat,present[i].id,present[j].id)});
+    }
+    rel=lines.map(l=>`<div class="kvline"><span>${esc(l.label)} <b>${l.v} (${relLabel(l.v)})</b></span>
+      <span style="display:flex;gap:4px">
+        <button class="btn sec small" onclick="nudgeRel('${l.k}',-5)">−5</button>
+        <button class="btn sec small" onclick="nudgeRel('${l.k}',5)">+5</button>
+      </span></div>`).join("")||`<div class="desc">No relationships yet — they form as characters interact.</div>`;
+  }
+  let trk="";
+  if(ts.length){
+    trk=ts.map(t=>{const v=trackerVal(chat,t);const st=activeStage(t,v);
+      return `<div class="kvline"><span>${esc(t.name)} <b>${v}${t.max!=null?"/"+t.max:""}</b>${st&&st.text?` <span class="desc">— ${esc(st.text)}</span>`:""}</span>
+        <span style="display:flex;gap:4px">
+          <button class="btn sec small" onclick="nudgeTracker('${t.id}',-1)">−1</button>
+          <button class="btn sec small" onclick="nudgeTracker('${t.id}',1)">+1</button>
+          <button class="btn sec small" onclick="setTrackerVal('${t.id}')">set</button>
+        </span></div>`;}).join("");
+  }else{ trk=`<div class="desc">No trackers defined. Add them in the Universe editor.</div>`; }
+  const m=document.createElement('div'); m.id="storyStateModal"; m.className="modal show";
+  m.innerHTML=`<button class="x" onclick="_ssClose()">×</button>
+   <div class="card editCard">
+    <h3>📊 Story State</h3>
+    <div class="subhead">Relationships</div>${rel||`<div class="desc">Relationship tracking is off.</div>`}
+    <div class="subhead" style="margin-top:10px">Trackers</div>${trk}
+    <button class="btn small" style="margin-top:12px" onclick="_ssClose()">Close</button>
+   </div>`;
+  m.addEventListener('click',e=>{if(e.target===m)_ssClose();});
+  document.body.appendChild(m);
+}
+function nudgeRel(k,d){ const chat=curChat(); if(!chat.relVals)chat.relVals={}; chat.relVals[k]=Math.max(-100,Math.min(100,(chat.relVals[k]||0)+d)); persistChats(); openStoryState(); }
+function nudgeTracker(id,d){ const chat=curChat(); const t=curTrackers().find(x=>x.id===id); if(!t)return; chat.trackerVals[id]=clampVal(trackerVal(chat,t)+d,t); persistChats(); openStoryState(); updateChatHeader(); }
+function setTrackerVal(id){ const chat=curChat(); const t=curTrackers().find(x=>x.id===id); if(!t)return; const v=prompt(`Set ${t.name} to:`,String(trackerVal(chat,t))); if(v===null||v.trim()==="")return; chat.trackerVals[id]=clampVal(+v,t); persistChats(); openStoryState(); updateChatHeader(); }
+
+// Optional: flag clearly out-of-character lines (subtle quality signal). Best-effort, off by
+// default since it costs one small call per reply. Marks the message so the bubble can show a hint.
+async function runVoiceCheck(chat,msg,p){
+  if(!state.voiceCheckOn||!state.key||!msg||!p)return;
+  try{
+    const prof=`Character: ${p.name}\nPersonality: ${p.personality||"(none)"}\nSpeaking style: ${p.style||"(none)"}`;
+    const out=await chatCompletion([
+      {role:"system",content:state.voiceCheckPrompt||DEFAULT_VOICECHECK},
+      {role:"user",content:`${prof}\n\nLatest line:\n${msg.content}`}
+    ],state.mcModel,{temp:fnTemp("mc",0),max:fnTok("mc",60),dbg:"Voice check · "+p.name});
+    const j=parseJSON(out);
+    if(j&&j.ok===false&&j.note){ msg.voiceFlag=j.note.trim(); persistChats(); refreshBubble(msg.mid); }
+  }catch(e){/* best-effort */}
+}
+
+// ===== Per-universe user profile (orig) =====
+// Each universe can carry its own player identity (userName/userLook/userBio). These are
+// the persisted source of truth; the ACTIVE state.user/userLook/userBio are resolved from
+// the current universe here so all ~40 existing read-sites keep working unchanged. Falls
+// back to the global defaults (Settings) when a universe hasn't set its own.
+const _userDefaults={user:"You",userLook:"",userBio:""};
+function globalUserDefaults(){
+  return {
+    user:store.raw(K.user,"You")||"You",
+    userLook:store.raw(K.userLook,"")||"",
+    userBio:store.raw(K.userBio,"")||""
+  };
+}
+function applyUniverseProfile(uid){
+  const u=universeById(uid||state.curUniverse);
+  const def=globalUserDefaults();
+  const has=v=>v!=null && String(v).trim()!=="";   // empty/blank → inherit global
+  if(u){
+    state.user=has(u.userName)?u.userName.trim():def.user;
+    state.userLook=has(u.userLook)?u.userLook:def.userLook;
+    state.userBio=has(u.userBio)?u.userBio:def.userBio;
+  }else{
+    state.user=def.user; state.userLook=def.userLook; state.userBio=def.userBio;
+  }
+}
 // Open a single universe: show its setting box + its characters.
 function openUniverse(id){
   const u=universeById(id);if(!u)return;
-  state.curUniverse=id;persistUniverses();
+  state.curUniverse=id;applyUniverseProfile(id);persistUniverses();
   document.getElementById('universeView').classList.add('hide');
   document.getElementById('charsView').classList.remove('hide');
   document.getElementById('personaHeaderTitle').textContent=u.name;
@@ -2037,20 +2417,98 @@ function editUniverse(id){
   document.getElementById('ueName').value=u.name||"";
   document.getElementById('ueAvatar').value=u.avatar||"";
   document.getElementById('ueSetting').value=u.setting||"";
+  document.getElementById('ueUserName').value=u.userName||"";
+  document.getElementById('ueUserLook').value=u.userLook||"";
+  document.getElementById('ueUserBio').value=u.userBio||"";
+  _ueTrackers=Array.isArray(u.trackers)?JSON.parse(JSON.stringify(u.trackers)):[];
+  renderTrackerEditor();
   document.getElementById('ueDelete').style.display=id?"block":"none";
   openModal('universeModal');
+}
+// ---- Tracker editor (works on a draft copy until the universe is saved) ----
+let _ueTrackers=[];
+function renderTrackerEditor(){
+  const el=document.getElementById('ueTrackerList'); if(!el)return; el.innerHTML="";
+  if(!_ueTrackers.length){ el.innerHTML=`<div class="desc">No trackers yet.</div>`; return; }
+  _ueTrackers.forEach((t,i)=>{
+    const row=document.createElement('div'); row.className="card"; row.style.padding="8px";
+    const stages=(t.stages||[]).length;
+    row.innerHTML=`<div class="kvline" style="padding:0">
+      <div style="min-width:0"><b>${esc(t.name||"(unnamed)")}</b>
+        <div class="desc">${t.min!=null?t.min:0}–${t.max!=null?t.max:100} · start ${t.start!=null?t.start:0} · ${esc(t.updateMode||"llm")}${t.triggerPhrase?` · trigger`:""}${t.dice?` · ${esc(t.dice)}`:""}${t.perDay?` · +${t.perDay}/day`:""} · ${stages} stage${stages===1?"":"s"}</div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="btn sec small" type="button" data-edit>Edit</button>
+        <button class="btn danger sec small" type="button" data-del>✕</button>
+      </div></div>`;
+    row.querySelector('[data-edit]').onclick=()=>editTracker(i);
+    row.querySelector('[data-del]').onclick=()=>{ if(confirm(`Delete tracker "${t.name}"?`)){_ueTrackers.splice(i,1);renderTrackerEditor();} };
+    el.appendChild(row);
+  });
+}
+function addTracker(){
+  _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"New tracker",min:0,max:100,start:0,updateMode:"llm",stages:[]});
+  editTracker(_ueTrackers.length-1);
+}
+function addTrackerPreset(kind){
+  if(kind==='love'){
+    _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"Love",min:0,max:100,start:0,updateMode:"llm",
+      stages:[{at:0,text:"indifferent"},{at:20,text:"curious, warming up"},{at:45,text:"clearly attracted"},{at:70,text:"in love, affectionate"},{at:90,text:"devoted, can't hide it"}]});
+  }else if(kind==='pregnancy'){
+    _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"Pregnancy",min:0,max:280,start:0,updateMode:"trigger",
+      triggerPhrase:"the character is creampied / ejaculated inside",dice:"1d3",diceHit:3,onHitSet:1,activateAt:1,perDay:1,
+      stages:[{at:1,text:"newly conceived (unaware)"},{at:30,text:"first signs — nausea, fatigue"},{at:90,text:"visibly showing"},{at:180,text:"heavily pregnant"},{at:270,text:"due any day"}]});
+  }
+  renderTrackerEditor();
+}
+function editTracker(i){
+  const t=_ueTrackers[i]; if(!t)return;
+  const name=prompt("Tracker name:",t.name||""); if(name===null)return; t.name=name.trim()||t.name;
+  const rng=prompt("Range as min-max (e.g. 0-100):",`${t.min!=null?t.min:0}-${t.max!=null?t.max:100}`);
+  if(rng!==null){ const m=/(-?\d+)\s*-\s*(-?\d+)/.exec(rng); if(m){t.min=+m[1];t.max=+m[2];} }
+  const start=prompt("Starting value:",String(t.start!=null?t.start:0)); if(start!==null&&start.trim()!=="")t.start=+start;
+  const mode=prompt("Update mode — type one of: llm (AI judges from scene), trigger (fires on an event/dice), both:",t.updateMode||"llm");
+  if(mode!==null){const mm=mode.trim().toLowerCase(); if(["llm","trigger","both"].includes(mm))t.updateMode=mm;}
+  if(t.updateMode==="trigger"||t.updateMode==="both"){
+    const tp=prompt("Trigger phrase (plain English — what the AI watches for):",t.triggerPhrase||""); if(tp!==null)t.triggerPhrase=tp.trim();
+    const dice=prompt("Dice on trigger (e.g. 1d3), or blank for none:",t.dice||""); if(dice!==null)t.dice=dice.trim();
+    if(t.dice){ const dh=prompt(`Value rolled that counts as a HIT (for ${t.dice}):`,String(t.diceHit!=null?t.diceHit:t.dice.split('d')[1])); if(dh!==null)t.diceHit=+dh;
+      const os=prompt("On a hit, SET the value to:",String(t.onHitSet!=null?t.onHitSet:1)); if(os!==null)t.onHitSet=+os; }
+    else { const td=prompt("On trigger, change value by:",String(t.triggerDelta!=null?t.triggerDelta:1)); if(td!==null)t.triggerDelta=+td; }
+    const pd=prompt("Per-day change once active (e.g. 1 to count days; blank=none):",String(t.perDay!=null?t.perDay:"")); if(pd!==null)t.perDay=pd.trim()===""?0:+pd;
+    const aa=prompt("Only start per-day counting once value reaches (blank=immediately):",String(t.activateAt!=null?t.activateAt:"")); if(aa!==null)t.activateAt=aa.trim()===""?null:+aa;
+  }
+  // Stages
+  if(confirm("Edit stages now? (thresholds → text shown to the AI)")){
+    editTrackerStages(t);
+  }
+  renderTrackerEditor();
+}
+function editTrackerStages(t){
+  if(!Array.isArray(t.stages))t.stages=[];
+  const cur=t.stages.map(s=>`${s.at}: ${s.text}`).join("\n");
+  const txt=prompt("One stage per line as  threshold: text\n(e.g.\n0: indifferent\n45: attracted\n70: in love\n)",cur);
+  if(txt===null)return;
+  t.stages=txt.split("\n").map(l=>{ const m=/^\s*(-?\d+)\s*:\s*(.+)$/.exec(l); return m?{at:+m[1],text:m[2].trim()}:null; }).filter(Boolean);
 }
 function saveUniverse(){
   const name=document.getElementById('ueName').value.trim();
   if(!name){toast("Give the universe a name");return;}
   const obj={name,avatar:document.getElementById('ueAvatar').value.trim()||"🌌",
-    setting:document.getElementById('ueSetting').value.trim()};
+    setting:document.getElementById('ueSetting').value.trim(),
+    userName:document.getElementById('ueUserName').value.trim(),
+    userLook:document.getElementById('ueUserLook').value.trim(),
+    userBio:document.getElementById('ueUserBio').value.trim(),
+    trackers:_ueTrackers.slice()};
   if(editingUniverse){
     Object.assign(editingUniverse,obj);
   }else{
     obj.id="u_"+Date.now();state.universes.push(obj);
   }
-  persistUniverses();closeModal('universeModal');
+  persistUniverses();
+  // If we edited the currently-open universe, re-resolve the active player identity now.
+  if(editingUniverse && state.curUniverse===editingUniverse.id) applyUniverseProfile(state.curUniverse);
+  closeModal('universeModal');
   // Refresh whichever view is showing.
   if(!document.getElementById('charsView').classList.contains('hide')){
     // inside a universe — refresh its header/setting if we edited the open one
@@ -2381,6 +2839,13 @@ function buildSystemPrompt(injectedMemories){
   const _uni=curUniverseObj();
   if(_uni&&_uni.setting&&_uni.setting.trim())blocks.push(`# UNIVERSE / WORLD SETTING\n${_uni.setting.trim()}`);
 
+  {let pb="";
+   if(state.userBio&&state.userBio.trim())pb+=`\nBackground: ${state.userBio.trim()}`;
+   if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
+   if(pb)blocks.push(`# THE PLAYER — ${state.user}${pb}`);}
+  {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
+  {const tc=trackerContext();if(tc)blocks.push(`# STORY STATE\n${tc}`);}
+
   if(multi){
     const names=cast.map(c=>c.name);
     const list=names.slice(0,-1).join(", ")+" and "+names[names.length-1];
@@ -2435,6 +2900,13 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
 
   const _uni=curUniverseObj();
   if(_uni&&_uni.setting&&_uni.setting.trim())blocks.push(`# UNIVERSE / WORLD SETTING\n${_uni.setting.trim()}`);
+
+  {let pb="";
+   if(state.userBio&&state.userBio.trim())pb+=`\nBackground: ${state.userBio.trim()}`;
+   if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
+   if(pb)blocks.push(`# THE PLAYER — ${state.user}${pb}`);}
+  {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
+  {const tc=trackerContext();if(tc)blocks.push(`# STORY STATE\n${tc}`);}
 
   let rb=`# YOUR ROLE — ${p.name}\nYou are ${p.name}, one character in a multi-character roleplay with ${state.user}. Stay fully in character as ${p.name} only. Never break character or mention being an AI. You speak and act ONLY as ${p.name} — never voice ${state.user}, the narrator, or any other character.`;
   if(p.instructions)rb+=`\n\nInstructions: ${p.instructions}`;
@@ -2506,9 +2978,36 @@ function startSceneFor(uid,silent){
 // Enter (resume) a universe's chat. Default presence is EMPTY — nobody nearby.
 function enterUniverseChat(uid,silent){
   uid=uid||state.curUniverse||(state.universes[0]&&state.universes[0].id);
-  state.curUniverse=uid;persistUniverses();
+  state.curUniverse=uid;applyUniverseProfile(uid);persistUniverses();
   startSceneFor(uid,true);
-  if(!silent){show('chat');renderChat();updateChatHeader();}
+  if(!silent){show('chat');renderChat();updateChatHeader();maybeShowRecap(state.chats[state.curChat]);}
+}
+// Scene recap on resume: when reopening a chat that has history and hasn't been touched for
+// a while, generate a one-line "Previously…" so you drop back in oriented. Ephemeral banner,
+// not a stored message. Best-effort and dismissible.
+const RECAP_GAP_MS=30*60*1000;   // only if idle ≥ 30 min
+async function maybeShowRecap(chat){
+  const bn=document.getElementById('recapBanner'); if(!bn)return;
+  bn.classList.add('hide'); bn.innerHTML="";
+  if(!state.recapOn||!chat||!state.key)return;
+  const msgs=(chat.messages||[]).filter(m=>!m.sysError&&m.role!=='system');
+  if(msgs.length<6)return;                                   // too short to need a recap
+  const idle=Date.now()-(chat.lastActive||0);
+  if(chat.lastActive && idle<RECAP_GAP_MS)return;            // just here recently
+  // Show a lightweight loading state, then fill.
+  bn.classList.remove('hide');
+  bn.innerHTML=`<div class="recap"><span class="recapTag">Previously…</span> <span class="desc">recapping…</span></div>`;
+  try{
+    const convo=msgs.slice(-16).map(m=>`${m.role==='user'?state.user:(m.speaker||'Narrator')}: ${m.content}`).join("\n");
+    const out=await chatCompletion([
+      {role:"system",content:"You write a single-sentence 'Previously on…' recap of where an ongoing roleplay scene left off. Present tense, vivid, under 40 words, no quotes, no character dialogue — just the situation as it stands."},
+      {role:"user",content:`Scene so far:\n${convo}\n\nWrite the one-line recap.`}
+    ],state.memModel,{temp:fnTemp("mem",0.5),max:fnTok("mem",80),dbg:"Scene recap"});
+    const txt=(out||"").trim().replace(/^["']|["']$/g,"");
+    if(txt){
+      bn.innerHTML=`<div class="recap"><span class="recapTag">Previously…</span> ${esc(txt)} <button class="recapX" onclick="document.getElementById('recapBanner').classList.add('hide')">✕</button></div>`;
+    }else{ bn.classList.add('hide'); }
+  }catch(e){ bn.classList.add('hide'); }
 }
 // Every character that belongs to the active universe is automatically in the cast.
 function curCast(){
@@ -2674,7 +3173,20 @@ function updateChatHeader(){
   else base=`${present.length} nearby`;
   base+=` · ${cast.length} in world`;
   const ev=chat&&chat.activeEvent&&!chat.activeEvent.resolved;
-  document.getElementById('chatScene').textContent=(ev?`🎬 event · `:"")+`Day ${day} · ${base}`;
+  let loc="";
+  if(chat){ const t=(chat.timeOfDay||"").trim(), l=(chat.location||"").trim();
+    if(t||l)loc=" · "+[t,l?("📍"+l):""].filter(Boolean).join(" "); }
+  document.getElementById('chatScene').textContent=(ev?`🎬 event · `:"")+`Day ${day}${loc} · ${base}`;
+}
+// Quick editor for the scene's time of day + location (per-chat state).
+function setSceneState(){
+  const chat=curChat(); if(!chat)return;
+  const t=prompt("Time of day (e.g. morning, dusk, 2am) — leave blank to clear:",chat.timeOfDay||"");
+  if(t===null)return;
+  const l=prompt("Location (e.g. the tavern, Aria's apartment) — leave blank to clear:",chat.location||"");
+  if(l===null)return;
+  chat.timeOfDay=t.trim(); chat.location=l.trim();
+  persistChats(); updateChatHeader(); toast("Scene updated ✓");
 }
 function openCast(){
   const chat=curChat();
@@ -2813,6 +3325,7 @@ function bubble(m){
   b.dataset.mid=m.mid;
   const name=m.role==='user'?state.user:(m.speaker||(curCast()[0]&&curCast()[0].name)||"Narrator");
   const gmTag=m.gmBeat?` <span class="pill" style="font-size:10px;opacity:.7">🎬</span>`:"";
+  const voiceTag=m.voiceFlag?` <span class="pill" style="font-size:9px;border-color:#E8A33D;color:#E8A33D" title="${esc(m.voiceFlag)}">⚠ voice</span>`:"";
   let avatar="",tempTag="";
   if(m.role==='assistant'){
     const sp=state.personas.find(x=>x.id===m.speakerId)||state.personas.find(x=>x.name===m.speaker);
@@ -2823,7 +3336,7 @@ function bubble(m){
       tempTag=` <span class="pill" style="font-size:9px;border-color:var(--accent);color:var(--accent)">guest</span>`;
     }
   }
-  b.innerHTML=`<div class="meta">${avatar}${esc(name)}${tempTag}${gmTag}</div><div class="body">${md(m.content)}</div>`;
+  b.innerHTML=`<div class="meta">${avatar}${esc(name)}${tempTag}${gmTag}${voiceTag}</div><div class="body">${md(m.content)}</div>`;
   if(m.role==='assistant'){
     // For finished image/video use the safe DOM builder (handles huge base64 data URLs);
     // loading/error states are cheap strings.
@@ -2923,6 +3436,8 @@ async function sendMessage(){
   }
 
   chat.messages.push({mid:newMid(),role:"user",content:text,present:presentIds(chat).slice()});
+  chat.lastActive=Date.now();
+  {const bn=document.getElementById('recapBanner'); if(bn)bn.classList.add('hide');}
   inp.value="";inp.style.height="auto";
   appendNewBubbles();persistChats();
 
@@ -2975,6 +3490,7 @@ async function sendMessage(){
     chat.messages.push(msg);
     persistChats();appendNewBubbles();
     if(state.autoImg) illustrate(msg.mid,reply);
+    runVoiceCheck(chat,msg,solo);
     maybeBuildMemory(chat);
     postTurn(chat);
   }catch(err){
@@ -3190,6 +3706,7 @@ async function playCharacterTurn(chat,p,addressed){
     chat.messages.push(msg);
     persistChats();appendNewBubbles();
     if(state.autoImg) illustrate(msg.mid,reply);
+    runVoiceCheck(chat,msg,p);
     return true;
   }catch(err){
     typing.remove();
@@ -3540,6 +4057,7 @@ async function endDay(){
   }
   // Advance the day and drop an in-scene narration marker.
   chat.gameDay=day+1;
+  tickTrackersForDay(chat);   // apply per-day tracker increments (e.g. pregnancy day count)
   chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",dayMarker:true,
     dayFrom:day,dayTo:day+1,narration,
     content:`🌙 Day ${day} ends. Day ${day+1} begins.`,
@@ -3551,6 +4069,15 @@ async function endDay(){
 /* ===== GAMEMASTER ===== invisible director: judge staleness, then nudge ===== */
 // After each player turn: run the Scene Writer if an event is active, else the Gamemaster.
 async function postTurn(chat){
+  // Update relationships + freeform trackers from what just happened (best-effort, awaited
+  // so stage-crossing narrator beats land before the director runs).
+  if(state.relOn||state.trackOn){
+    try{
+      const recent=chat.messages.filter(m=>!m.sysError&&m.role!=='system').slice(-6)
+        .map(m=>`${m.role==='user'?state.user:(m.speaker||'Narrator')}: ${m.content}`).join("\n");
+      await runTrackerEngine(chat,recent);
+    }catch(e){}
+  }
   if(chat.activeEvent && !chat.activeEvent.resolved && state.sceneOn){
     const broughtIn=await runSceneWriter(chat);
     // Only a NEWLY ARRIVED character speaks here (their entrance line). Characters who
@@ -3859,6 +4386,7 @@ async function playSingleReaction(chat,p,eventText){
     chat.messages.push(msg);
     persistChats();appendNewBubbles();
     if(state.autoImg) illustrate(msg.mid,reply);
+    runVoiceCheck(chat,msg,p);
   }catch(err){typing.remove();toast("⚠️ "+(err.friendly||"reaction failed"));}
 }
 // Manual override — force the Gamemaster to inject an event and play it out now.
@@ -4234,8 +4762,10 @@ function updateProvVis(){
   document.getElementById('orVidWrap').style.display=state.vidProvider==="openrouter"?"block":"none";
 }
 function syncSettingsUI(){
-  document.getElementById('setUser').value=state.user;
-  document.getElementById('setUserLook').value=state.userLook||'';
+  {const gd=globalUserDefaults();
+   document.getElementById('setUser').value=gd.user;
+   document.getElementById('setUserLook').value=gd.userLook||'';
+   document.getElementById('setUserBio').value=gd.userBio||'';}
   document.getElementById('setKey').value=state.key;
   document.getElementById('setSegKey').value=state.segkey;
   document.getElementById('setModel').value=state.model;
@@ -4288,6 +4818,13 @@ function syncSettingsUI(){
   document.getElementById('setAutoCharDelay').value=state.autoCharDelay;
   document.getElementById('setStripNarr').checked=state.stripNarr;
   document.getElementById('setStripKeepFull').value=state.stripKeepFull;
+  document.getElementById('setRelOn').checked=state.relOn;
+  document.getElementById('setRelPrompt').value=state.relPrompt;
+  document.getElementById('setTrackOn').checked=state.trackOn;
+  document.getElementById('setTrackPrompt').value=state.trackPrompt;
+  document.getElementById('setVoiceCheckOn').checked=state.voiceCheckOn;
+  document.getElementById('setVoiceCheckPrompt').value=state.voiceCheckPrompt;
+  document.getElementById('setRecapOn').checked=state.recapOn;
   document.getElementById('setVidPrompt').value=state.vidPrompt;
   document.getElementById('setTokens').value=state.tokens;document.getElementById('tokVal').textContent=state.tokens;
   document.getElementById('setTemp').value=state.temp;document.getElementById('tempVal').textContent=state.temp;
@@ -4297,8 +4834,13 @@ function syncSettingsUI(){
   renderToggleSegs();renderOvrFields();updateStorage();
 }
 function saveSettings(notify){
-  state.user=document.getElementById('setUser').value.trim()||"You";
-  state.userLook=document.getElementById('setUserLook').value.trim();
+  // The "You" fields are GLOBAL defaults — persist them to their keys, then re-resolve the
+  // active per-universe identity (a universe without its own override picks these up).
+  const gUser=document.getElementById('setUser').value.trim()||"You";
+  const gLook=document.getElementById('setUserLook').value.trim();
+  const gBio=document.getElementById('setUserBio').value.trim();
+  store.setRaw(K.user,gUser);store.setRaw(K.userLook,gLook);store.setRaw(K.userBio,gBio);
+  applyUniverseProfile(state.curUniverse);
   state.key=document.getElementById('setKey').value.trim();
   state.segkey=document.getElementById('setSegKey').value.trim();
   state.model=document.getElementById('setModel').value.trim()||"anthropic/claude-3.5-sonnet";
@@ -4346,12 +4888,19 @@ function saveSettings(notify){
   state.autoCharDelay=Math.max(1,+document.getElementById('setAutoCharDelay').value||5);
   state.stripNarr=document.getElementById('setStripNarr').checked;
   state.stripKeepFull=Math.max(2,+document.getElementById('setStripKeepFull').value||6);
+  state.relOn=document.getElementById('setRelOn').checked;
+  state.relPrompt=document.getElementById('setRelPrompt').value.trim()||DEFAULT_REL;
+  state.trackOn=document.getElementById('setTrackOn').checked;
+  state.trackPrompt=document.getElementById('setTrackPrompt').value.trim()||DEFAULT_TRACK;
+  state.voiceCheckOn=document.getElementById('setVoiceCheckOn').checked;
+  state.voiceCheckPrompt=document.getElementById('setVoiceCheckPrompt').value.trim()||DEFAULT_VOICECHECK;
+  state.recapOn=document.getElementById('setRecapOn').checked;
   state.vidPrompt=document.getElementById('setVidPrompt').value.trim()||DEFAULT_VIDPROMPT;
   state.tokens=+document.getElementById('setTokens').value;
   state.temp=+document.getElementById('setTemp').value;
   state.mem=document.getElementById('setMem').checked;
   state.font=+document.getElementById('setFont').value;
-  store.setRaw(K.user,state.user);store.setRaw(K.userLook,state.userLook||"");store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.model,state.model);
+  store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.model,state.model);
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
   store.setRaw(K.vidProvider,state.vidProvider);store.setRaw(K.vidModel,state.vidModel);
@@ -4364,6 +4913,7 @@ function saveSettings(notify){
   store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);
   store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
   store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);
+  store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
   store.set(K.gmOn,state.gmOn);store.setRaw(K.gmEvery,state.gmEvery);store.setRaw(K.gmSensitivity,state.gmSensitivity);store.setRaw(K.gmModel,state.gmModel);
   store.setRaw(K.gmJudge,state.gmJudge);store.setRaw(K.gmAuthor,state.gmAuthor);store.setRaw(K.daySummaryPrompt,state.daySummaryPrompt);
   store.set(K.sceneOn,state.sceneOn);store.setRaw(K.sceneSetup,state.sceneSetup);store.setRaw(K.sceneWriter,state.sceneWriter);store.setRaw(K.sceneMin,state.sceneMin);store.setRaw(K.sceneMax,state.sceneMax);
@@ -4513,6 +5063,7 @@ async function init(){
 }
 function init2(){
   syncSettingsUI();loadModels(false);
+  applyUniverseProfile(state.curUniverse);   // resolve per-universe player identity on load
   // Pull full image/video history from IndexedDB (large quota). If legacy localStorage
   // images were loaded by loadState, persistImages() below writes them into IDB once,
   // then they live there going forward.
