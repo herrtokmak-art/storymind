@@ -41,7 +41,9 @@
   .bubble{max-width:88%;padding:12px 14px;border-radius:20px;line-height:1.5;word-wrap:break-word;}
   .bubble.user{align-self:flex-end;background:var(--user);color:#fff;border-bottom-right-radius:6px;max-width:82%;}
   .bubble.ai{align-self:flex-start;background:var(--ai);border:1px solid var(--border);border-bottom-left-radius:6px;width:88%;}
-  .bubble .meta{font-size:11px;color:var(--muted);margin-bottom:5px;}
+  .bubble .meta{font-size:11px;color:var(--muted);margin-bottom:5px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .chatAv{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);}
+  .chatAvEmoji{font-size:16px;line-height:1;flex-shrink:0;}
   .bubble.user .meta{color:rgba(255,255,255,.7);}
   .bubble em{opacity:.92;}
   .bubble code{background:rgba(0,0,0,.3);padding:1px 5px;border-radius:5px;font-size:.9em;}
@@ -421,6 +423,9 @@
           <details class="acc"><summary>🪪 Character bio generator prompt</summary>
             <textarea class="fld" id="setBioPrompt" style="min-height:200px"></textarea>
             <div class="desc">Turns a brief (or conversation context) into a full character card as JSON. Used by "Create with AI" and auto-character.</div></details>
+          <details class="acc"><summary>🌌 Universe generator prompt</summary>
+            <textarea class="fld" id="setUnivPrompt" style="min-height:200px"></textarea>
+            <div class="desc">Turns a brief + character count into a full universe (setting, your background, and a cast) as JSON.</div></details>
         </div>
         <div class="card">
           <div class="subhead">📊 Story Systems</div>
@@ -632,6 +637,19 @@
 </div>
 
 <!-- ===== UNIVERSE EDITOR ===== -->
+<div class="modal" id="universeGenModal">
+  <button class="x" onclick="closeModal('universeGenModal')">×</button>
+  <div class="card editCard">
+    <h3>✨ Generate Universe</h3>
+    <div class="desc">Describe the world you want. The AI builds the setting, your character's background, and a ready-to-play cast. Pictures aren't generated — add them per character afterward.</div>
+    <div><label>Brief</label><textarea class="fld" id="ugBrief" placeholder="e.g. a neon cyberpunk megacity ruled by rival corporations; I'm a freelance fixer with a debt to pay. Include a hacker ally, a corpo handler, and a dangerous rival." style="min-height:110px"></textarea></div>
+    <div><label>How many characters (1–9)</label><input type="number" id="ugCount" min="1" max="9" step="1" value="4"></div>
+    <div class="row">
+      <button class="btn sec" onclick="closeModal('universeGenModal')">Cancel</button>
+      <button class="btn" id="ugGo" onclick="runUniverseGenerator()">✨ Generate universe</button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="universeModal">
   <button class="x" onclick="closeModal('universeModal')">×</button>
   <div class="card editCard">
@@ -754,7 +772,7 @@ const K={key:"sm_key",segkey:"sm_segkey",model:"sm_model",rewriter:"sm_rewriter"
   // Memory condenser (Stage 4)
   condenseOn:"sm_condenseon",condenseThreshold:"sm_condensethresh",condenseKeep:"sm_condensekeep",condenseBatch:"sm_condensebatch",condensePrompt:"sm_condenseprompt",
   // Character bio generator + auto-character (Stages 5/6)
-  bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
+  bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",univPrompt:"sm_univprompt",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
   // History compaction (tiered narration stripping)
   stripNarr:"sm_stripnarr",stripKeepFull:"sm_stripkeepfull",
   // Quality-of-life features
@@ -1113,6 +1131,31 @@ Return ONLY a JSON object, no markdown, no commentary:
   "instructions": "1-2 sentences of roleplay guidance: tone, boundaries, things to always/never do",
   "interject": "1-2 sentences: this character's pressure points — fears, desires, secrets, hooks a director engine can use"
 }`;
+
+const DEFAULT_UNIV=`You are a world-builder for an adult roleplay app. Given a short user brief and a requested number of characters, design a complete, ready-to-play universe: a world, a cast, and the player's place in it. Everything must be internally consistent — the characters belong to the world and have reasons to interact with the player.
+
+Return ONLY a JSON object, no markdown, no commentary:
+{
+  "name": "the universe's name",
+  "avatar": "a single emoji that fits the world",
+  "setting": "3-6 sentences: era, place, tone, rules, the ongoing situation everyone shares. This is the world prompt added to every scene.",
+  "userName": "a fitting name for the player's character in this world (or empty to let them keep their default)",
+  "userLook": "the player's appearance in this world (comma-separated visual details), or empty",
+  "userBio": "2-4 sentences: the player's background, role, and ties to this world — used by the director engines",
+  "characters": [
+    {
+      "name": "character name",
+      "avatar": "a single emoji",
+      "personality": "2-4 sentences",
+      "backstory": "2-4 sentences of history that ties them to this world and possibly the player",
+      "style": "1-2 sentences on how they speak",
+      "look": "comma-separated visual details: hair, eyes, build, clothing, distinguishing features",
+      "instructions": "1-2 sentences of roleplay guidance",
+      "interject": "1-2 sentences: this character's pressure points — fears, desires, secrets, hooks"
+    }
+  ]
+}
+Create exactly the requested number of characters. Do NOT include a scenario or opening line. Make the cast varied — different roles, temperaments, and relationships to the player.`;
 
 const DEFAULT_REL=`You track how characters FEEL about each other and about the player in an ongoing roleplay, on a -100 (hatred) to +100 (devotion) scale where 0 is neutral.
 
@@ -1592,6 +1635,7 @@ function loadState(){
     condensePrompt:store.raw(K.condensePrompt,DEFAULT_CONDENSE),
     bioModel:store.raw(K.bioModel,"deepseek/deepseek-v3.2"),
     bioPrompt:store.raw(K.bioPrompt,DEFAULT_BIO),
+    univPrompt:store.raw(K.univPrompt,DEFAULT_UNIV),
     autoCharOn:store.get(K.autoCharOn,true),
     autoCharDelay:+store.raw(K.autoCharDelay,5),
     stripNarr:store.get(K.stripNarr,false),
@@ -2119,6 +2163,10 @@ function renderUniverses(){
   add.innerHTML=`<div class="cc-plus">＋<small>New universe</small></div>`;
   add.addEventListener('click',()=>editUniverse(null));
   el.appendChild(add);
+  const gen=document.createElement('div');gen.className="charCard add";gen.style.borderColor="var(--accent)";
+  gen.innerHTML=`<div class="cc-plus" style="color:var(--accent)">✨<small>Generate with AI</small></div>`;
+  gen.addEventListener('click',openUniverseGenerator);
+  el.appendChild(gen);
 }
 // ============================ TRACKER + RELATIONSHIP ENGINE ============================
 // Per-universe TEMPLATES define trackers; per-chat VALUES hold live state. Deterministic
@@ -2479,6 +2527,44 @@ function editTrackerStages(t){
   if(txt===null)return;
   t.stages=txt.split("\n").map(l=>{ const m=/^\s*(-?\d+)\s*:\s*(.+)$/.exec(l); return m?{at:+m[1],text:m[2].trim()}:null; }).filter(Boolean);
 }
+// One-shot "Generate universe": creates the universe, its cast, and the player's background.
+function openUniverseGenerator(){
+  const b=document.getElementById('ugBrief'); if(b)b.value="";
+  const c=document.getElementById('ugCount'); if(c)c.value=4;
+  openModal('universeGenModal');
+}
+async function runUniverseGenerator(){
+  const brief=(document.getElementById('ugBrief')||{}).value||"";
+  const count=Math.max(1,Math.min(9,+((document.getElementById('ugCount')||{}).value)||3));
+  const btn=document.getElementById('ugGo');
+  if(!state.key){ toast("Add your API key in Settings first"); return; }
+  if(btn){btn.disabled=true;btn.textContent="Building world…";}
+  try{
+    const u=await generateUniverse(brief.trim(),count);
+    if(!u){ toast("⚠️ Generation failed — try again"); return; }
+    const uid="u_"+Date.now();
+    const universe={id:uid,name:u.name,avatar:u.avatar,setting:u.setting,
+      userName:u.userName,userLook:u.userLook,userBio:u.userBio,trackers:[]};
+    state.universes.push(universe);
+    // Create the character cards in this universe (no pictures — appearance text only).
+    let made=0;
+    for(const c of u.characters){
+      state.personas.push({id:"p_"+Date.now()+Math.random().toString(36).slice(2,5),
+        universeId:uid, name:c.name, avatar:c.avatar,
+        personality:c.personality, backstory:c.backstory, style:c.style,
+        look:c.look, instructions:c.instructions, interject:c.interject, image:null});
+      made++;
+    }
+    persistUniverses();persistPersonas();
+    closeModal('universeGenModal');
+    toast(`Created "${u.name}" with ${made} character${made===1?"":"s"} ✓`);
+    // Jump straight into the ready-to-play universe.
+    state.curUniverse=uid;applyUniverseProfile(uid);
+    if(typeof openUniverse==="function"){ openUniverse(uid); }
+    else { renderUniverses(); }
+  }catch(e){ console.warn("universe gen failed",e); toast("⚠️ Generation failed"); }
+  finally{ if(btn){btn.disabled=false;btn.textContent="✨ Generate universe";} }
+}
 function saveUniverse(){
   const name=document.getElementById('ueName').value.trim();
   if(!name){toast("Give the universe a name");return;}
@@ -2697,7 +2783,36 @@ async function generateBio(brief,context){
     interject:clean(j.interject)
   };
 }
-// Feature 1 handler: run the generator from the brief box and fill the editor fields.
+// One-shot universe generator: brief + count → a full universe object with characters.
+// Returns {universe, characters[], userName/userLook/userBio} or null. Never throws.
+async function generateUniverse(brief,count){
+  const sys=state.univPrompt||DEFAULT_UNIV;
+  const n=Math.max(1,Math.min(9,count||3));
+  const user=`USER BRIEF:\n${brief||"(none — invent a fitting world)"}\n\nNUMBER OF CHARACTERS TO CREATE: ${n}`;
+  let out;
+  try{
+    out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:user}
+    ],state.bioModel,{temp:fnTemp("mem",0.9),max:fnTok("mem",2200),dbg:"Universe generator"});
+  }catch(e){ return null; }
+  const j=parseJSON(out);
+  if(!j||typeof j!=="object") return null;
+  const clean=s=>typeof s==="string"?s.trim():"";
+  const chars=Array.isArray(j.characters)?j.characters.slice(0,9).map(c=>({
+    name:clean(c.name), avatar:clean(c.avatar)||"🎭",
+    personality:clean(c.personality), backstory:clean(c.backstory),
+    style:clean(c.style), look:clean(c.look),
+    instructions:clean(c.instructions), interject:clean(c.interject)
+  })).filter(c=>c.name) : [];
+  return {
+    name:clean(j.name)||"New Universe",
+    avatar:clean(j.avatar)||"🌌",
+    setting:clean(j.setting),
+    userName:clean(j.userName), userLook:clean(j.userLook), userBio:clean(j.userBio),
+    characters:chars
+  };
+}
 async function generateBioIntoEditor(){
   const brief=document.getElementById('peAiBrief').value.trim();
   const btn=document.getElementById('peAiGo'); if(btn){btn.disabled=true;btn.textContent="Generating…";}
@@ -3280,6 +3395,12 @@ function findMsg(mid){
   }
   return null;
 }
+// Small avatar HTML (image if available, else emoji) for a persona — used by bubbles & typing.
+function avatarHTML(sp){
+  if(!sp) return "";
+  if(sp.image) return `<img class="chatAv" src="${sp.image}" alt="">`;
+  return `<span class="chatAvEmoji">${esc(sp.avatar||"🎭")}</span>`;
+}
 function bubble(m){
   if(!m.mid) m.mid=newMid();
   // Presence notes (someone left/arrived) render as a subtle centered italic line.
@@ -3317,10 +3438,12 @@ function bubble(m){
   let avatar="",tempTag="";
   if(m.role==='assistant'){
     const sp=state.personas.find(x=>x.id===m.speakerId)||state.personas.find(x=>x.name===m.speaker);
-    if(sp&&curCast().length>1)avatar=`<span style="margin-right:5px">${esc(sp.avatar||"🎭")}</span>`;
+    if(sp){
+      avatar=avatarHTML(sp);
+    }
     // temporary event character (not a saved card) gets a distinct badge
-    if(!sp && m.speakerId && String(m.speakerId).startsWith("tmp_")){
-      avatar=`<span style="margin-right:5px">👤</span>`;
+    else if(m.speakerId && String(m.speakerId).startsWith("tmp_")){
+      avatar=`<span class="chatAvEmoji">👤</span>`;
       tempTag=` <span class="pill" style="font-size:9px;border-color:var(--accent);color:var(--accent)">guest</span>`;
     }
   }
@@ -3442,7 +3565,7 @@ async function sendMessage(){
 
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
-  typing.className="bubble ai";typing.innerHTML=`<div class="meta">${esc((present[0]||{name:"…"}).name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
+  typing.className="bubble ai";{const _sp=present[0];typing.innerHTML=`<div class="meta">${avatarHTML(_sp)}${esc((_sp||{name:"…"}).name)}</div><div class="typing"><span></span><span></span><span></span></div>`;}
   list.appendChild(typing);list.scrollTop=list.scrollHeight;
   document.getElementById('sendBtn').disabled=true;
 
@@ -3672,7 +3795,7 @@ async function playCharacterTurn(chat,p,addressed){
   const others=present.filter(c=>c.id!==p.id);   // only characters actually present
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
-  typing.className="bubble ai";typing.innerHTML=`<div class="meta">${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
+  typing.className="bubble ai";typing.innerHTML=`<div class="meta">${avatarHTML(p)}${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
   if(list){list.appendChild(typing);list.scrollTop=list.scrollHeight;}
   try{
     let injected=[];
@@ -4358,7 +4481,7 @@ async function gamemasterReactions(chat){
 async function playSingleReaction(chat,p,eventText){
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
-  typing.className="bubble ai";typing.innerHTML=`<div class="meta">${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
+  typing.className="bubble ai";typing.innerHTML=`<div class="meta">${avatarHTML(p)}${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
   if(list){list.appendChild(typing);list.scrollTop=list.scrollHeight;}
   try{
     let injected=[];
@@ -4802,6 +4925,7 @@ function syncSettingsUI(){
   document.getElementById('setCondensePrompt').value=state.condensePrompt;
   document.getElementById('setBioModel').value=state.bioModel;
   document.getElementById('setBioPrompt').value=state.bioPrompt;
+  document.getElementById('setUnivPrompt').value=state.univPrompt;
   document.getElementById('setAutoCharOn').checked=state.autoCharOn;
   document.getElementById('setAutoCharDelay').value=state.autoCharDelay;
   document.getElementById('setStripNarr').checked=state.stripNarr;
@@ -4872,6 +4996,7 @@ function saveSettings(notify){
   state.condensePrompt=document.getElementById('setCondensePrompt').value.trim()||DEFAULT_CONDENSE;
   state.bioModel=document.getElementById('setBioModel').value.trim()||"deepseek/deepseek-v3.2";
   state.bioPrompt=document.getElementById('setBioPrompt').value.trim()||DEFAULT_BIO;
+  state.univPrompt=document.getElementById('setUnivPrompt').value.trim()||DEFAULT_UNIV;
   state.autoCharOn=document.getElementById('setAutoCharOn').checked;
   state.autoCharDelay=Math.max(1,+document.getElementById('setAutoCharDelay').value||5);
   state.stripNarr=document.getElementById('setStripNarr').checked;
@@ -4899,7 +5024,7 @@ function saveSettings(notify){
   store.set(K.autoImg,state.autoImg);store.setRaw(K.rewritePrompt,state.rewritePrompt);
   store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
   store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);
-  store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
+  store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.setRaw(K.univPrompt,state.univPrompt);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
   store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);
   store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
   store.set(K.gmOn,state.gmOn);store.setRaw(K.gmEvery,state.gmEvery);store.setRaw(K.gmSensitivity,state.gmSensitivity);store.setRaw(K.gmModel,state.gmModel);
