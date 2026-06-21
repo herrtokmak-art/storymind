@@ -599,18 +599,6 @@
       <summary><span class="sg-ico">💾</span><span class="sg-meta">Data<div class="sg-sub">Backup, import, export &amp; clear</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
-          <h3>💾 Backup &amp; Restore</h3>
-          <div class="desc">Your data lives in this browser's local storage, tied to where the file is opened. Export a backup, then Import it anywhere to carry everything over.</div>
-          <div class="kvline"><span>Include API keys in backup</span>
-            <label class="switchLbl"><input type="checkbox" id="setExportKeys"><span class="sl"></span></label></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-            <button class="btn" onclick="exportData(document.getElementById('setExportKeys').checked)">⬇️ Export backup</button>
-            <button class="btn sec" onclick="triggerImport()">⬆️ Import backup</button>
-          </div>
-          <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="handleImportFile(this)">
-          <div class="desc" style="margin-top:8px">Importing replaces everything currently stored and reloads the app.</div>
-        </div>
-        <div class="card">
           <h3>Storage &amp; Cleanup</h3>
           <div class="kvline"><span>Storage used</span><span id="storageUsed" class="pill">—</span></div>
           <button id="installBtn" class="btn small" style="display:none" onclick="installApp()">📲 Install app</button>
@@ -4996,6 +4984,8 @@ async function listAutoBackups(){
   const keys=(await mediaDB.kvKeys()).filter(k=>typeof k==="string"&&k.indexOf("autobackup_")===0).sort().reverse();
   return keys.map(k=>({key:k,date:+k.split("_")[1]}));
 }
+// Open the file picker for "Import everything". (Was missing — the button did nothing.)
+function importAllPrompt(){ const el=document.getElementById('importFile'); if(el){ el.value=""; el.click(); } }
 async function importAllFile(file){
   if(!file) return;
   if(!confirm("Importing will REPLACE your current settings, chats, memories, universes, characters and gallery with the backup. Continue?")) return;
