@@ -1320,59 +1320,69 @@ Respond with ONLY strict JSON, no prose:
 energy 1 = flatlined, 5 = thriving.`;
 
 // STAGE 2 — author an intervention as a hidden directive the character will act on.
-const DEFAULT_GM_AUTHOR=`You are the GAMEMASTER, an unseen narrator of this roleplay between {{user}} and the character(s). The scene has gone stale ({{reason}}). Introduce something that revives it WITHOUT controlling {{user}} or any character's choices.
+const DEFAULT_GM_AUTHOR=`You are the GAMEMASTER, an unseen narrator of this roleplay between {{user}} and the character(s). The scene needs a nudge ({{reason}}). Introduce ONE thing that moves it forward, grounded in WHERE {{user}} is right now and WHAT just happened — never random, never out of nowhere.
 
-You will be given the WORLD SETTING, CURRENT SCENE (day/time/place), the PLAYER's background, CHARACTER BACKGROUNDS, and CHARACTER PRESSURE POINTS. Ground your event in all of these: it should feel like it belongs to this world, this moment, and these specific people. Aim it at one or more pressure points — a character's fear, secret, desire, or rivalry, or a thread from the player's own background — so it lands with real weight rather than feeling random.
+You will be given the WORLD SETTING, CURRENT SCENE (day/time/place), the PLAYER's background, CHARACTER BACKGROUNDS, CHARACTER PRESSURE POINTS, and who is currently present. Stay fully consistent with all of it — the same location, the same time of day, the continuity of the last few messages.
 
-Create ONE of: a new arrival (someone enters or approaches), a message or signal, a complication or obstacle, a sudden revelation, an environmental shift, or a small surprise. It must fit the established tone, setting, time of day, and continuity. Keep it proportionate to the moment — a meaningful nudge, not a plot twist out of nowhere.
+DECIDE WHAT KIND OF BEAT THIS IS:
 
-Write it as brief third-person NARRATION of what happens — a single line of stage description the whole table can see. Do NOT speak for {{user}}, do NOT decide how any character reacts, and do NOT write any character's dialogue. Just introduce the event and leave space for everyone to respond.
+• IF NOBODY IS CURRENTLY PRESENT (the scene is empty — {{user}} is alone): introduce a CHARACTER by having them ARRIVE into {{user}}'s current location. Narrate the entrance — someone walks into the bar, approaches the bench, comes through the door — fitting this exact place, time, and the world. Prefer a character who would plausibly be here now (a regular of this place, someone tied to {{user}}, someone whose pressure points pull them here). This is the priority when alone: end {{user}}'s isolation with a believable arrival.
 
-Output ONLY the narration text, MAXIMUM 1-2 short sentences. No quotes, no labels, no dialogue.`;
+• IF CHARACTERS ARE ALREADY PRESENT: bringing in a NEW person should be RARE. Only introduce a new arrival when it is genuinely logical — someone who would obviously turn up here right now (a spouse coming home, a waiter, a rival who frequents this spot), or someone {{user}} or the scene has pointed toward. Most of the time, do NOT add a person. Instead nudge the EXISTING scene: a message or call arrives, the environment shifts, a complication or small obstacle appears, a quiet revelation surfaces, or one of the present characters' pressure points stirs. Aim it at a fear, secret, desire, or rivalry so it lands with weight.
+
+RULES
+- Keep it proportionate — a real nudge, not a plot twist. It must fit the tone, setting, time of day, and continuity.
+- For an arrival, write only the ENTRANCE as narration (the door opens and a woman steps in, scanning the room). Do NOT have the newcomer speak or act in dialogue — they will speak once they have entered. Do NOT name-drop them as already-known unless they are a known character.
+- Never control {{user}} or decide how any present character reacts. Never write {{user}}'s actions or anyone's dialogue.
+
+Output ONLY the narration text, third person, MAXIMUM 1-2 short sentences. No quotes, no labels, no dialogue.`;
 
 /* ===== SCENE WRITER ===== takes over once a gamemaster event is live, advances it to resolution ===== */
 // Classifies a freshly-triggered event into a structured object the engine can run.
-const DEFAULT_SCENE_SETUP=`A new event was just introduced into a roleplay. Analyze it and describe its structure as JSON. You may be given the WORLD SETTING, CURRENT SCENE, CHARACTER BACKGROUNDS and CHARACTER PRESSURE POINTS — use them to keep the event consistent with the universe and its people.
+const DEFAULT_SCENE_SETUP=`A new event was just introduced into a roleplay (usually a line of narration from the Gamemaster). Analyze it and describe its structure as JSON. You may be given the WORLD SETTING, CURRENT SCENE, CHARACTER BACKGROUNDS and CHARACTER PRESSURE POINTS — use them so the event fits the universe, its people, and the current location.
 
-Identify whether the event centers on a PERSON or on the ENVIRONMENT:
-- If a person/character is approaching, arriving, or threatening to appear who is NOT already in the scene, identify them. If they match a known character name, use that exact name. Otherwise INVENT a specific, fitting name (first name, plus surname if natural) and a brief persona drawn from the event and world. The name MUST be a real name — never "null", "unknown", "stranger", or empty. If you genuinely cannot name a person, classify the event as "environment" instead.
-- "approaching": true means they are nearby/closing in but NOT yet in the room and CANNOT hear the conversation. false means they are already arriving into the scene this beat.
+Decide whether the event centers on a PERSON arriving, or on the ENVIRONMENT:
+
+PERSON events — the narration brings (or begins to bring) someone into the scene who is NOT already present:
+- Identify who. If it matches a known character from the cast, use that EXACT name. Otherwise INVENT a specific, fitting person — a real first name (plus surname if natural), with a one-line persona and a one-line appearance drawn from this world and this location (e.g. a regular of this bar, a neighbor, a colleague). The name MUST be a real name — never "null", "unknown", "stranger", or empty.
+- "approaching" should be TRUE in almost every case where the narration is an ENTRANCE ("a woman walks into the bar", "someone approaches the bench", "the door opens and a man steps in"). approaching:true means the Narrator has begun their arrival but they have not yet spoken — the Scene Writer will bring them fully in to speak on the next beat. Use approaching:false ONLY if the narration states they are already standing there, mid-conversation, having clearly arrived.
+- If the narration only HINTS at a presence (footsteps, a knock, a shadow) without a clear person yet, still classify as character with approaching:true and invent the fitting person behind it.
+
+ENVIRONMENT events — no new person arrives (a message, a sound, a power cut, an object, a shift in mood): participant is null.
 
 Respond with ONLY strict JSON:
 {
   "type": "character" | "environment",
-  "summary": "one-line description of the unresolved tension to drive toward resolution",
-  "participant": { "name": "a real name for character events; null only when type is environment", "known": true|false, "approaching": true|false, "persona": "1-line personality if invented, else null", "look": "1-line appearance if invented, else null" }
+  "summary": "one-line description of the unresolved tension/situation to drive forward",
+  "participant": { "name": "a real name for character events; null only when environment", "known": true|false, "approaching": true|false, "persona": "1-line personality if invented, else null", "look": "1-line appearance if invented, else null" }
 }
 For environment events, participant is null.`;
 
 // Runs each turn while an event is active: advances the arc, escalates, decides resolution.
-const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active, unresolved event inside a roleplay. Each turn you PUSH THE EVENT FORWARD based on how {{user}} and the characters just reacted, building toward a real, earned resolution. You are a director, not a passive narrator — you make the situation progress.
+const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active event inside a roleplay. Each turn you move it forward based on what {{user}} and the characters just did. You are a director — you make the situation progress and you get the right people into the scene quickly.
 
-You may be given the WORLD SETTING, CURRENT SCENE (day/time/place), CHARACTER BACKGROUNDS, and CHARACTER PRESSURE POINTS. Keep every beat consistent with all of them, and aim the event at the pressure points so it bites where it matters.
+You may be given the WORLD SETTING, CURRENT SCENE (day/time/place), CHARACTER BACKGROUNDS, and CHARACTER PRESSURE POINTS. Keep every beat consistent with all of them and with the current location.
 
 Active event: {{summary}}
 This is turn {{turn}} of the event (minimum {{min}}, maximum {{max}}).
 
-PRINCIPLES
-- Advance concretely. If {{user}} ignores the event, ESCALATE it (footsteps closer → the doorknob turns → the door opens). Never repeat the previous beat in new words.
-- Don't let {{user}} resolve it too cheaply. If they attempt an easy out, COMPLICATE it realistically (they jump but twist an ankle; the lock jams). Consequences must be earned.
-- An approaching character stays OUTSIDE and unheard until you decide the moment to ENTER.
+BRINGING THE CHARACTER IN — top priority, do this FAST
+- If the event has an approaching/arriving character, BRING THEM IN as early as this turn. Do not stall across multiple beats of footsteps and doorknobs — one short entrance line, then set "bring_in" to their EXACT name so they are physically present and can speak. A scene where the arriving character never actually speaks is a failure.
+- The instant {{user}} addresses, looks toward, moves to, or speaks to a character, set "bring_in" to that exact name THIS turn.
+- "bring_in" applies to ANY character entering, not just the original event person. If your narration introduces a NEW person (a parent, a waiter, a friend), you MUST put that person's name in "bring_in" so they enter as themselves. NEVER write a not-yet-present person speaking or acting in dialogue in the narration — that misattributes their words.
 
-BRINGING CHARACTERS IN — this is critical
-- The instant a character should join the scene — {{user}} addresses them, looks toward them, moves to them, or the tension has built a turn or two — set "bring_in" to their EXACT name. A scene with a character who never actually speaks is a failure.
-- "bring_in" applies to ANY character entering, not only the original event person. If your narration introduces a NEW person (a parent arrives, a guard steps in, a friend appears), you MUST put that new person's name in "bring_in" so they enter as themselves and can speak. Never describe a new person speaking or acting in the narration without bringing them in — otherwise their words get wrongly attributed to whoever was already present.
-- If {{user}}'s latest line addresses a character by name, you MUST bring that character in this turn.
+ADVANCING
+- Move concretely; never just reword the previous beat. If {{user}} engages the newcomer, the scene is now a normal conversation — bring the character in and let them carry it.
+- Don't let {{user}} escape a real consequence too cheaply, but don't manufacture obstacles that drag out a simple arrival. Getting the person into the scene beats inventing delays.
 
-RESOLVING — do this carefully
-- The event MUST run at least {{min}} turns and must resolve by turn {{max}}.
-- Resolve ONLY when the tension has a satisfying, earned end — not abruptly, and NEVER as a way to dodge a confrontation {{user}} is engaged in.
-- A resolution must NEVER physically remove the character {{user}} is actively talking to, and must NEVER leave the scene empty. If the situation calms, the characters STAY and the conversation continues naturally — resolving the EVENT does not mean clearing the room. Only send a character away if {{user}} or the scene clearly drove them off.
+RESOLVING
+- The event runs at least {{min}} turns and must resolve by turn {{max}}. Resolve when the tension reaches a natural, earned end — never abruptly, never to dodge a confrontation {{user}} is engaged in.
+- A resolution must NEVER remove the character {{user}} is talking to and must NEVER leave the scene empty. Resolving the EVENT just means the tension passed — the characters STAY and the conversation continues. Only send someone away if {{user}} or the scene clearly drove them off.
 
 Respond with ONLY strict JSON:
 {
   "narration": "1-2 sentence advance of the event in third person. No character dialogue. Do not have a not-yet-present character speak.",
-  "bring_in": "ExactCharacterName, or null. Set whenever ANY character (the event person OR a newly-introduced one) should now be physically in the scene and able to speak.",
+  "bring_in": "ExactCharacterName, or null. Set whenever ANY character (the event person or a newly-introduced one) should now be physically in the scene and able to speak.",
   "resolved": true|false,
   "resolution": "if resolved, one short phrase of how the TENSION ended (not how the scene emptied), else null"
 }`;
@@ -5268,7 +5278,14 @@ async function maybeGamemaster(chat,force){
       const j=parseJSON(judgeOut);
       if(!j||!j.stale){return;}            // scene healthy → stay invisible
       var reason=j.reason||"the scene has stalled";
-    }else{ var reason="manual director cue"; }
+    }else{
+      // Manual trigger: give the author a concrete, scene-aware reason instead of a vague one,
+      // so it grounds the beat in the current situation (and introduces someone if alone).
+      const aloneNow=presentCast(chat).length===0;
+      var reason=aloneNow
+        ? "the player is alone and wants someone to arrive — introduce a fitting character entering this location"
+        : "the player asked for something to happen — nudge the current scene meaningfully";
+    }
     // STAGE 2 — author the hidden nudge
     const authorSys=fillTpl(state.gmAuthor,{user:state.user,reason});
     const presentSheet=present.map(c=>c.name+(c.look?` (${c.look})`:"")).join("; ")||"(nobody is currently nearby)";
@@ -5328,8 +5345,13 @@ async function setupActiveEvent(chat,eventText){
     // If the classifier reply doesn't parse, still set up a minimal environment
     // event so the Scene Writer keeps driving the scene instead of going silent.
     const j=parseJSON(out)||{type:"environment",summary:eventText};
+    // An arrival into an otherwise-empty scene shouldn't drag — let the newcomer enter and the
+    // event wrap quickly (min 1 turn). Other events keep the configured pacing.
+    const sceneEmpty=presentCast(chat).length===0;
+    const baseMin=Math.max(1,state.sceneMin||3);
+    const evMin=(j.type==="character" && sceneEmpty)?1:baseMin;
     const ev={summary:j.summary||eventText,type:j.type||"environment",turn:0,
-      minTurns:Math.max(1,state.sceneMin||3),maxTurns:Math.max(state.sceneMin||3,state.sceneMax||8),
+      minTurns:evMin,maxTurns:Math.max(evMin,state.sceneMax||8),
       resolved:false,participant:null};
     if(j.type==="character" && j.participant && validCharName(j.participant.name)){
       const pn=String(j.participant.name).trim();
