@@ -1416,8 +1416,9 @@ or, only when clearly warranted:
 const DEFAULT_PRESENCE_TRACKER=`You track who is physically present in a roleplay scene. You are given who is CURRENTLY present and the latest message(s). Detect ONLY clear, completed physical movements in or out of the immediate scene/room/earshot.
 
 Rules:
-- A character EXITS only on a clear, completed departure ("she walks out and shuts the door", "he leaves the tavern", "she storms off"). Ignore intentions, threats, or hypotheticals ("I should go", "maybe I'll leave").
-- A character ENTERS when they clearly arrive into the scene ("the door opens and Mara steps in"), OR when an OFFSTAGE character is explicitly called/summoned back by name and would plausibly come ("Lyra, come back here", "someone call Mara in"). A summons of an offstage character counts as an entrance.
+- A character EXITS on a clear, completed departure. Cues include: walks/steps/heads out, leaves, departs, storms off, walks away, slips out, takes off, exits, sees themselves out, excuses themselves and goes — OR a spoken FAREWELL that marks them actually leaving ("goodbye", "I'm leaving now", "take care", "see you later", "I have to go" followed by them going). Ignore mere intentions, threats, or hypotheticals not yet acted on ("I should go", "maybe I'll leave").
+- A character ENTERS when they clearly arrive into the scene. Cues include: enters, walks/steps/comes in, arrives, shows up, appears, joins, bursts in, the door opens and they step through — OR a spoken GREETING that marks a new arrival ("welcome", "look who's here", "nice to see you", "hey, you made it") directed at someone who was offstage. A character is also ENTERING when an OFFSTAGE character is explicitly called/summoned back by name and would plausibly come ("Lyra, come back here", "someone call Mara in").
+- A greeting or farewell only changes presence if it marks a real arrival/departure — two people already in the room saying "hi" does NOT add anyone, and "goodbye" said over the phone does NOT remove anyone.
 - Only use the exact character names provided. Never invent names. Never move {{user}} (the player).
 - When in doubt, change nothing. Most turns have NO change.
 
@@ -4573,6 +4574,9 @@ async function sendMessage(){
     persistChats();appendNewBubbles();
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,solo);
+    // Detect anyone the reply (or the player) narrated entering/leaving — this was previously
+    // only done in the multi-character path, so one-on-one scenes never ran presence detection.
+    await runPresenceTracker(chat);
     maybeBuildMemory(chat);
     postTurn(chat);
   }catch(err){
@@ -4798,12 +4802,55 @@ async function playCharacterTurn(chat,p,addressed){
   }
 }
 
+// Movement/greeting cues that suggest someone entered or left. Used as a cheap pre-check so
+// we only spend an LLM call on the presence tracker when the latest text actually hints at a
+// scene change — most turns have none and are skipped.
+const PRESENCE_CUES=[
+  // arrivals / departures (verbs)
+  "enter","enters","entering","entered","arrive","arrives","arriving","arrived",
+  "walk in","walks in","walked in","walking in","step in","steps in","stepped in","stepping in",
+  "come in","comes in","came in","coming in","burst in","bursts in","burst into","barge","barges","barged",
+  "show up","shows up","showed up","showing up","appear","appears","appeared","appearing",
+  "join","joins","joined","joining","approach","approaches","approached","approaching",
+  "leave","leaves","leaving","left","depart","departs","departed","departing",
+  "walk out","walks out","walked out","walking out","walk off","walks off","walked off",
+  "step out","steps out","stepped out","stepping out","head out","heads out","headed out",
+  "go out","goes out","went out","going out","head off","heads off","headed off",
+  "storm off","storms off","stormed off","storm out","storms out","stormed out",
+  "exit","exits","exited","exiting","slip out","slips out","slipped out","slip away","slips away","slipped away",
+  "take off","takes off","took off","run off","runs off","ran off","walk away","walks away","walked away",
+  "turn away","turns away","turned away","get up and","gets up and","got up and",
+  "show themselves out","sees herself out","sees himself out","excuse herself","excuses herself",
+  "excuse himself","excuses himself","excuse myself","excuses myself",
+  "knock","knocks","knocked","knocking","doorbell","the door opens","door opens","door swings",
+  "comes through the door","through the doorway","into the room","out of the room","from the room",
+  "out the door","out of the door","towards the door","toward the door","to the door","for the door",
+  // greetings / farewells (signal arrival or departure)
+  "welcome","hello","hi there","hey there","good to see you","nice to see you","look who",
+  "goodbye","good bye","bye","farewell","see you","see ya","take care","catch you later",
+  "i'm leaving","im leaving","i'll go","ill go","i should go","i have to go","i gotta go",
+  "i'm off","im off","i'll be going","heading home","heading out","time to go","i'll leave you",
+  "until next time","i'll see you","see you later","see you soon","i must go","i'll be back"
+];
+// Returns true if the latest message contains any movement/greeting cue.
+function hasPresenceCue(chat){
+  const msgs=(chat.messages||[]).filter(m=>m.role!=='system'&&!m.sysError);
+  if(!msgs.length)return false;
+  // Scan the last message (the freshest beat) plus the immediately preceding one, so a
+  // player line like "goodbye" followed by a character's exit is both covered.
+  const text=msgs.slice(-2).map(m=>m.content||"").join("\n").toLowerCase();
+  return PRESENCE_CUES.some(cue=>text.includes(cue));
+}
+
 // After a turn, detect narrative entrances/exits and update presence.
 async function runPresenceTracker(chat){
   const result={entered:[],exited:[],lastBeat:null};
   if(state.presenceOff)return result;
   const cast=curCast();
   if(cast.length<1)return result;                 // no characters in the universe
+  // Cheap pre-check: only spend an LLM call when the latest text hints at someone entering
+  // or leaving (a movement verb, or a greeting/farewell). Skips the call on ordinary turns.
+  if(!hasPresenceCue(chat))return result;
   try{
     const present=presentCast(chat).map(c=>c.name);
     const offstage=cast.filter(c=>!present.includes(c.name)).map(c=>c.name);
