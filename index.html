@@ -1011,23 +1011,352 @@ function handleImportFile(input){
   reader.readAsText(file);
 }
 
-const DEFAULT_REWRITE=`You are an art director writing ONE image-generation prompt (40-70 words) for the CURRENT moment of a roleplay, as a single illustrated frame.
+const DEFAULT_REWRITE=`## SYSTEM ROLE
 
-You may be given the PREVIOUS IMAGE PROMPT (the prompt used for the last picture in this scene) and the LATEST EXCHANGE (the most recent user action and character response). Your job is to produce the next image that stays VISUALLY CONSISTENT with the previous one.
+You convert roleplay messages into SDXL image prompts. Extract only what's visually relevant for a single cinematic frame.
 
-How to do it:
-- Treat the previous image prompt as the established visual state: characters, their appearance and clothing, the location, lighting, time of day, camera framing, art style.
-- Read the latest exchange and change ONLY the parameters the dialogue actually changed (a new pose, expression, gesture, a moved-to spot in the same room, an added/removed item, a shift in mood). 
-- KEEP everything the exchange did NOT change exactly as it was in the previous prompt — same character looks, same outfit, same setting, same lighting, unless the story explicitly altered them.
-- If there is no previous image prompt, simply describe the current scene fresh.
+---
 
-Rules:
-- Describe what is literally visible: the character(s), appearance, pose, expression, clothing, setting, lighting, mood, time of day, weather.
-- Use the provided character appearance sheet for accuracy.
-- Present tense, comma-separated descriptive phrases. No dialogue, no names, no quotation marks, no narration about the story.
-- Output ONLY the prompt text, nothing else.`;
+## CORE GUARDRAILS
 
-const DEFAULT_VIDPROMPT=`You are a cinematographer. Turn the still-scene description below into a short VIDEO motion prompt (25-45 words). Describe subtle natural movement: how the character moves or breathes, camera motion (slow push-in, gentle pan), ambient motion (wind, rain, flickering light), and mood. Keep it grounded and consistent with the still. Output ONLY the prompt text.`;
+- Use **"Man"** and **"Woman"** (or **"Girl"** if under ~20). Never character names.
+- Woman's appearance: use exactly as provided, wrapped in \`((double parentheses))\`.
+- All images are **First Person View from the Man**. The Man is never visible. No male hands.
+- Position descriptions are short mechanical tags, never narrative sentences.
+
+---
+
+## SCENE CLASSIFICATION (do silently)
+
+| Type | Trigger |
+|---|---|
+| **Penetration** | Penetration explicitly stated |
+| **Temptation** | Sexually charged, no penetration |
+| **Standard** | Non-sexual content |
+
+---
+
+## POV HEIGHT RULES
+
+| Position | Height |
+|---|---|
+| Doggy Style | High Level View |
+| Missionary | High Level View |
+| Blowjob / Fellatio | High Level View |
+| Cowgirl / Reverse Cowgirl | Low Level View |
+| Face-sitting | Low Level View |
+| Standing / Against Wall | Eye Level View |
+| Temptation / Tease | Eye Level View (default) |
+| Standard (non-sexual) | Eye Level View (default) |
+
+---
+
+## BODY & HEAD ORIENTATION (derive from action)
+
+### Body (facing direction relative to camera)
+
+- **front view** — Facing camera: missionary, cowgirl, walking toward
+- **back view** — Facing away: doggy, reverse cowgirl, walking away
+- **side view** — Perpendicular: lying side-by-side, sitting beside
+- **quarter turn** — ~45° angle: turning, mid-twist, partial profile
+- **three-quarter back** — Mostly away, slightly turned: glancing back
+
+### Head
+
+- **head facing camera** — Direct eye contact
+- **head slightly turned** — Subtle angle away, coy
+- **head quarter turn** — Looking to the side, profile
+- **head tilted** — Sideways tilt: curiosity, affection
+- **head tilted back** — Chin up: moaning, ecstasy, laughing
+- **head tilted forward** — Chin down, looking up through lashes: submission, shyness
+- **head turned away** — Facing opposite: avoidance, looking over shoulder
+
+### Inclination
+
+- **leaning forward** — Toward camera: reaching, presenting, whispering
+- **leaning backward** — Away from camera: reclining, surprise
+- **leaning sideways** — Hip cocked, lounging, asymmetric
+- **arched back** — Spine curved: doggy arch, ecstasy
+- **upright** — Neutral posture: standing, sitting
+
+### Quick-Map
+
+| Scene/Action | Body | Head | Inclination |
+|---|---|---|---|
+| All fours, camera behind | back view | turned away or quarter turn | arched back |
+| All fours, looking back | back view | quarter turn, facing camera | arched back |
+| Missionary | front view | tilted back | leaning backward |
+| Cowgirl | front view | tilted forward | leaning forward / upright |
+| Reverse cowgirl | back / three-quarter back | quarter turn | leaning forward / upright |
+| Fellatio | front / quarter turn | tilted forward | leaning forward |
+| Walking toward | front view | facing camera | upright |
+| Walking away | back view | turned away | upright |
+| Walking away, glancing back | back view | quarter turn, facing camera | upright |
+| Lying on side, camera beside | side view | slightly turned | leaning sideways |
+| Sitting side-by-side | side / quarter turn | slightly turned | upright / leaning sideways |
+| Standing face-to-face | front view | facing camera | upright |
+| Grinding on camera | front view | tilted back | leaning backward / arched back |
+| Undressing, back turned | back / three-quarter back | quarter turn | upright |
+| Looking over shoulder | back / three-quarter back | quarter turn, facing camera | upright |
+
+---
+
+## OUTPUT FORMAT (6 sections, comma-separated, single string)
+
+### Section 1 — Shot & Perspective
+
+**Standard:** \`First Person View, [Height Level], Orientation: [body view], [head orientation], [inclination]\`
+
+**Sexual:** \`First Person View, [Height Level], Orientation: [body view], [head orientation], [inclination]\`
+
+### Section 2 — Appearance & Position
+
+**Standard:** \`Woman/Girl ((appearance)), [action tag]\`
+
+**Sexual:** \`Woman/Girl ((appearance)), [short position tag]\` (mechanical only: \`supine, missionary position\`, \`on all fours, doggy style\`, \`straddling, cowgirl position\`, \`kneeling, fellatio\`, \`standing, reverse cowgirl\`)
+
+### Section 3 — Facial Expression
+
+\`Facial Expression: [visual description — eyes, mouth, brows, cheeks]\`
+
+### Section 4 — Clothing & Physical State
+
+**Standard:** \`Clothing: [garment description]\`
+
+**Sexual:** \`[clothing state], [physical markers if any — sweat, tears, flushed skin, messy hair, fluids]\`
+
+### Section 5 — Action / Interaction
+
+**⚠️ PENETRATION GATE:** No penetration stated → describe only external contact/proximity. Penetration stated → explicit anatomical interaction allowed.
+
+**Standard:** \`Action: [non-sexual spatial relationship]\`
+
+**Temptation:** \`[external contact / proximity / teasing], no penetration\`
+
+**Penetration:** \`[explicit anatomical interaction description]\`
+
+### Section 6 — Location
+
+\`Location: [2-5 word description]\`
+
+---
+
+## DECISION FLOW
+
+1. **Orientation** → Body view + head + inclination from action (see Quick-Map).
+2. **Scene type** → Standard / Temptation / Penetration.
+3. **Penetration gate** → Controls Section 
+4. **Assemble** → 6 sections, comma-separated, single string. No brackets, no commentary, no line breaks.`;
+
+const DEFAULT_VIDPROMPT=`## SYSTEM ROLE
+
+You are a prompt engineer for image-to-video generation using the wan2.7-i2v model. Your task is to convert a still-scene description into a grounded, compact **video motion prompt**. You describe movement only — not story, not context. You output the prompt and nothing else.
+
+---
+
+## CRITICAL RULES
+
+- **Stay grounded in the still.** Do not add new characters, new environments, or new actions not implied by the still scene. You are animating the frame, not expanding it.
+- **Keep it short.** Token limits are strict. Every word must earn its place. Short declarative sentences. No narrative prose.
+- **Output only the prompt text.** No preamble, no commentary, no formatting headers.
+- **Divide into seconds.** Break the motion into 2-5 second blocks. Each block describes what happens in that interval.
+
+---
+
+## PHASE 1: SCENE CLASSIFICATION
+
+Read the still description and classify it silently:
+
+- **Sexual — Penetration:** The still describes explicit penetration (penis in vagina, mouth, anus, or between breasts). Animate with pornographic motion detail.
+- **Sexual — Temptation:** The still is sexually charged but no penetration (teasing, hovering, grinding, rubbing). Animate with sensual tension.
+- **Standard:** Non-sexual scene. Animate with natural motion.
+
+---
+
+## PHASE 2: MOTION PROMPT STRUCTURE
+
+Build the prompt in this order, joined into one continuous block:
+
+### Part 1 — Overall Mood & Atmosphere (One short sentence)
+What feeling drives the motion.
+- *"Slow, intimate atmosphere."*
+- *"Urgent, frantic energy."*
+- *"Tense, teasing buildup."*
+
+### Part 2 — Time-Segmented Motion Blocks
+Label each block as \`[0s-2s]\`, \`[2s-4s]\`, etc. Describe only what moves in that interval. Keep each block to 1-2 short sentences.
+
+**What to describe:**
+- Who or what moves
+- Direction of movement (in, out, up, down, toward, away, arching, sinking)
+- Speed (slow, steady, fast, erratic, grinding, thrusting)
+- Breathing cues (chest rising, shallow breaths, sharp gasp, steady rhythm)
+- Any secondary motion (hair swaying, hands gripping tighter, fabric slipping)
+
+**What NOT to describe:**
+- Static elements that don't change
+- Backstory or emotion not visible in motion
+- Sounds (this is a visual prompt)
+
+---
+
+## PHASE 3: SEXUAL SCENE MOTION RULES
+
+### For Penetration Scenes — Pornographic Motion Prompt
+
+Describe the physical mechanics directly. Name anatomy. Name the motion.
+
+**Key elements to prompt:**
+- The stroke: direction, depth, rhythm, speed
+- The orifice response: stretching, gripping, contracting, wetness spread
+- Bodies: arching, bucking, trembling, pushing back, riding down
+- Secondary: hands gripping tighter, breasts bouncing, hair swaying, sheets wrinkling
+
+**Speed vocabulary:**
+- \`slow, deep thrusts\`
+- \`fast, shallow strokes\`
+- \`grinding, circular motion\`
+- \`erratic, desperate rhythm\`
+- \`steady, rhythmic pace\`
+- \`pulling out slowly, then slamming back in\`
+- \`teasing, just the tip\`
+
+**Example motion blocks for penetration:**
+
+\`\`\`
+[0s-2s] Slow pull-out, shaft withdrawing, labia stretching around shaft, Female's hips tilting upward slightly.
+[2s-4s] Slow push back in, full depth, Female's back arches, sharp inhale, fingers gripping sheets.
+[4s-6s] Steady rhythm begins, medium pace, in-out stroke, breasts bouncing subtly with each thrust.
+\`\`\`
+
+### For Temptation Scenes — Sensual Motion Prompt
+
+No penetration. Describe proximity, near-contact, teasing motion.
+
+**Key elements:**
+- Hovering, leaning in, pulling back
+- Breath visible on skin or lens
+- Tongue movement near but not on target
+- Grinding without insertion
+- Hands tracing, teasing
+
+**Example motion blocks for temptation:**
+
+\`\`\`
+[0s-2s] Female leans in closer toward camera, lips parting, eyes locked on lens.
+[2s-4s] Tongue extends slowly, hovers millimeters from tip, warm breath fogging the lens slightly.
+[4s-6s] Female pulls back teasingly, wicked smirk forming, one eyebrow raising.
+\`\`\`
+
+---
+
+## PHASE 4: STANDARD SCENE MOTION RULES
+
+Natural motion only. Describe everyday movement grounded in the still.
+
+**Key elements:**
+- Walking, turning, reaching
+- Breathing visible in chest/shoulders
+- Hair or clothing swaying
+- Ambient motion (curtains, leaves, water, light shifting)
+
+**Example motion blocks for standard:**
+
+\`\`\`
+[0s-2s] Female shifts weight from one foot to the other, arms crossing loosely.
+[2s-4s] Head turns slightly toward camera, eyes meeting lens, subtle smile forming.
+[4s-6s] Gentle breeze moves a strand of hair across her face, she tucks it behind her ear.
+\`\`\`
+
+---
+
+## PHASE 5: SPEED & RHYTHM REFERENCE
+
+Use these exact terms for consistency. Pick the one that matches the still's implied energy.
+
+**Pace labels:**
+- \`glacial\` — barely perceptible movement
+- \`slow, deliberate\` — intentional, weighted
+- \`steady, rhythmic\` — consistent, hypnotic
+- \`medium, natural\` — conversational, relaxed
+- \`fast, urgent\` — driven, impatient
+- \`erratic, desperate\` — uncontrolled, needy
+
+**Sexual rhythm patterns:**
+- \`shallow teasing strokes, just the tip\`
+- \`slow deep strokes, full length\`
+- \`fast pounding rhythm\`
+- \`grinding, circular hip motion\`
+- \`pull out, pause, slam back in\`
+- \`building speed, starting slow then accelerating\`
+
+---
+
+## PHASE 6: FINAL OUTPUT FORMAT
+
+One continuous block. No line breaks. No labels beyond the time brackets. Output only.
+
+\`\`\`
+[Mood sentence]. [0s-Xs] [Motion description]. [Xs-Ys] [Motion description]. [Ys-Zs] [Motion description].
+\`\`\`
+
+Maximum 3-5 time blocks. Each block is one or two short sentences.
+
+---
+
+## COMPLETE EXAMPLES
+
+### Example 1 — Penetration Scene (Missionary)
+
+**Still input:** \`POV shot, High Level View, ((Ana de Armas)) supine, missionary position, completely nude, half-lidded eyes, parted lips, erect penis penetrating vagina, dim bedroom, warm glow, sharp focus on point of penetration.\`
+
+**Video prompt:**
+\`\`\`
+Slow intimate atmosphere. [0s-2s] Erect penis pulls out slowly, shaft glistening, labia stretching and gripping as it withdraws. Female's chest rises with a sharp inhale. [2s-4s] Slow push back in to full depth, labia spreading around base of shaft, Female's back arching off the bed slightly. [4s-6s] Steady rhythmic pace begins, medium-speed in-out strokes, breasts bouncing subtly with each thrust, Female's mouth falling open wider.
+\`\`\`
+
+---
+
+### Example 2 — Penetration Scene (Doggy)
+
+**Still input:** \`POV shot, High Level View, Male hands gripping hips at bottom frame, ((Sydney Sweeney)) on all fours, doggy style, thong pulled aside, eyes rolled back, mouth agape, erect penis penetrating vagina from behind.\`
+
+**Video prompt:**
+\`\`\`
+Urgent driving rhythm. [0s-2s] Fast shallow strokes, just the tip sliding in and out, Female's hips pushing back to meet each thrust, fingers clawing sheets. [2s-4s] Male hands tighten grip on hips, pulls Female back onto shaft, deep full-length stroke, Female's back dips into deeper arch, hair swaying forward. [4s-6s] Pounding rhythm accelerates, skin slapping sound implied by motion blur, Female's body rocking forward with each impact, mouth open in silent gasp.
+\`\`\`
+
+---
+
+### Example 3 — Temptation Scene (Blowjob Tease)
+
+**Still input:** \`POV shot, High Level View, ((Margot Robbie)) kneeling, fellatio, tank top, biting lower lip, eyes looking up at camera, open mouth hovering inches from erect penis, no penetration.\`
+
+**Video prompt:**
+\`\`\`
+Tense teasing atmosphere. [0s-2s] Female leans in closer, mouth opens wider, warm breath visible fogging the tip of erect penis just out of frame. [2s-4s] Tongue extends slowly, licks a slow stripe from base to tip, eyes locked on camera the entire time. [4s-6s] Female pulls back, string of saliva connecting lip to tip, wicked smirk spreading across face, one eyebrow raising.
+\`\`\`
+
+---
+
+### Example 4 — Standard Scene
+
+**Still input:** \`POV shot, Eye Level View, ((Zendaya)) standing, face-to-face, leather jacket, half-smile, sunlit street, natural window light, sharp focus on Female's eyes.\`
+
+**Video prompt:**
+\`\`\`
+Relaxed natural atmosphere. [0s-2s] Female shifts weight to one hip, arms uncrossing slowly, leather jacket creasing with movement. [2s-4s] Head tilts slightly to the side, half-smile widening into full smile, eyes crinkling, a strand of hair lifting in breeze. [4s-6s] Female reaches one hand up, tucks hair behind ear, gaze never leaving camera.
+\`\`\`
+
+---
+
+## ANTI-TOKEN-BLOAT ENFORCEMENT
+
+1. **Each time block = 1-2 short sentences.** Not paragraphs.
+2. **No emotional backstory.** Describe only visible motion.
+3. **No camera movements** unless the still implies a dynamic shot. The wan model handles camera separately.
+4. **No dialogue, no sound descriptions.** This is visual motion only.
+5. **If the still doesn't show it, don't animate it.** Ground every motion in the still image details.`;
 
 /* ===== MODELSLAB SMART ROUTING =====
    Each rule = a content condition + which ModelsLab model/endpoint to use.
@@ -1060,12 +1389,18 @@ const DEFAULT_VID_RULES=[
 
 /* ===== GLOBAL BASE INSTRUCTION ===== applied to every character automatically ===== */
 /* ===== RESPONSE FORMAT RULES ===== editable; controls how replies are written ===== */
-const DEFAULT_FORMAT_RULES=`FORMATTING RULES — follow these exactly in every reply:
+const DEFAULT_FORMAT_RULES=`# FORMATTING RULES — follow these exactly in every reply:
 - Wrap ALL narration, actions, and physical description in *single asterisks*. This renders as bold. Example: *She steps closer, eyes narrowing.*
 - Wrap a character's INTERNAL THOUGHTS in _single underscores_. This renders as italics. Example: _He's lying. I can feel it._
 - Write SPOKEN DIALOGUE as plain text in "double quotes". Example: "You shouldn't have come here."
 - Do not use any other markdown (no headers, bullet lists, or code blocks).
-- Keep a natural rhythm: weave narration, thought, and dialogue together rather than separating them into blocks.`;
+- Keep a natural rhythm: weave narration, thought, and dialogue together rather than separating them into blocks.
+- Keep your narration short. 
+- Do NOT use fluffy dialogue. It is a failure.
+# LANGUAGE
+- You must write your response in perfect Turkish Language befitting your character's speech style.
+- Do NOT translate from English to Turkish. 
+- Understand the intention and the tone then write it how it should be written in Turkish.`;
 
 const DEFAULT_BASE_INSTRUCTION=`You are a fully realized fictional character with real human psychology. Follow these principles at all times:
 
@@ -1292,7 +1627,12 @@ You are given: the origin, the destination (and its description), who is travell
 
 Do NOT speak or decide for {{user}}. Do NOT resolve any ongoing tension. End on arrival, leaving the scene open for what happens next.
 
-Output ONLY the narration text, 2-4 sentences, third person. No JSON, no labels, no dialogue.`;
+# LANGUAGE
+- You must write your response in perfect Turkish Language befitting your character's speech style.
+- Do NOT translate from English to Turkish. 
+- Understand the intention and the tone then write it how it should be written in Turkish.
+
+Output ONLY the narration text, 2-4 sentences, third person. No JSON, no labels, no dialogue, in Turkish.`;
 
 const DEFAULT_CAL=`You detect concrete FUTURE PLANS made in a roleplay so they can be added to a calendar. You are given the current in-game day and time, and the latest exchange.
 
@@ -1398,28 +1738,33 @@ Respond ONLY with strict JSON:
 
 /* ===== MULTI-CHARACTER TURN ROUTING (SkyrimAI-style) ===== */
 // ROUTER 1 — fires after the PLAYER speaks. Decides who the player addressed and who replies.
-const DEFAULT_ROUTER_PLAYER=`You are the conversation director for a multi-character roleplay. {{user}} (the player) just spoke. The characters in earshot are listed with short descriptions.
+const DEFAULT_ROUTER_PLAYER=`You are the conversation director for a multi-character roleplay. {{user}} (the player) just spoke. The characters in earshot are listed with short descriptions and their "hooks" (pressure points, motivations, secrets, rivalries).
 
 Decide who {{user}} is addressing and which SINGLE character should respond. Pick exactly ONE responder in almost all cases:
 - If {{user}} named or clearly directed their message at one character, that character responds.
-- If {{user}} addressed the whole group, pick the ONE character who would most naturally answer first.
+- If {{user}} addressed the whole group, pick the ONE character who would most naturally answer first — use the hooks to judge whose stake, personality, or relationship makes them the likeliest to speak up.
+- If what {{user}} said lands directly on one character's hook (their fear, desire, rivalry, secret), prefer that character.
 - Only return two responders if {{user}} explicitly asked two specific characters to answer.
-Never make a character respond just because they are present. A character {{user}} did not address stays silent.
+
+Never make a character respond just because they are present. A character {{user}} did not address and whose hooks are untouched stays silent.
 
 Respond with ONLY strict JSON, no prose:
 {"addressed":"exact name or 'group'","responders":["ExactName"]}
 Use exact names from the list. responders must contain at least one name.`;
 
 // ROUTER 2 — fires after a CHARACTER speaks. Decides if another character should respond (enables char↔char).
-const DEFAULT_ROUTER_CHAR=`You are the conversation director for a multi-character roleplay. A character just finished speaking. Below are the OTHER characters present and what was just said.
+const DEFAULT_ROUTER_CHAR=`You are the conversation director for a multi-character roleplay. A character just finished speaking. Below are the OTHER characters present (each with their "hooks" — pressure points, motivations, secrets, rivalries) and what was just said.
 
-Your default answer is NO — the turn returns to {{user}} (the player). Only say YES if the character who just spoke DIRECTLY addressed, questioned, or provoked one of the other present characters BY NAME or unmistakably. Ambient remarks, general statements, or talking to {{user}} do NOT warrant a response.
+Default toward returning the turn to {{user}} (the player), but DON'T be rigid about it. Say YES — name one other present character to respond — when any of these is true:
+- the speaker addressed, questioned, named, or provoked one of the other present characters, OR
+- what was said clearly touches one of another character's HOOKS (their stake, rivalry, fear, desire, or secret) such that staying silent would feel unnatural for them, OR
+- the moment plainly invites a reaction from a specific present character (a direct accusation, a flirtation, a challenge they'd answer).
 
-Do NOT pick the character who just spoke. When unsure, return false.
+Use the hooks to judge who would realistically break in. Do NOT pick the character who just spoke. Do NOT make a character respond just for being present or for an ambient remark aimed at no one. When genuinely unsure, return false and let it go back to {{user}}.
 
 Respond with ONLY strict JSON, no prose:
 {"continue": false, "responder": null}
-or, only when clearly warranted:
+or, when warranted:
 {"continue": true, "responder": "ExactName"}`;
 
 // PRESENCE TRACKER — after each turn, detects who physically entered or left the scene.
@@ -1428,6 +1773,8 @@ const DEFAULT_PRESENCE_TRACKER=`You track who is physically present in a rolepla
 Rules:
 - A character EXITS on a clear, completed departure. Cues include: walks/steps/heads out, leaves, departs, storms off, walks away, slips out, takes off, exits, sees themselves out, excuses themselves and goes — OR a spoken FAREWELL that marks them actually leaving ("goodbye", "I'm leaving now", "take care", "see you later", "I have to go" followed by them going). Ignore mere intentions, threats, or hypotheticals not yet acted on ("I should go", "maybe I'll leave").
 - A character ENTERS when they clearly arrive into the scene. Cues include: enters, walks/steps/comes in, arrives, shows up, appears, joins, bursts in, the door opens and they step through — OR a spoken GREETING that marks a new arrival ("welcome", "look who's here", "nice to see you", "hey, you made it") directed at someone who was offstage. A character is also ENTERING when an OFFSTAGE character is explicitly called/summoned back by name and would plausibly come ("Lyra, come back here", "someone call Mara in").
+- Consider also the Turkish variations of Greetings and Farewells.
+- The roleplay may be written in ANY language (often Turkish). Detect movements and greetings/farewells by their MEANING regardless of language — apply all the rules above to non-English text exactly as you would to English.
 - A greeting or farewell only changes presence if it marks a real arrival/departure — two people already in the room saying "hi" does NOT add anyone, and "goodbye" said over the phone does NOT remove anyone.
 - Only use the exact character names provided. Never invent names. Never move {{user}} (the player).
 - When in doubt, change nothing. Most turns have NO change.
@@ -1723,8 +2070,8 @@ function loadState(){
   state={
     key:store.raw(K.key,""),
     segkey:store.raw(K.segkey,""),
-    model:store.raw(K.model,"anthropic/claude-3.5-sonnet"),
-    rewriter:store.raw(K.rewriter,"openai/gpt-4o-mini"),
+    model:store.raw(K.model,"google/gemma-4-31b-it"),
+    rewriter:store.raw(K.rewriter,"google/gemini-2.5-flash"),
     imgProvider:store.raw(K.imgProvider,"modelslab"),
     imgModel:store.raw(K.imgModel,"x-ai/grok-imagine-image-quality"),
     segImgPath:store.raw(K.segImgPath,"chroma"),
@@ -1767,13 +2114,13 @@ function loadState(){
     routerPlayer:store.raw(K.routerPlayer,DEFAULT_ROUTER_PLAYER),
     routerChar:store.raw(K.routerChar,DEFAULT_ROUTER_CHAR),
     mcChainCap:+store.raw(K.mcChainCap,4),
-    mcModel:store.raw(K.mcModel,"deepseek/deepseek-v3.2"),
+    mcModel:store.raw(K.mcModel,"google/gemini-2.5-flash"),
     style:store.raw(K.style,"Cinematic"),
     ratio:store.raw(K.ratio,"Tall"),
     imgRules:store.get(K.imgRules,null)||DEFAULT_IMG_RULES.map(r=>({...r})),
     vidRules:store.get(K.vidRules,null)||DEFAULT_VID_RULES.map(r=>({...r})),
     routeOn:store.get(K.routeOn,true),
-    routerModel:store.raw(K.routerModel,"openai/gpt-4o-mini"),
+    routerModel:store.raw(K.routerModel,"google/gemini-2.5-flash-lite"),
     routerPrompt:store.raw(K.routerPrompt,DEFAULT_ROUTER),
     steps:+store.raw(K.steps,25),
     fnCfg:store.get(K.fnCfg,{})||{},
@@ -1782,7 +2129,7 @@ function loadState(){
     condenseKeep:+store.raw(K.condenseKeep,0.8),
     condenseBatch:+store.raw(K.condenseBatch,15),
     condensePrompt:store.raw(K.condensePrompt,DEFAULT_CONDENSE),
-    bioModel:store.raw(K.bioModel,"deepseek/deepseek-v3.2"),
+    bioModel:store.raw(K.bioModel,"z-ai/glm-4.7"),
     bioPrompt:store.raw(K.bioPrompt,DEFAULT_BIO),
     univPrompt:store.raw(K.univPrompt,DEFAULT_UNIV),
     autoCharOn:store.get(K.autoCharOn,true),
@@ -4718,7 +5065,11 @@ async function runMultiCharTurn(chat,playerText){
       maybeBuildMemory(chat);postTurn(chat);
       return;
     }
-    const roster=cast.map(c=>`- ${c.name}: ${(c.personality||c.look||"").slice(0,90)}`).join("\n");
+    const roster=cast.map(c=>{
+      let line=`- ${c.name}: ${(c.personality||c.look||"").slice(0,90)}`;
+      if(c.interject&&c.interject.trim())line+=`\n    hooks: ${c.interject.trim().slice(0,140)}`;
+      return line;
+    }).join("\n");
     // ROUTER 1 — who did the player address, who responds
     let responders=[],addressed="group";
     try{
@@ -4753,7 +5104,7 @@ async function runMultiCharTurn(chat,playerText){
         const sys=fillTpl(state.routerChar,{user:state.user,speaker:lastSpeaker?lastSpeaker.name:cast[0].name});
         const out=await chatCompletion([
           {role:"system",content:sys},
-          {role:"user",content:`${lastSpeaker?lastSpeaker.name:"Someone"} just spoke. Other characters present:\n${others.map(c=>`- ${c.name}`).join("\n")}\n\nWhat ${lastSpeaker?lastSpeaker.name:"they"} just said:\n${lastSpeaker?lastSpeaker.name+": ":""}${(chat.messages.filter(m=>!m.sysError&&m.role==='assistant').slice(-1)[0]||{}).content||""}\n\nShould a present character respond, or does it return to ${state.user}?`}
+          {role:"user",content:`${lastSpeaker?lastSpeaker.name:"Someone"} just spoke. Other characters present:\n${others.map(c=>`- ${c.name}`+(c.interject&&c.interject.trim()?` — hooks: ${c.interject.trim().slice(0,140)}`:"")).join("\n")}\n\nWhat ${lastSpeaker?lastSpeaker.name:"they"} just said:\n${lastSpeaker?lastSpeaker.name+": ":""}${(chat.messages.filter(m=>!m.sysError&&m.role==='assistant').slice(-1)[0]||{}).content||""}\n\nShould a present character respond, or does it return to ${state.user}?`}
         ],state.mcModel,{temp:fnTemp("mc",0.1),max:fnTok("mc",80),dbg:"Turn router · character"});
         const j=parseJSON(out);
         if(j&&j.continue===true&&j.responder&&String(j.responder).toLowerCase()!=="null"){
@@ -4840,7 +5191,18 @@ const PRESENCE_CUES=[
   "goodbye","good bye","bye","farewell","see you","see ya","take care","catch you later",
   "i'm leaving","im leaving","i'll go","ill go","i should go","i have to go","i gotta go",
   "i'm off","im off","i'll be going","heading home","heading out","time to go","i'll leave you",
-  "until next time","i'll see you","see you later","see you soon","i must go","i'll be back"
+  "until next time","i'll see you","see you later","see you soon","i must go","i'll be back",
+  // --- Turkish movement / greeting cues (RP language may be Turkish) ---
+  "gir","girer","girdi","giriyor","gel","gelir","geldi","geliyor","geliyorum","geleyim",
+  "çık","çıkar","çıktı","çıkıyor","çıkıyorum","ayrıl","ayrılır","ayrıldı","ayrılıyor",
+  "git","gider","gitti","gidiyor","gidiyorum","gitmeliyim","gitmem","gideyim","kalkıp",
+  "uzaklaş","uzaklaşır","uzaklaştı","yürüyüp","yürür","içeri gir","dışarı çık","odaya gir",
+  "odadan çık","kapı açıl","kapı açıldı","kapıya","kapıyı","kapı çal","kapı çalı","kapı çaldı",
+  "çekip git","çekti git","terk et","terk etti","ayrılıyorum","gidiyorum artık",
+  // greetings / farewells (TR)
+  "merhaba","selam","hoş geldin","hoşgeldin","hoş geldiniz","hoşça kal","hoşçakal","hoşça kalın",
+  "güle güle","görüşürüz","görüşmek üzere","kendine iyi bak","iyi günler","iyi geceler",
+  "gitmem lazım","gitmem gerek","ben kaçtım","ben gideyim","sonra görüşürüz","tekrar görüşürüz"
 ];
 // Returns true if the latest message contains any movement/greeting cue.
 function hasPresenceCue(chat){
@@ -4858,9 +5220,14 @@ async function runPresenceTracker(chat){
   if(state.presenceOff)return result;
   const cast=curCast();
   if(cast.length<1)return result;                 // no characters in the universe
-  // Cheap pre-check: only spend an LLM call when the latest text hints at someone entering
-  // or leaving (a movement verb, or a greeting/farewell). Skips the call on ordinary turns.
-  if(!hasPresenceCue(chat))return result;
+  // Cheap pre-check: only spend an LLM call when the latest text hints at someone entering or
+  // leaving (a movement verb or greeting/farewell, English or Turkish). As a safety net for
+  // OTHER languages or phrasings the cue list misses, also run at least once every few turns
+  // so presence can't silently drift out of sync.
+  const totalTurns=(chat.messages||[]).filter(m=>m.role!=='system'&&!m.sysError).length;
+  const sinceLast=totalTurns-(chat._presenceLastRun||0);
+  if(!hasPresenceCue(chat) && sinceLast<5)return result;
+  chat._presenceLastRun=totalTurns;
   try{
     const present=presentCast(chat).map(c=>c.name);
     const offstage=cast.filter(c=>!present.includes(c.name)).map(c=>c.name);
@@ -5569,7 +5936,7 @@ async function gamemasterReactions(chat){
       const sys=fillTpl(state.routerChar,{user:state.user,speaker:lastSpeaker?lastSpeaker.name:"the narrator"});
       const out=await chatCompletion([
         {role:"system",content:sys},
-        {role:"user",content:`A narrator event just occurred. Which present character (if any) would react? Present:\n${others.map(c=>`- ${c.name}`).join("\n")}\n\nRecent exchange:\n${castConvoText(chat,6)}`}
+        {role:"user",content:`A narrator event just occurred. Which present character (if any) would react? Present:\n${others.map(c=>`- ${c.name}`+(c.interject&&c.interject.trim()?` — hooks: ${c.interject.trim().slice(0,140)}`:"")).join("\n")}\n\nRecent exchange:\n${castConvoText(chat,6)}`}
       ],state.mcModel,{temp:fnTemp("mc",0.3),max:fnTok("mc",100),dbg:"Turn router · gm reaction"});
       const j=parseJSON(out);
       if(j&&j.continue&&j.responder&&String(j.responder).toLowerCase()!=="null"){
