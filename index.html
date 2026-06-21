@@ -3221,15 +3221,29 @@ async function runTrackerEngine(chat){
   const present=presentCast(chat);
   const exchange=recentExchangeMsgs(chat,6);
 
+  // Who ACTUALLY participated in the recent exchange (spoke a line). A character can be
+  // "present" (in the room) yet silent — like a bystander who never joined in. Evaluating
+  // relationships for a silent character invents feelings from dialogue that wasn't theirs
+  // (e.g. Defne forming an opinion of Ceyda based on the player's lines while Ceyda said
+  // nothing). So we only score characters who genuinely took part this exchange.
+  // NOTE: exchange names are sanitized (non-ASCII like the Turkish ğ becomes _), so compare
+  // using the SAME sanitizer on the persona name, or Turkish names would never match.
+  const spokenNames=new Set(exchange.filter(m=>m.role==='assistant').map(m=>(m.name||"").toLowerCase()));
+  const participated=p=>spokenNames.has(sanitizeName(p.name||"").toLowerCase());
+
   // ---- Relationships (directed, multi-dimensional, one call per character) ----
   if(state.relOn && present.length){
     for(const fromP of present){
+      // Skip characters who didn't actually speak this exchange — nothing to judge for them.
+      if(!participated(fromP))continue;
       // toward the player
       try{ await evalRelationship(chat,fromP,"__user__",state.user,exchange); }catch(e){}
-      // toward other present characters (only when the cast is small, to bound cost)
+      // toward other present characters — only if THAT character also took part, and only
+      // when the active cast is small (to bound cost).
       if(present.length<=3){
         for(const toP of present){
           if(toP.id===fromP.id)continue;
+          if(!participated(toP))continue;   // don't score a silent bystander
           try{ await evalRelationship(chat,fromP,toP.id,toP.name,exchange); }catch(e){}
         }
       }
