@@ -28,8 +28,14 @@
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100dvh;font-size:16px;}
   .screen{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;flex-direction:column;}
   .screen.active{display:flex;}
-  header{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-weight:600;font-size:17px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;}
+  header{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-weight:600;font-size:17px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;position:relative;}
   header .hl{display:flex;align-items:center;gap:10px;min-width:0;}
+  header .hl{flex:1;}
+  .chatActions{display:flex;gap:6px;flex-shrink:0;align-items:center;}
+  .chatActions .btn{padding:6px 9px;}
+  .chatMenu{position:absolute;top:54px;right:12px;z-index:50;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:180px;}
+  .chatMenu button{background:none;border:none;color:var(--text);text-align:left;padding:10px 12px;border-radius:8px;font-size:14px;cursor:pointer;}
+  .chatMenu button:active{background:var(--surface);}
   header .av{font-size:26px;}
   header .sub{font-size:12px;color:var(--muted);font-weight:400;}
   nav{display:flex;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;}
@@ -201,13 +207,17 @@
         <div class="sub" id="chatScene" onclick="setSceneState()" style="cursor:pointer">—</div>
       </div>
     </div>
-    <div style="display:flex;gap:6px">
-      <button class="btn sec small" onclick="openCalendar()" style="position:relative">📅<span id="calBadge" class="calBadge" style="display:none"></span></button>
-      <button class="btn sec small" onclick="openTravel()">🗺️ Travel</button>
-      <button class="btn sec small" onclick="endDay()">🌙 End Day</button>
-      <button class="btn sec small" onclick="openStoryState()">📊 State</button>
-      <button class="btn sec small" onclick="openCast()">🎭 Nearby</button>
-      <button class="btn sec small" onclick="restartScene()">↺ Restart</button>
+    <div class="chatActions">
+      <button class="btn sec small" onclick="openCalendar()" style="position:relative" title="Calendar">📅<span id="calBadge" class="calBadge" style="display:none"></span></button>
+      <button class="btn sec small" onclick="openTravel()" title="Travel">🗺️</button>
+      <button class="btn sec small" onclick="toggleChatMenu(event)" title="More">⋯</button>
+    </div>
+    <div id="chatMenu" class="chatMenu hide">
+      <button onclick="endDay();closeChatMenu()">🌙 End Day</button>
+      <button onclick="openStoryState();closeChatMenu()">📊 Story State</button>
+      <button onclick="openCast();closeChatMenu()">🎭 Nearby characters</button>
+      <button onclick="setSceneState();closeChatMenu()">🕐 Set time / place</button>
+      <button onclick="restartScene();closeChatMenu()">↺ Restart scene</button>
     </div>
   </header>
   <div id="recapBanner" class="hide"></div>
@@ -698,6 +708,7 @@
     <div class="desc">Places in this world — homes where characters live and points of interest to travel to. You can generate a picture for each; the chat background changes when you're there.</div>
     <div id="ueLocList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
     <button class="btn sec small" type="button" onclick="addLocation()">＋ New location</button>
+    <button class="btn sec small" type="button" onclick="genLocations()">✨ Generate locations</button>
     <button class="btn sec small" type="button" onclick="genAllSchedules()">🗓️ Generate schedules for cast</button>
     <div class="desc">Builds each character's daily rhythm across these locations. Save the universe first if you just added locations.</div>
     <div class="row">
@@ -2982,22 +2993,38 @@ function addLocation(){
   editLocation(_ueLocs.length-1);
 }
 // Bulk-generate daily schedules for every character in the universe being edited.
-async function genAllSchedules(){
-  const uid=editingUniverse?editingUniverse.id:state.curUniverse;
-  if(!uid){ toast("Save the universe first"); return; }
-  if(!_ueLocs.length){ toast("Add locations first"); return; }
+// Generate locations for the universe being edited, from its setting + cast, into the editor.
+async function genLocations(){
+  const uni=editingUniverse;
+  if(!uni){ toast("Save the universe first"); return; }
   if(!state.key){ toast("Add your API key first"); return; }
-  // Persist current locations onto the universe so personaHome()/curLocations() see them.
+  // Persist current name/setting so the generator sees them.
+  uni.name=document.getElementById('ueName').value.trim()||uni.name;
+  uni.setting=document.getElementById('ueSetting').value.trim();
+  toast("Generating locations…");
+  const locs=await generateLocations(uni,6);
+  if(locs&&locs.length){
+    _ueLocs=_ueLocs.concat(locs);
+    renderLocEditor();
+    toast(`Added ${locs.length} location${locs.length===1?"":"s"} ✓ — Save to keep`);
+  }else{ toast("⚠️ Couldn't generate locations"); }
+}
+async function genAllSchedules(){
+  const uni=editingUniverse||universeById(state.curUniverse);
+  if(!uni){ toast("Save the universe first"); return; }
+  if(!state.key){ toast("Add your API key first"); return; }
+  // Make sure the universe has the locations currently in the editor.
   if(editingUniverse){ editingUniverse.locations=_ueLocs.slice(); persistUniverses(); }
-  const _prev=state.curUniverse; state.curUniverse=uid;
-  const cast=state.personas.filter(p=>p.universeId===uid);
+  const locs=(uni.locations||[]);
+  if(!locs.length){ toast("Add locations first, then Save"); return; }
+  const cast=state.personas.filter(p=>p.universeId===uni.id);
+  if(!cast.length){ toast("No characters in this universe"); return; }
   toast(`Generating ${cast.length} schedules…`);
   let done=0;
   for(const p of cast){
-    try{ const sc=await generateSchedule(p,p.routine); if(sc){p.schedule=sc;done++;persistPersonas();} }catch(e){}
+    try{ const sc=await generateSchedule(p,p.routine,uni); if(sc){p.schedule=sc;done++;persistPersonas();} }catch(e){}
   }
-  state.curUniverse=_prev;
-  toast(`Schedules generated for ${done} character${done===1?"":"s"} ✓`);
+  toast(done?`Schedules generated for ${done} character${done===1?"":"s"} ✓`:"⚠️ Couldn't generate — check API key & model");
 }
 function editLocation(i){
   const l=_ueLocs[i]; if(!l)return;
@@ -3071,11 +3098,20 @@ async function runUniverseGenerator(){
     toast(`Created "${u.name}" with ${made} character${made===1?"":"s"} ✓`);
     // Jump straight into the ready-to-play universe.
     state.curUniverse=uid;applyUniverseProfile(uid);
-    // Generate daily schedules for the new cast now that locations + current universe are set.
-    if(universe.locations&&universe.locations.length&&state.key){
-      const cast=state.personas.filter(p=>p.universeId===uid);
-      (async()=>{ for(const p of cast){ try{ const sc=await generateSchedule(p,p.routine); if(sc){p.schedule=sc;persistPersonas();} }catch(e){} } toast("Schedules ready ✓"); })();
-    }
+    // If the model didn't return locations, generate them now from the setting + cast.
+    (async()=>{
+      if(!universe.locations||!universe.locations.length){
+        toast("Building locations…");
+        const locs=await generateLocations(universe,6);
+        if(locs&&locs.length){ universe.locations=locs; persistUniverses(); }
+      }
+      // Then generate daily schedules for the cast now that locations exist.
+      if(universe.locations&&universe.locations.length&&state.key){
+        const cast=state.personas.filter(p=>p.universeId===uid);
+        for(const p of cast){ try{ const sc=await generateSchedule(p,p.routine,universe); if(sc){p.schedule=sc;persistPersonas();} }catch(e){} }
+      }
+      toast("Universe ready ✓");
+    })();
     if(typeof openUniverse==="function"){ openUniverse(uid); }
     else { renderUniverses(); }
   }catch(e){ console.warn("universe gen failed",e); toast("⚠️ Generation failed"); }
@@ -3304,11 +3340,13 @@ async function generateBio(brief,context){
 // Generate a per-period location schedule for a character from their routine + the universe's
 // locations. Returns a schedule object {Morning:{locId:weight},...} or null. The LLM works in
 // location NAMES; we map back to ids. Home (if set) is included as an anchor.
-async function generateSchedule(persona,routineText){
-  const locs=curLocations();
+async function generateSchedule(persona,routineText,forUniverse){
+  const uni=forUniverse||curUniverseObj();
+  const locs=(uni&&Array.isArray(uni.locations))?uni.locations:[];
   if(!locs.length||!state.key) return null;
-  const home=personaHome(persona);
-  const homeName=home?(locById(home)||{}).name:"";
+  const homeLoc=locs.find(l=>Array.isArray(l.residents)&&l.residents.includes(persona.id));
+  const home=homeLoc?homeLoc.id:null;
+  const homeName=homeLoc?homeLoc.name:"";
   const locList=locs.map(l=>`- ${l.name}${l.type==='home'?' (a home)':''}${l.residents&&l.residents.includes(persona.id)?' [THIS CHARACTER LIVES HERE]':''}`).join("\n");
   const sys=`You build a believable daily schedule for a roleplay character across 5 periods: Morning, Midday, Afternoon, Evening, Night.
 
@@ -3335,6 +3373,37 @@ Use EXACT location names from the list. No commentary.`;
     if(Object.keys(w).length)sched[period]=w;
   }
   return Object.keys(sched).length?sched:null;
+}
+// Generate a set of locations for a universe from its setting + cast. Returns an array of
+// location objects (with residents linked by name) or null. Used as a fallback in the
+// universe generator and by the "Generate locations" button for existing universes.
+async function generateLocations(uni,count){
+  if(!uni||!state.key)return null;
+  const cast=state.personas.filter(p=>p.universeId===uni.id);
+  const castList=cast.map(c=>`- ${c.name}: ${(c.personality||"").slice(0,80)}`).join("\n");
+  const n=Math.max(3,Math.min(10,count||6));
+  const sys=`You design the LOCATIONS for a roleplay world: homes where characters live and points of interest they visit. Given the world setting and the cast, create ${n} believable, varied places that fit this world and give the characters somewhere to live and somewhere to go.
+
+Return ONLY strict JSON, an array:
+[{"name":"place name","description":"1-2 sentences of what it is and its mood","type":"home or poi","resident":"EXACT name of a character who lives here, or empty for a point of interest"}]
+Make some homes (assign residents from the cast) and some points of interest (no resident). Use exact character names. No commentary.`;
+  let out;
+  try{
+    out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:`World setting:\n${uni.setting||"(none)"}\n\nCast:\n${castList||"(none yet)"}`}
+    ],state.bioModel,{temp:fnTemp("mem",0.7),max:fnTok("mem",1200),dbg:"Location generator"});
+  }catch(e){ return null; }
+  const arr=parseJSON(out); if(!Array.isArray(arr)||!arr.length)return null;
+  const nameToId={}; cast.forEach(p=>nameToId[p.name.toLowerCase()]=p.id);
+  const clean=s=>typeof s==="string"?s.trim():"";
+  return arr.slice(0,10).map(l=>({
+    id:"loc_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    name:clean(l.name), description:clean(l.description),
+    type:(clean(l.type).toLowerCase()==='home')?'home':'poi',
+    residents:(l.resident && nameToId[String(l.resident).toLowerCase()])?[nameToId[String(l.resident).toLowerCase()]]:[],
+    image:null, travelPeriods:null
+  })).filter(l=>l.name);
 }
 // One-shot universe generator: brief + count → a full universe object with characters.
 // Returns {universe, characters[], userName/userLook/userBio} or null. Never throws.
@@ -3441,7 +3510,7 @@ async function fillPendingBios(chat){
     }
     // Auto-generate a daily schedule now that the character is fleshed out.
     if(!p.schedule && curLocations().length){
-      const sc=await generateSchedule(p,p.routine); if(sc){p.schedule=sc;persistPersonas();}
+      const sc=await generateSchedule(p,p.routine,universeById(p.universeId)); if(sc){p.schedule=sc;persistPersonas();}
     }
     break; // one per cycle to avoid bursts
   }
@@ -3468,8 +3537,11 @@ function savePersona(){
   // Auto-generate a daily schedule in the background (if this universe has locations and the
   // character doesn't already have one). Stored on the persona; used to resolve where they are.
   const _savedP=editingPersona||state.personas[state.personas.length-1];
-  if(_savedP && !_savedP.schedule && curLocations().length && state.key){
-    generateSchedule(_savedP,_savedP.routine).then(sc=>{ if(sc){_savedP.schedule=sc;persistPersonas();} }).catch(()=>{});
+  if(_savedP && !_savedP.schedule && state.key){
+    const _u=universeById(_savedP.universeId);
+    if(_u && Array.isArray(_u.locations) && _u.locations.length){
+      generateSchedule(_savedP,_savedP.routine,_u).then(sc=>{ if(sc){_savedP.schedule=sc;persistPersonas();} }).catch(()=>{});
+    }
   }
   // Refresh the open universe (if its list is showing) and keep grid counts fresh.
   if(state.curUniverse&&!document.getElementById('charsView').classList.contains('hide'))renderPersonas();
@@ -3858,6 +3930,9 @@ function updateChatHeader(){
   if(typeof updateCalendarBadge==="function")updateCalendarBadge();
 }
 // Quick editor for the scene's period + location (per-chat state).
+function toggleChatMenu(e){ if(e)e.stopPropagation(); const m=document.getElementById('chatMenu'); if(m)m.classList.toggle('hide'); }
+function closeChatMenu(){ const m=document.getElementById('chatMenu'); if(m)m.classList.add('hide'); }
+document.addEventListener('click',e=>{ const m=document.getElementById('chatMenu'); if(m&&!m.classList.contains('hide')&&!e.target.closest('#chatMenu')&&!e.target.closest('[onclick*="toggleChatMenu"]'))m.classList.add('hide'); });
 function setSceneState(){
   const chat=curChat(); if(!chat)return;
   const cur=chatPeriod(chat);
@@ -5838,11 +5913,15 @@ function confirmClear(w){
 function obGo(step){[1,2,3].forEach(n=>document.getElementById('ob'+n).classList.toggle('hide',n!==step));if(step===3)renderObPersonas();}
 function renderObPersonas(){
   const el=document.getElementById('obPersonas');el.innerHTML="";
-  STARTERS.forEach(p=>{
+  // Show the characters that were actually seeded (the default universe's cast), falling
+  // back to STARTERS only if for some reason none exist yet.
+  const cast=(state.personas&&state.personas.length)?state.personas:STARTERS;
+  if(!state.curPersona&&cast[0])state.curPersona=cast[0].id;
+  cast.forEach(p=>{
     const c=document.createElement('div');c.className="card";c.style.cursor="pointer";
     if(p.id===state.curPersona)c.style.borderColor="var(--accent)";
     c.onclick=()=>{state.curPersona=p.id;document.querySelectorAll('#obPersonas .card').forEach(x=>x.style.borderColor="var(--border)");c.style.borderColor="var(--accent)";};
-    c.innerHTML=`<div class="pcard"><div class="pav">${p.avatar}</div><div><h3>${p.name}</h3><div class="desc">${p.personality}</div></div></div>`;
+    c.innerHTML=`<div class="pcard"><div class="pav">${p.avatar||"🎭"}</div><div><h3>${esc(p.name)}</h3><div class="desc">${esc((p.personality||"").slice(0,90))}</div></div></div>`;
     el.appendChild(c);
   });
 }
