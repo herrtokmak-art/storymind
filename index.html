@@ -1235,33 +1235,37 @@ const REL_DIMS=[
   {key:"affection", label:"Affection", neg:"hatred",        pos:"love"},
   {key:"desire",    label:"Desire",    neg:"repulsion",     pos:"intense attraction"},
   {key:"respect",   label:"Respect",   neg:"contempt",      pos:"admiration"},
-  {key:"comfort",   label:"Comfort",   neg:"fear/tension",  pos:"total ease"}
+  {key:"comfort",   label:"Comfort",   neg:"fear/tension",  pos:"total ease"},
+  {key:"fear",      label:"Fear",      neg:"none (feels safe / dominant)", pos:"terror (intimidated / endangered)"}
 ];
 
-const DEFAULT_REL=`You are the RELATIONSHIP TRACKER for an ongoing roleplay. You track, for one character at a time, HOW THAT CHARACTER FEELS about another person (usually the player), across five independent axes. Each axis runs from -100 to +100.
+const DEFAULT_REL=`You are the RELATIONSHIP TRACKER for an ongoing roleplay. You track, for one character at a time, HOW THAT CHARACTER FEELS about another person (usually the player), across six independent axes. Each axis runs from -100 to +100.
 
-THE FIVE AXES (and what their poles mean):
+THE SIX AXES (and what their poles mean):
 - trust: -100 = deep distrust / expects betrayal · 0 = no opinion · +100 = complete trust, would rely on them with anything.
 - affection: -100 = hatred / wants them gone · 0 = indifferent · +100 = love, deep fondness.
 - desire: -100 = repulsion / no attraction · 0 = neutral · +100 = strong romantic/sexual attraction.
 - respect: -100 = contempt / sees them as beneath notice · 0 = neutral · +100 = admiration, looks up to them.
-- comfort: -100 = fear or constant tension around them · 0 = neutral · +100 = total ease, can fully relax.
+- comfort: -100 = on edge / can never relax around them · 0 = neutral · +100 = total ease, can fully relax.
+- fear: -100 = feels completely safe, even dominant over them · 0 = no fear · +100 = terror — sees them as dangerous, intimidating, or a physical/social threat.
 
 NUMBER GUIDANCE (how the magnitudes read, and how the axes relate):
 - 0 to ±15 = faint, barely-there leaning. ±15 to ±40 = a clear, settled feeling. ±40 to ±70 = strong. ±70+ = defining / overwhelming.
-- The axes are INDEPENDENT and can disagree: a character can desire someone they don't trust (high desire, low trust), or respect a rival they dislike (high respect, low affection). Judge each axis on its own.
+- The axes are INDEPENDENT and can disagree: a character can desire someone they don't trust (high desire, low trust), respect a rival they dislike (high respect, low affection), or fear someone they're also attracted to (high desire, high fear).
+- FEAR is distinct from comfort: comfort is everyday ease/tension; fear is the sense that this person is a genuine threat. A raised voice or a slammed door spikes fear; a credible threat, an act of violence, or a display of power over the character spikes it hard. Fear decays slowly as the person proves safe.
+- HOW FEAR COLORS THE REST: high fear suppresses how freely the other feelings are expressed — a character who fears someone may still love or desire them, but acts guarded, placating, or submissive rather than open. Very high fear can curdle affection into resentment over time and erodes comfort. Removing a threat (protection, reassurance, the danger passing) lets fear fall and the buried feelings surface.
 - Feelings are not symmetric and not reciprocal — this evaluation is ONLY how the listed character feels about the target.
 
 HOW FEELINGS MOVE — decide deltas based ONLY on what just happened in the latest exchange, not on history you imagine:
-- Ordinary beats nudge an axis by 0 to ±5. A real moment — a kindness, a slight, a flirtation, a broken confidence — can move ±5 to ±15. A major event — a betrayal, a rescue, a confession, public humiliation, real cruelty or tenderness — can move ±15 to ±30. Most turns leave most axes at 0.
+- Ordinary beats nudge an axis by 0 to ±5. A real moment — a kindness, a slight, a flirtation, a broken confidence, a flash of anger — can move ±5 to ±15. A major event — a betrayal, a rescue, a confession, public humiliation, a threat, real cruelty or tenderness — can move ±15 to ±30. Most turns leave most axes at 0.
 - A character can hide what they feel while still feeling it — judge the underlying feeling, not the polite surface.
 
 You are given the character's CURRENT axis values and the latest exchange (as the preceding messages). Then:
 1. Decide a delta for each axis (use 0 when nothing in the exchange touched it).
-2. Write a short, vivid DESCRIPTION (1-2 sentences, in third person) of how this character now feels about the target given the resulting numbers — the plain-English meaning the numbers add up to. This description is what the character will actually act on.
+2. Write a short, vivid DESCRIPTION (1-2 sentences, in third person) of how this character now feels about the target given the resulting numbers — the plain-English meaning the numbers add up to, including how any fear shapes the way they act. This description is what the character will actually act on.
 
 Return ONLY strict JSON:
-{"trust":<delta>,"affection":<delta>,"desire":<delta>,"respect":<delta>,"comfort":<delta>,"description":"<1-2 sentence summary of how they feel now>"}`;
+{"trust":<delta>,"affection":<delta>,"desire":<delta>,"respect":<delta>,"comfort":<delta>,"fear":<delta>,"description":"<1-2 sentence summary of how they feel now>"}`;
 
 const DEFAULT_TRACK=`You update freeform story trackers for an ongoing roleplay. Each tracker is a named value within a range that represents something the story is following (an emotion like love or fear, a condition like intoxication or injury, a countdown, a status). You are given each tracker's definition, its current value, its update mode, and the latest exchange.
 
@@ -2755,6 +2759,17 @@ function relDescription(o){
   return parts.length?("Roughly: "+parts.join(", ")+"."):"";
 }
 function relNumbersLine(o){ return REL_DIMS.map(d=>`${d.label} ${o[d.key]>0?"+":""}${o[d.key]||0}`).join(" · "); }
+// Full relationship profile for injection into the ROLEPLAY payload: the per-axis numbers
+// AND the written description together, so the character LLM knows both the magnitudes and
+// their plain-English meaning. This is what the model acts on.
+function relProfile(o){
+  if(!o)return "";
+  const nums=relNumbersLine(o);
+  const desc=relDescription(o);
+  let s=`[${nums}]`;
+  if(desc)s+=` ${desc}`;
+  return s;
+}
 
 // Build the STORY TRACKERS block (relationships are surfaced separately, per-character).
 function trackerContext(chat){
@@ -2823,10 +2838,10 @@ function recentExchangeMsgs(chat,n){
 // across all relationship axes. Applies the deltas and stores the written description.
 async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs){
   const o=relObj(chat,fromP.id,toId);
-  // Use the stored prompt only if it's the new multi-axis format; otherwise a returning
-  // user's old single-number prompt would silently break parsing — fall back to default.
+  // Use the stored prompt only if it's the CURRENT multi-axis format (now including fear);
+  // otherwise a returning user's older prompt would miss the fear axis — fall back to default.
   let sys=state.relPrompt||DEFAULT_REL;
-  if(!(/affection/i.test(sys)&&/description/i.test(sys))){ sys=DEFAULT_REL; state.relPrompt=DEFAULT_REL; }
+  if(!(/affection/i.test(sys)&&/description/i.test(sys)&&/fear/i.test(sys))){ sys=DEFAULT_REL; state.relPrompt=DEFAULT_REL; }
   const curLine=`Evaluating: how ${fromP.name} feels about ${toName}.\n`+
     `Current axis values for ${fromP.name} → ${toName}:\n`+
     REL_DIMS.map(d=>`- ${d.key}: ${o[d.key]||0}`).join("\n")+
@@ -3835,17 +3850,17 @@ function buildSystemPrompt(injectedMemories){
    if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
    blocks.push(pb);}
 
-  // 7) HOW YOU FEEL TOWARD RESPONSE TARGET (relationship descriptions)
+  // 7) HOW YOU FEEL TOWARD RESPONSE TARGET (relationship: numbers + description)
   if(state.relOn&&chat){
     const feel=[];
     cast.forEach(c=>{
       const o=relObj(chat,c.id,"__user__");
-      if(relHasContent(o))feel.push(`${multi?c.name+" — ":""}toward ${state.user}: ${relDescription(o)}`);
+      if(relHasContent(o))feel.push(`${multi?c.name+" — ":""}toward ${state.user}: ${relProfile(o)}`);
       if(multi){
-        cast.forEach(other=>{ if(other.id===c.id)return; const oo=relObj(chat,c.id,other.id); if(relHasContent(oo))feel.push(`${c.name} toward ${other.name}: ${relDescription(oo)}`); });
+        cast.forEach(other=>{ if(other.id===c.id)return; const oo=relObj(chat,c.id,other.id); if(relHasContent(oo))feel.push(`${c.name} toward ${other.name}: ${relProfile(oo)}`); });
       }
     });
-    if(feel.length)blocks.push(`# HOW YOU FEEL TOWARD RESPONSE TARGET\nLet these feelings color how you respond — show them, don't state them:\n`+feel.map(f=>`- ${f}`).join("\n"));
+    if(feel.length)blocks.push(`# HOW YOU FEEL TOWARD RESPONSE TARGET\nThese are your private feelings on six axes (trust, affection, desire, respect, comfort, fear; -100..+100) plus what they add up to. Let them shape your behavior — show them, never state the numbers. Notably, fear makes you guarded, placating, or submissive even toward someone you also like or want:\n`+feel.map(f=>`- ${f}`).join("\n"));
   }
 
   // 8) CURRENT TIME
@@ -3929,9 +3944,9 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   if(state.relOn&&chat){
     const feel=[];
     const op=relObj(chat,p.id,"__user__");
-    if(relHasContent(op))feel.push(`Toward ${state.user}: ${relDescription(op)}`);
-    (others||[]).forEach(o=>{ const oo=relObj(chat,p.id,o.id); if(relHasContent(oo))feel.push(`Toward ${o.name}: ${relDescription(oo)}`); });
-    if(feel.length)blocks.push(`# HOW YOU FEEL TOWARD RESPONSE TARGET\nLet these feelings color how you respond — show them, don't state them:\n`+feel.map(f=>`- ${f}`).join("\n"));
+    if(relHasContent(op))feel.push(`Toward ${state.user}: ${relProfile(op)}`);
+    (others||[]).forEach(o=>{ const oo=relObj(chat,p.id,o.id); if(relHasContent(oo))feel.push(`Toward ${o.name}: ${relProfile(oo)}`); });
+    if(feel.length)blocks.push(`# HOW YOU FEEL TOWARD RESPONSE TARGET\nThese are your private feelings on six axes (trust, affection, desire, respect, comfort, fear; -100..+100) plus what they add up to. Let them shape your behavior — show them, never state the numbers. Notably, fear makes you guarded, placating, or submissive even toward someone you also like or want:\n`+feel.map(f=>`- ${f}`).join("\n"));
   }
 
   // 8) CURRENT TIME
