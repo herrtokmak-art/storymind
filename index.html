@@ -1157,25 +1157,38 @@ Return ONLY a JSON object, no markdown, no commentary:
 }
 Create exactly the requested number of characters. Do NOT include a scenario or opening line. Make the cast varied — different roles, temperaments, and relationships to the player.`;
 
-const DEFAULT_REL=`You track how characters FEEL about each other and about the player in an ongoing roleplay, on a -100 (hatred) to +100 (devotion) scale where 0 is neutral.
+const DEFAULT_REL=`You track how characters FEEL about each other and about the player in an ongoing roleplay, on a scale of -100 (hatred) to +100 (devotion), where 0 is neutral.
 
-You are given the current relationship values and the latest exchange. Decide small, believable adjustments based ONLY on what just happened. Most turns change little (±0 to ±5); a major moment (betrayal, rescue, confession) can be larger. Never invent relationships not listed.
+You are given the current relationship values (each as an exact pair id) and the latest exchange. Decide small, believable adjustments based ONLY on what just happened in that exchange — not on history you're imagining.
+
+How feelings move:
+- Most ordinary turns change a relationship by 0 to ±5. Warmth, a shared laugh, a small kindness nudges up; a slight, a cold reply, a broken trust nudges down.
+- A genuinely significant moment — a betrayal, a rescue, a confession, public humiliation, an act of real cruelty or tenderness — can move ±10 to ±25.
+- Feelings are not symmetric: A warming to B does not mean B warms to A. Judge each pair on its own.
+- A character can hide what they feel while still feeling it — judge the underlying feeling, not the polite surface.
+Never invent pairs not listed. Never change a pair that wasn't involved in what just happened.
 
 Return ONLY a JSON array of changes, each: {"pair": "<exact pair id given>", "delta": <integer>, "reason": "<few words>"}.
 If nothing meaningful changed, return [].`;
 
-const DEFAULT_TRACK=`You update freeform story trackers for an ongoing roleplay. Each tracker is a named value with a range. You are given each tracker's definition, its current value, and the latest exchange.
+const DEFAULT_TRACK=`You update freeform story trackers for an ongoing roleplay. Each tracker is a named value within a range that represents something the story is following (an emotion like love or fear, a condition like intoxication or injury, a countdown, a status). You are given each tracker's definition, its current value, its update mode, and the latest exchange.
 
-For each tracker:
-- If its update mode includes scene-judgement, decide a believable delta based ONLY on what just happened (usually small).
-- If it has a TRIGGER PHRASE, report whether that trigger occurred in the latest exchange (true/false). Do NOT apply dice or counters yourself — the app handles those.
+For each tracker, decide two things from ONLY what just happened in the latest exchange:
+1. delta — if the mode is "llm" or "both", judge how the value should shift. Be believable and usually small: a tender moment might raise a love tracker a little, an insult lower it; a drink raises intoxication. If the mode is "trigger" only, leave delta at 0 (the app handles it).
+2. triggered — if the tracker has a TRIGGER PHRASE, report whether that specific thing clearly happened in the latest exchange (true) or not (false). Judge the MEANING, not the exact words — the phrase describes an event to watch for. Do NOT apply dice, counters, or per-day changes yourself; the app does all of that. You only report whether the trigger fired.
 
-Return ONLY a JSON array, each: {"id":"<tracker id>", "delta": <number, 0 if none>, "triggered": <true|false>}.
+Be conservative: if nothing in the exchange clearly affects a tracker, its delta is 0 and triggered is false.
+
+Return ONLY a JSON array, one object per tracker that changed, each: {"id":"<tracker id>", "delta": <number, 0 if none>, "triggered": <true|false>}.
 Return [] if nothing changed and no triggers fired.`;
 
-const DEFAULT_VOICECHECK=`You are a subtle quality checker for a roleplay. Given a character's profile (personality, speaking style) and their latest line, judge whether the line is clearly OUT of character — wrong voice, contradicts their personality, or breaks immersion.
+const DEFAULT_VOICECHECK=`You are a subtle quality checker for a roleplay. You are given a character's profile (personality and speaking style) and their latest line. Judge whether the line is clearly OUT of character.
 
-Be conservative: only flag clear breaks, not minor variation. Return ONLY JSON: {"ok": <true|false>, "note": "<short reason if not ok>"}.`;
+A line is out of character if it: uses a voice or vocabulary that contradicts their stated speaking style, acts against their established personality without reason, breaks the fourth wall or sounds like an AI assistant, suddenly knows things they couldn't know, or speaks/acts as a DIFFERENT character than themselves.
+
+Be conservative — only flag CLEAR breaks. Natural variation, growth, strong emotion, or a character deliberately acting unlike their usual self for a good in-scene reason are all FINE and should pass. When unsure, pass it.
+
+Return ONLY JSON: {"ok": <true|false>, "note": "<short reason, only if ok is false>"}.`;
 
 /* ===== GAMEMASTER ===== an invisible director that watches for stale scenes ===== */
 // STAGE 1 — judge whether the scene needs help. Cheap, returns strict JSON.
@@ -1194,19 +1207,21 @@ energy 1 = flatlined, 5 = thriving.`;
 // STAGE 2 — author an intervention as a hidden directive the character will act on.
 const DEFAULT_GM_AUTHOR=`You are the GAMEMASTER, an unseen narrator of this roleplay between {{user}} and the character(s). The scene has gone stale ({{reason}}). Introduce something that revives it WITHOUT controlling {{user}} or any character's choices.
 
-You will be given the WORLD SETTING (the universe this story lives in) and CHARACTER PRESSURE POINTS (each character's fears, secrets, and stakes). Ground your event in the world, and aim it at one or more of those pressure points so it lands with real weight.
+You will be given the WORLD SETTING, CURRENT SCENE (day/time/place), the PLAYER's background, CHARACTER BACKGROUNDS, and CHARACTER PRESSURE POINTS. Ground your event in all of these: it should feel like it belongs to this world, this moment, and these specific people. Aim it at one or more pressure points — a character's fear, secret, desire, or rivalry, or a thread from the player's own background — so it lands with real weight rather than feeling random.
 
-Create ONE of: a new event (someone or something arrives, a sound, a message, a change in the environment), a complication or obstacle, a sudden revelation, or a small surprise. It must fit the established tone, setting, and continuity. Keep it proportionate — a nudge, not a plot twist out of nowhere.
+Create ONE of: a new arrival (someone enters or approaches), a message or signal, a complication or obstacle, a sudden revelation, an environmental shift, or a small surprise. It must fit the established tone, setting, time of day, and continuity. Keep it proportionate to the moment — a meaningful nudge, not a plot twist out of nowhere.
 
-Write it as brief third-person NARRATION of what happens in the scene — like a single line of stage description the whole table can see. Do NOT speak for {{user}} or decide how any character reacts; just introduce the event and leave space for them to respond.
+Write it as brief third-person NARRATION of what happens — a single line of stage description the whole table can see. Do NOT speak for {{user}}, do NOT decide how any character reacts, and do NOT write any character's dialogue. Just introduce the event and leave space for everyone to respond.
 
-Output ONLY the narration text, MAXIMUM 1-2 short sentences. No quotes, no labels, no character dialogue.`;
+Output ONLY the narration text, MAXIMUM 1-2 short sentences. No quotes, no labels, no dialogue.`;
 
 /* ===== SCENE WRITER ===== takes over once a gamemaster event is live, advances it to resolution ===== */
 // Classifies a freshly-triggered event into a structured object the engine can run.
-const DEFAULT_SCENE_SETUP=`A new event was just introduced into a roleplay. Analyze it and describe its structure. You may be given the WORLD SETTING and CHARACTER PRESSURE POINTS for context — use them to keep the event consistent with the universe.
+const DEFAULT_SCENE_SETUP=`A new event was just introduced into a roleplay. Analyze it and describe its structure as JSON. You may be given the WORLD SETTING, CURRENT SCENE, CHARACTER BACKGROUNDS and CHARACTER PRESSURE POINTS — use them to keep the event consistent with the universe and its people.
 
-If the event involves a person/character approaching or threatening to appear who is NOT already in the scene, identify them. If they match one of the known character names, use that name. Otherwise INVENT a specific, fitting first name (and surname if natural) plus a brief persona from the event context and world. For a character event the name field MUST be a real name — never "null", "unknown", "stranger", or empty. If you truly cannot name them, classify the event as "environment" instead.
+Identify whether the event centers on a PERSON or on the ENVIRONMENT:
+- If a person/character is approaching, arriving, or threatening to appear who is NOT already in the scene, identify them. If they match a known character name, use that exact name. Otherwise INVENT a specific, fitting name (first name, plus surname if natural) and a brief persona drawn from the event and world. The name MUST be a real name — never "null", "unknown", "stranger", or empty. If you genuinely cannot name a person, classify the event as "environment" instead.
+- "approaching": true means they are nearby/closing in but NOT yet in the room and CANNOT hear the conversation. false means they are already arriving into the scene this beat.
 
 Respond with ONLY strict JSON:
 {
@@ -1214,30 +1229,37 @@ Respond with ONLY strict JSON:
   "summary": "one-line description of the unresolved tension to drive toward resolution",
   "participant": { "name": "a real name for character events; null only when type is environment", "known": true|false, "approaching": true|false, "persona": "1-line personality if invented, else null", "look": "1-line appearance if invented, else null" }
 }
-"approaching" = true means they are nearby/closing in but NOT yet in the room and CANNOT hear the conversation yet. For environment events, participant is null.`;
+For environment events, participant is null.`;
 
 // Runs each turn while an event is active: advances the arc, escalates, decides resolution.
-const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active, unresolved event inside a roleplay. Your job each turn is to PUSH THE EVENT FORWARD based on how {{user}} and the characters just reacted — building tension toward a real resolution. You are not a passive narrator; you make the situation progress.
+const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active, unresolved event inside a roleplay. Each turn you PUSH THE EVENT FORWARD based on how {{user}} and the characters just reacted, building toward a real, earned resolution. You are a director, not a passive narrator — you make the situation progress.
 
-You may be given the WORLD SETTING and CHARACTER PRESSURE POINTS. Keep every beat consistent with the world, and use the pressure points to make the event bite where it matters.
+You may be given the WORLD SETTING, CURRENT SCENE (day/time/place), CHARACTER BACKGROUNDS, and CHARACTER PRESSURE POINTS. Keep every beat consistent with all of them, and aim the event at the pressure points so it bites where it matters.
 
 Active event: {{summary}}
 This is turn {{turn}} of the event (minimum {{min}}, maximum {{max}}).
 
-Principles:
-- Advance concretely. If {{user}} ignores the event, ESCALATE it (footsteps closer → the doorknob turns → the door opens).
-- Do NOT let {{user}} resolve it too cheaply. If they attempt an easy escape, COMPLICATE it realistically (they jump but twist an ankle; the lock jams). Make consequences earned.
-- An approaching character must stay OUTSIDE and unheard until you decide the moment has come for them to ENTER the room.
-- BRING THE CHARACTER IN PROMPTLY. Don't stall for many turns of pure narration. If an approaching character has any natural reason to enter — the player looks toward them, calls out, addresses them by name, moves toward them, or the tension has built for a turn or two — set "bring_in" to their name NOW. A roleplay with a character who never speaks is a failure; favor entering early over dragging out the approach.
-- If {{user}}'s latest line directly addresses the character by name or speaks to them, you MUST bring them in this turn (set "bring_in").
-- The event MUST run at least {{min}} turns and resolve by turn {{max}}. If this is the final turn, bring it to a definite close.
+PRINCIPLES
+- Advance concretely. If {{user}} ignores the event, ESCALATE it (footsteps closer → the doorknob turns → the door opens). Never repeat the previous beat in new words.
+- Don't let {{user}} resolve it too cheaply. If they attempt an easy out, COMPLICATE it realistically (they jump but twist an ankle; the lock jams). Consequences must be earned.
+- An approaching character stays OUTSIDE and unheard until you decide the moment to ENTER.
+
+BRINGING CHARACTERS IN — this is critical
+- The instant a character should join the scene — {{user}} addresses them, looks toward them, moves to them, or the tension has built a turn or two — set "bring_in" to their EXACT name. A scene with a character who never actually speaks is a failure.
+- "bring_in" applies to ANY character entering, not only the original event person. If your narration introduces a NEW person (a parent arrives, a guard steps in, a friend appears), you MUST put that new person's name in "bring_in" so they enter as themselves and can speak. Never describe a new person speaking or acting in the narration without bringing them in — otherwise their words get wrongly attributed to whoever was already present.
+- If {{user}}'s latest line addresses a character by name, you MUST bring that character in this turn.
+
+RESOLVING — do this carefully
+- The event MUST run at least {{min}} turns and must resolve by turn {{max}}.
+- Resolve ONLY when the tension has a satisfying, earned end — not abruptly, and NEVER as a way to dodge a confrontation {{user}} is engaged in.
+- A resolution must NEVER physically remove the character {{user}} is actively talking to, and must NEVER leave the scene empty. If the situation calms, the characters STAY and the conversation continues naturally — resolving the EVENT does not mean clearing the room. Only send a character away if {{user}} or the scene clearly drove them off.
 
 Respond with ONLY strict JSON:
 {
-  "narration": "1-2 sentence advance of the event (third person, no character dialogue)",
-  "bring_in": "ParticipantName or null  (set ONLY when an approaching character now physically enters the room)",
+  "narration": "1-2 sentence advance of the event in third person. No character dialogue. Do not have a not-yet-present character speak.",
+  "bring_in": "ExactCharacterName, or null. Set whenever ANY character (the event person OR a newly-introduced one) should now be physically in the scene and able to speak.",
   "resolved": true|false,
-  "resolution": "if resolved, 1 short phrase of how it ended, else null"
+  "resolution": "if resolved, one short phrase of how the TENSION ended (not how the scene emptied), else null"
 }`;
 
 
@@ -4394,13 +4416,48 @@ async function runSceneWriter(chat){
       persistChats();appendNewBubbles();updateChatHeader();
       broughtIn=resolveChar(id,chat);
     }
+    // FALLBACK: the writer named a character to bring in who ISN'T the event participant
+    // (or there is no participant) — e.g. a character introduced only in narration, like a
+    // parent who arrives mid-scene. This MUST take precedence over the participant-recovery
+    // block below: if the writer is introducing someone new, that someone becomes the active
+    // speaker, not the character who was already in the room. Resolve them as a real persona
+    // by name, else auto-create a card, then bring them in with their OWN identity.
+    if(!broughtIn && j.bring_in && validCharName(j.bring_in)){
+      const wantName=String(j.bring_in).trim();
+      const already=presentCast(chat).some(c=>c.name.toLowerCase()===wantName.toLowerCase());
+      if(!already){
+        let card=state.personas.find(p=>p.name.toLowerCase()===wantName.toLowerCase());
+        if(!card){
+          // Create the character (real persona if Auto-create is on, else a temp char),
+          // seeding their look/persona from the event summary so they're not blank.
+          const made=ensureTempChar(chat,wantName,ev.participant&&ev.participant.persona||ev.summary||"",ev.participant&&ev.participant.look||ev.participantLook||"");
+          card=made.temp?made:state.personas.find(p=>p.id===made.id)||made;
+        }
+        if(card){
+          if(!chat.presentIds)chat.presentIds=[];
+          if(!chat.presentIds.includes(card.id))chat.presentIds.push(card.id);
+          notePresence(chat,[card.name],[]);
+          persistChats();appendNewBubbles();updateChatHeader();
+          broughtIn=resolveChar(card.id,chat)||card;
+          // The newly-introduced character now OWNS the event going forward, so a later
+          // resolution doesn't sweep out the wrong person and empty the scene.
+          if(ev.participant && ev.participant.name.toLowerCase()!==card.name.toLowerCase()){
+            ev.participant={name:card.name,charId:card.id,known:!card.temp,approaching:false,temp:!!card.temp};
+          }
+        }
+      } else {
+        // Named character is already present — make sure THEY are the one who speaks next,
+        // not the prior in-room participant (this is the mom-replies-as-the-son bug).
+        const pc=presentCast(chat).find(c=>c.name.toLowerCase()===wantName.toLowerCase());
+        if(pc) broughtIn=pc;
+      }
+    }
     // RECOVERY: the participant is supposed to be IN THE ROOM (not approaching) but for
     // some reason isn't actually present — e.g. an event set up before this fix existed,
-    // or presence got cleared. Without this they'd be a ghost: the narrator describes
-    // them but they can never speak. Add them now and let them take their turn.
+    // or presence got cleared. Only fires if the writer did NOT introduce someone new above.
     if(!broughtIn && ev.participant && !ev.participant.approaching){
       const id=ev.participant.charId;
-      if(!presentIds(chat).includes(id)){
+      if(id && !presentIds(chat).includes(id)){
         if(!chat.presentIds)chat.presentIds=[];
         chat.presentIds.push(id);
         notePresence(chat,[ev.participant.name],[]);
@@ -4408,7 +4465,21 @@ async function runSceneWriter(chat){
         broughtIn=resolveChar(id,chat);
       }
     }
-    const resolved=force||j.resolved===true;
+    // Don't resolve (and clear presence) in the SAME beat a character was just brought in —
+    // that produced premature endings where the newly-arrived character vanished before they
+    // could speak. Let them have at least one turn first. ALSO never resolve in a way that
+    // would empty the scene: if resolving would leave nobody present, keep the event open so
+    // the brought-in character can actually be talked to.
+    let resolved=(force||j.resolved===true) && !broughtIn;
+    if(resolved){
+      // Count who would remain present after resolution (resolution may send the participant off).
+      const presentNow=presentCast(chat);
+      const wouldEmpty = presentNow.length<=1; // resolving typically removes the event participant
+      if(wouldEmpty && !force){
+        // Defer the ending: keep at least one character in the scene to interact with.
+        resolved=false;
+      }
+    }
     if(resolved && ev.turn>=ev.minTurns){
       await resolveActiveEvent(chat,j.resolution||"the moment passes");
     }
