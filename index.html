@@ -349,6 +349,14 @@
           <div class="desc">When the Gamemaster brings in a new character, add a card to the current universe immediately, then fill its bio after a few messages.</div>
           <div><label>Fill bio after (messages witnessed)</label><input type="number" id="setAutoCharDelay" min="1" step="1" value="5"></div>
         </div>
+
+        <div class="card">
+          <h3>✂️ History Compaction</h3>
+          <div class="desc">Trims <i>*narration*</i> and stage directions from OLDER messages in the roleplay payload to save tokens. Recent messages are always sent in full, so the immediate scene keeps its detail. Applies only to roleplay replies — memory, image and director engines are unaffected.</div>
+          <div class="kvline"><span>Strip narration from old messages</span>
+            <label class="switchLbl"><input type="checkbox" id="setStripNarr"><span class="sl"></span></label></div>
+          <div><label>Keep this many recent messages full</label><input type="number" id="setStripKeepFull" min="2" step="1" value="6"></div>
+        </div>
       </div>
     </details>
 
@@ -708,7 +716,9 @@ const K={key:"sm_key",segkey:"sm_segkey",model:"sm_model",rewriter:"sm_rewriter"
   // Memory condenser (Stage 4)
   condenseOn:"sm_condenseon",condenseThreshold:"sm_condensethresh",condenseKeep:"sm_condensekeep",condenseBatch:"sm_condensebatch",condensePrompt:"sm_condenseprompt",
   // Character bio generator + auto-character (Stages 5/6)
-  bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay"};
+  bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
+  // History compaction (tiered narration stripping)
+  stripNarr:"sm_stripnarr",stripKeepFull:"sm_stripkeepfull"};
 // ModelsLab API base. Image and video endpoints live under different paths.
 const ML="https://modelslab.com/api/v6/";
 const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
@@ -1502,6 +1512,8 @@ function loadState(){
     bioPrompt:store.raw(K.bioPrompt,DEFAULT_BIO),
     autoCharOn:store.get(K.autoCharOn,true),
     autoCharDelay:+store.raw(K.autoCharDelay,5),
+    stripNarr:store.get(K.stripNarr,false),
+    stripKeepFull:+store.raw(K.stripKeepFull,6),
     theme:store.raw(K.theme,"dark"),
     font:+store.raw(K.font,16),
     chats:(_idbColl?_idbColl.chats:store.get(K.chats,{}))||{},
@@ -1944,11 +1956,22 @@ function castInterjectSheet(chat){
     .map(c=>`- ${c.name}: ${c.interject.trim()}`);
   return lines.join("\n");
 }
+// Backstory sheet for the present cast — gives the director engines (Gamemaster, Scene
+// Writer) the history behind each active character so events land grounded in who they
+// are, not just generic beats. Present-cast only, and only characters that have a backstory.
+function castBackstorySheet(chat){
+  const cast=(chat?presentCast(chat):curCast())||[];
+  const lines=cast.filter(c=>c&&c.backstory&&c.backstory.trim())
+    .map(c=>`- ${c.name}: ${c.backstory.trim()}`);
+  return lines.join("\n");
+}
 // A compact world+pressure-points context block for gamemaster/scene-writer user messages.
 function directorContext(chat){
   const parts=[];
   const w=curWorldSetting();
   if(w)parts.push(`WORLD SETTING:\n${w}`);
+  const bg=castBackstorySheet(chat);
+  if(bg)parts.push(`CHARACTER BACKGROUNDS (ground events in who these characters are):\n${bg}`);
   const ij=castInterjectSheet(chat);
   if(ij)parts.push(`CHARACTER PRESSURE POINTS (use these to craft events that hit home):\n${ij}`);
   return parts.join("\n\n");
@@ -2937,18 +2960,10 @@ async function sendMessage(){
       try{ injected=await retrieveMemories(text,chat); }catch(e){ injected=[]; }
     }
     const sysMsg={role:"system",content:buildSystemPrompt(injected)};
-    const history=chat.messages.filter(m=>m.role!=='system'&&(!m.sysError||m.dayMarker||m.narratorEvent||m.presenceNote)).map(m=>{
-      if(m.narratorEvent)return {role:"assistant",name:"Narrator",content:m.content};
-      if(m.presenceNote)return {role:"assistant",name:"Narrator",content:m.content.replace(/^—\s*|\s*—$/g,"")};
-      if(m.dayMarker){
-        return {role:"assistant",name:"Narrator",content:`[${m.content}] ${m.narration||""}`.trim()};
-      }
-      if(m.role==='assistant'){
-        const sp=m.speaker||solo.name;
-        return {role:"assistant",name:sanitizeName(sp),content:m.content};
-      }
-      return {role:"user",name:sanitizeName(state.user),content:m.content};
-    });
+    const history=compactHistory(
+      chat.messages.filter(m=>m.role!=='system'&&(!m.sysError||m.dayMarker||m.narratorEvent||m.presenceNote))
+        .map(m=>mapMsgToApi(m,solo.name))
+    );
     const messages=[sysMsg,...history];
     if(chat.pendingGmNudge){
       messages.push({role:"system",content:`[Director's note — do not mention or acknowledge this as out-of-character. React to it naturally in-scene as ${solo.name}:] ${chat.pendingGmNudge}`});
@@ -3012,10 +3027,55 @@ function castConvoText(chat,limit){
   return chat.messages.filter(m=>m.role!=='system'&&!m.sysError).slice(-(limit||14))
     .map(m=>`${m.role==='user'?state.user:(m.speaker||fallback)}: ${m.content}`).join("\n");
 }
-// Per-character API history: character `forP` only receives messages they WITNESSED
-// (were present for). Messages from before presence-tracking are assumed witnessed.
+// Remove *narration* / _stage directions_ from a message, keeping spoken dialogue and plain
+// prose. Used only for OLDER messages in the roleplay history window (tiered compaction):
+// recent turns are always sent in full so the model keeps the immediate scene's detail.
+// Conservative by design — if stripping would leave almost nothing (a narration-only beat),
+// we keep the original so we never send an empty/again-meaningless line.
+function stripNarration(text){
+  if(!text) return text;
+  let t=text;
+  t=t.replace(/\*[^*]*\*/g,"");                 // *asterisk narration*
+  t=t.replace(/_[^_]*_/g,"");                    // _underscore emphasis/stage directions_
+  t=t.replace(/\([^)]*\)/g,"");                  // (parenthetical asides)
+  t=t.replace(/\[[^\]]*\]/g,"");                 // [bracketed directions]
+  t=t.replace(/[ \t]{2,}/g," ").replace(/\n{2,}/g,"\n").trim();
+  // If we gutted the line (e.g. it was pure narration, or markup-free prose the model
+  // didn't wrap), fall back to the original so context isn't lost.
+  if(t.length < Math.min(24, text.length*0.25)) return text.trim();
+  return t;
+}
+// Map a chat message to an API message (role + name + content). Shared by all roleplay
+// builders so behaviour stays identical everywhere.
+function mapMsgToApi(m,soloName){
+  if(m.narratorEvent)return {role:"assistant",name:"Narrator",content:m.content};
+  if(m.presenceNote)return {role:"assistant",name:"Narrator",content:m.content.replace(/^—\s*|\s*—$/g,"")};
+  if(m.dayMarker)return {role:"assistant",name:"Narrator",content:`[${m.content}] ${m.narration||""}`.trim()};
+  if(m.role==='assistant'){
+    const sp=m.speaker||soloName||"char";
+    return {role:"assistant",name:sanitizeName(sp),content:m.content};
+  }
+  return {role:"user",name:sanitizeName(state.user),content:m.content};
+}
+// Apply tiered narration stripping to an already-mapped history array: keep the last
+// `stripKeepFull` entries verbatim, strip narration from everything older. No-op unless
+// the user has enabled it. Narrator lines are left intact (they ARE the narration that
+// carries scene state). Returns a new array.
+function compactHistory(mapped){
+  if(!state.stripNarr) return mapped;
+  const keep=Math.max(2,state.stripKeepFull||6);
+  const cut=mapped.length-keep;
+  if(cut<=0) return mapped;
+  return mapped.map((m,i)=>{
+    if(i>=cut) return m;                          // recent → full
+    if(m.name==="Narrator") return m;             // keep narrator beats (scene state)
+    const stripped=stripNarration(m.content);
+    return stripped===m.content?m:{...m,content:stripped};
+  });
+}
+// Per-character API history: character `forP` only receives messages they WITNESSED.
 function castHistory(chat,forP){
-  return chat.messages.filter(m=>{
+  const mapped=chat.messages.filter(m=>{
     if(m.role==='system')return false;
     if(m.sysError&&!m.dayMarker&&!m.presenceNote)return false;
     if(forP&&Array.isArray(m.present)&&!m.presenceNote&&!m.dayMarker){
@@ -3023,12 +3083,12 @@ function castHistory(chat,forP){
     }
     return true;
   }).map(m=>{
-    if(m.narratorEvent)return {role:"assistant",name:"Narrator",content:m.content};
-    if(m.presenceNote)return {role:"assistant",name:"Narrator",content:m.content.replace(/^—\s*|\s*—$/g,"")};
-    if(m.dayMarker)return {role:"assistant",name:"Narrator",content:`[${m.content}] ${m.narration||""}`.trim()};
-    if(m.role==='assistant')return {role:"assistant",name:sanitizeName(m.speaker||"char"),content:`${m.speaker?m.speaker+": ":""}${m.content}`};
-    return {role:"user",name:sanitizeName(state.user),content:m.content};
+    if(m.role==='assistant' && !m.narratorEvent && !m.presenceNote && !m.dayMarker){
+      return {role:"assistant",name:sanitizeName(m.speaker||"char"),content:`${m.speaker?m.speaker+": ":""}${m.content}`};
+    }
+    return mapMsgToApi(m);
   });
+  return compactHistory(mapped);
 }
 async function runMultiCharTurn(chat,playerText){
   const cap=Math.max(1,state.mcChainCap||4);
@@ -3789,13 +3849,10 @@ async function playSingleReaction(chat,p,eventText){
     let injected=[];
     if(state.mem && state.memory.length){try{injected=await retrieveMemories(eventText,chat);}catch(e){injected=[];}}
     const sysMsg={role:"system",content:buildSystemPrompt(injected)};
-    const history=chat.messages.filter(m=>m.role!=='system'&&(!m.sysError||m.dayMarker||m.presenceNote)).map(m=>{
-      if(m.presenceNote)return {role:"assistant",name:"Narrator",content:m.content.replace(/^—\s*|\s*—$/g,"")};
-      if(m.dayMarker)return {role:"assistant",name:"Narrator",content:`[${m.content}] ${m.narration||""}`.trim()};
-      if(m.narratorEvent)return {role:"assistant",name:"Narrator",content:m.content};
-      if(m.role==='assistant')return {role:"assistant",name:sanitizeName(m.speaker||p.name),content:m.content};
-      return {role:"user",name:sanitizeName(state.user),content:m.content};
-    });
+    const history=compactHistory(
+      chat.messages.filter(m=>m.role!=='system'&&(!m.sysError||m.dayMarker||m.presenceNote))
+        .map(m=>mapMsgToApi(m,p.name))
+    );
     const reply=await chatCompletion([sysMsg,...history],state.model,{dbg:"Roleplay reply (gamemaster reaction)"});
     typing.remove();
     const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
@@ -4229,6 +4286,8 @@ function syncSettingsUI(){
   document.getElementById('setBioPrompt').value=state.bioPrompt;
   document.getElementById('setAutoCharOn').checked=state.autoCharOn;
   document.getElementById('setAutoCharDelay').value=state.autoCharDelay;
+  document.getElementById('setStripNarr').checked=state.stripNarr;
+  document.getElementById('setStripKeepFull').value=state.stripKeepFull;
   document.getElementById('setVidPrompt').value=state.vidPrompt;
   document.getElementById('setTokens').value=state.tokens;document.getElementById('tokVal').textContent=state.tokens;
   document.getElementById('setTemp').value=state.temp;document.getElementById('tempVal').textContent=state.temp;
@@ -4285,6 +4344,8 @@ function saveSettings(notify){
   state.bioPrompt=document.getElementById('setBioPrompt').value.trim()||DEFAULT_BIO;
   state.autoCharOn=document.getElementById('setAutoCharOn').checked;
   state.autoCharDelay=Math.max(1,+document.getElementById('setAutoCharDelay').value||5);
+  state.stripNarr=document.getElementById('setStripNarr').checked;
+  state.stripKeepFull=Math.max(2,+document.getElementById('setStripKeepFull').value||6);
   state.vidPrompt=document.getElementById('setVidPrompt').value.trim()||DEFAULT_VIDPROMPT;
   state.tokens=+document.getElementById('setTokens').value;
   state.temp=+document.getElementById('setTemp').value;
@@ -4302,6 +4363,7 @@ function saveSettings(notify){
   store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
   store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);
   store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
+  store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);
   store.set(K.gmOn,state.gmOn);store.setRaw(K.gmEvery,state.gmEvery);store.setRaw(K.gmSensitivity,state.gmSensitivity);store.setRaw(K.gmModel,state.gmModel);
   store.setRaw(K.gmJudge,state.gmJudge);store.setRaw(K.gmAuthor,state.gmAuthor);store.setRaw(K.daySummaryPrompt,state.daySummaryPrompt);
   store.set(K.sceneOn,state.sceneOn);store.setRaw(K.sceneSetup,state.sceneSetup);store.setRaw(K.sceneWriter,state.sceneWriter);store.setRaw(K.sceneMin,state.sceneMin);store.setRaw(K.sceneMax,state.sceneMax);
