@@ -28,6 +28,7 @@
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100dvh;font-size:16px;}
   .screen{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;flex-direction:column;}
   .screen.active{display:flex;}
+  #screen-chat{position:relative;}
   header{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-weight:600;font-size:17px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;position:relative;}
   header .hl{display:flex;align-items:center;gap:10px;min-width:0;}
   header .hl{flex:1;}
@@ -645,6 +646,9 @@
               <button data-t="dark" class="on">Dark</button><button data-t="light">Light</button><button data-t="system">System</button>
             </div></div>
           <div><label>Font size: <span id="fontVal">16</span>px</label><input type="range" id="setFont" min="14" max="20" step="1" value="16"></div>
+          <div class="kvline"><span>Roll responses in as they appear</span>
+            <label class="switchLbl"><input type="checkbox" id="setStreamReveal" checked><span class="sl"></span></label></div>
+          <div class="desc">Animates each reply into the chat word-by-word instead of pasting it all at once.</div>
         </div>
       </div>
     </details>
@@ -728,9 +732,49 @@
     <button class="btn sec small" type="button" onclick="genLocations()">✨ Generate locations</button>
     <button class="btn sec small" type="button" onclick="genAllSchedules()">🗓️ Generate schedules for cast</button>
     <div class="desc">Builds each character's daily rhythm across these locations. Save the universe first if you just added locations.</div>
+
+    <div class="subhead" style="margin-top:10px">📜 Prompts (this universe)</div>
+    <div class="desc">Override any system prompt just for this universe. Anything left on <b>Default</b> uses your global prompt from Settings. Tap <b>Edit</b> to customize, or <b>✨ Write with AI</b> to generate one from a short request.</div>
+    <div id="uePromptList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
+
     <div class="row">
       <button class="btn danger sec small" id="ueDelete" onclick="deleteUniverse()">Delete</button>
       <button class="btn" onclick="saveUniverse()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PROMPT EDITOR (per-universe or global) ===== -->
+<div class="modal" id="promptEditModal">
+  <button class="x" onclick="closeModal('promptEditModal')">×</button>
+  <div class="card editCard">
+    <h3 id="peEditTitle">Edit prompt</h3>
+    <div class="desc" id="peEditHint"></div>
+    <div id="peEditScope" class="desc" style="color:var(--accent)"></div>
+    <textarea class="fld" id="peEditText" style="min-height:240px"></textarea>
+    <div class="row" style="margin-top:4px">
+      <button class="btn sec" type="button" onclick="openWriteAi()">✨ Write with AI</button>
+      <button class="btn sec" type="button" id="peEditReset" onclick="promptEditReset()">↺ Reset to default</button>
+    </div>
+    <div class="row">
+      <button class="btn sec" onclick="closeModal('promptEditModal')">Cancel</button>
+      <button class="btn" onclick="promptEditSave()">Save prompt</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== WRITE WITH AI (prompt generator) ===== -->
+<div class="modal" id="writeAiModal">
+  <button class="x" onclick="closeModal('writeAiModal')">×</button>
+  <div class="card editCard">
+    <h3>✨ Write this prompt with AI</h3>
+    <div class="desc" id="waiTarget"></div>
+    <div><label>Describe what you want this prompt to do</label>
+      <textarea class="fld" id="waiBrief" placeholder="e.g. make characters reply in short, punchy lines; keep a tense noir mood; always answer in English" style="min-height:90px"></textarea></div>
+    <div class="desc">The assistant writes a complete system prompt from your request. If this prompt must return structured JSON, that requirement is added automatically — you don't need to mention it.</div>
+    <div class="row">
+      <button class="btn sec" onclick="closeModal('writeAiModal')">Cancel</button>
+      <button class="btn" id="waiGo" onclick="runWriteAi()">✨ Generate</button>
     </div>
   </div>
 </div>
@@ -824,10 +868,10 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",baseInstruction:"sm_baseinstr",
   routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
   sceneOn:"sm_sceneon",sceneSetup:"sm_scenesetup",sceneWriter:"sm_scenewriter",sceneMin:"sm_scenemin",sceneMax:"sm_scenemax",
-  theme:"sm_theme",font:"sm_font",chats:"sm_chats",curChat:"sm_curchat",
+  theme:"sm_theme",font:"sm_font",streamReveal:"sm_streamreveal",chats:"sm_chats",curChat:"sm_curchat",
   personas:"sm_personas",curPersona:"sm_curpersona",universes:"sm_universes",curUniverse:"sm_curuniverse",memory:"sm_memory",images:"sm_images",videos:"sm_videos",onboarded:"sm_onboarded",
   // ModelsLab + smart routing
-  imgRules:"sm_imgrules",vidRules:"sm_vidrules",routeOn:"sm_routeon",routerModel:"sm_routermodel",routerPrompt:"sm_routerprompt",steps:"sm_steps",
+  imgRules:"sm_imgrules",vidRules:"sm_vidrules",imgModelMigration:"sm_imgmodelmig",routeOn:"sm_routeon",routerModel:"sm_routermodel",routerPrompt:"sm_routerprompt",steps:"sm_steps",
   fnCfg:"sm_fncfg",
   // Memory condenser (Stage 4)
   condenseOn:"sm_condenseon",condenseThreshold:"sm_condensethresh",condenseKeep:"sm_condensekeep",condenseBatch:"sm_condensebatch",condensePrompt:"sm_condenseprompt",
@@ -1370,20 +1414,15 @@ Relaxed natural atmosphere. [0s-2s] Female shifts weight to one hip, arms uncros
    An LLM "router" reads the scene prompt and picks the best-matching rule.
    You can add/remove as many rules as you like in Settings. */
 const DEFAULT_IMG_RULES=[
-  {id:"r_close",label:"Close-up / portrait",
-   when:"A close-up, portrait, face shot, or intimate framing focused on one or two characters; emotion or expression is the focus.",
-   model_id:"realistic-vision-v51",endpoint:"images/text2img",lora_model:"",
-   negative:"low quality, blurry, deformed face, bad anatomy, extra fingers, watermark, text",
+  {id:"r_default",label:"Default",
+   when:"Any ordinary scene — portraits, conversations, environments, action, everyday or emotional moments. Use this for everything that is NOT sexual or explicitly intimate.",
+   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    enabled:true},
-  {id:"r_env",label:"Environment / wide shot",
-   when:"A wide establishing shot, landscape, room, building, or scenery where the setting/environment dominates rather than a character's face.",
-   model_id:"sdxl",endpoint:"images/text2img",lora_model:"",
-   negative:"low quality, blurry, distorted, watermark, text, people too large",
-   enabled:true},
-  {id:"r_action",label:"Action / dynamic",
-   when:"A dynamic action moment: combat, motion, running, dramatic gesture, multiple figures interacting.",
-   model_id:"juggernaut-xl",endpoint:"images/text2img",lora_model:"",
-   negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text",
+  {id:"r_intimate",label:"Intimate",
+   when:"A sexual or explicitly intimate scene: nudity, foreplay, sex, penetration, or strongly erotic framing between characters.",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    enabled:true}
 ];
 const DEFAULT_VID_RULES=[
@@ -2159,6 +2198,7 @@ function loadState(){
     calPrompt:store.raw(K.calPrompt,DEFAULT_CAL),
     theme:store.raw(K.theme,"dark"),
     font:+store.raw(K.font,16),
+    streamReveal:store.get(K.streamReveal,true),
     chats:(_idbColl?_idbColl.chats:store.get(K.chats,{}))||{},
     curChat:store.raw(K.curChat,null),
     personas:(_idbColl?_idbColl.personas:store.get(K.personas,null)),
@@ -2215,6 +2255,24 @@ function loadState(){
   }
   if(!state.vidRes) state.vidRes="480p";
   if(![5,8].includes(+state.vidDur)) state.vidDur=8;
+  // One-time upgrade: switch image generation to the new model set — realtime_t2i as the
+  // default and gurilamash-xxx-sdxl-gurilamashv3 for intimate scenes — and drop the old
+  // realistic-vision / sdxl / juggernaut rules. We detect the legacy set by its stable rule
+  // ids (r_close/r_env/r_action) or legacy model_ids, and only replace it then, so a user's
+  // own custom rules are never clobbered. A flag guards against re-running after a manual edit.
+  if(store.raw(K.imgModelMigration,null)!=="v2"){
+    const rules=state.imgRules||[];
+    const looksLegacy = rules.length && rules.every(r=>{
+      const id=String(r.id||""); const m=String(r.model_id||"");
+      return /^r_(close|env|action)$/.test(id)
+          || /realistic-vision|^sdxl$|juggernaut/i.test(m);
+    });
+    if(!rules.length || looksLegacy){
+      state.imgRules=DEFAULT_IMG_RULES.map(r=>({...r}));
+      store.set(K.imgRules,state.imgRules);
+    }
+    store.setRaw(K.imgModelMigration,"v2");
+  }
   // One-time upgrade: the old default Scene-Setup prompt told the model a character's
   // name could be "null", which made it literally create characters named "null". If the
   // stored prompt is still that stock default, replace it with the corrected one. Custom
@@ -2325,6 +2383,9 @@ function persistChatsNow(){
       const o={...m};
       if(o.img){o.hadImg=true;delete o.img;}
       if(o.video){o.hadVideo=true;o.video=null;}
+      // Drop transient per-message flags (e.g. _reveal) so a reload never shows a
+      // permanently-blank bubble from an interrupted typewriter animation.
+      Object.keys(o).forEach(k=>{if(k[0]==="_")delete o[k];});
       return o;
     })};
     // Never persist transient in-flight flags (e.g. _gmBusy); a reload mid-beat
@@ -2419,6 +2480,40 @@ function md(t){
 }
 function applyTheme(){let th=state.theme;if(th==='system')th=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.body.dataset.theme=th;document.body.style.fontSize=state.font+'px';}
 
+/* ---- Typewriter reveal -----------------------------------------------------
+   Rolls an assistant reply into its bubble word-by-word instead of pasting the
+   whole block at once. The full text is already in hand (non-streaming fetch),
+   so this is a pure presentation effect — all downstream logic (illustration,
+   memory, voice check) still runs on the complete text. Honors state.streamReveal
+   and is automatically skipped if the user isn't following the bottom (so it
+   never tugs the viewport while they're reading earlier messages). */
+let _revealTimers={};   // mid -> interval id, so we can cancel if needed
+function cancelReveal(mid){ if(_revealTimers[mid]){ clearInterval(_revealTimers[mid]); delete _revealTimers[mid]; } }
+function typewriterReveal(mid,fullText,onDone){
+  const b=document.querySelector('.bubble[data-mid="'+mid+'"]');
+  const body=b&&b.querySelector('.body');
+  // If reveal is off, the bubble is offscreen, or we can't find it: just show it whole.
+  if(!body || state.streamReveal===false){ if(body)body.innerHTML=md(fullText); if(onDone)onDone(); return; }
+  cancelReveal(mid);
+  const list=chatScrollEl();
+  const follow=isNearBottom(list);          // only auto-scroll if user is at the bottom
+  body.innerHTML="";                         // clear immediately so the full text never flashes
+  // Reveal by words for a natural pace; punctuation gets a tiny extra beat.
+  const tokens=fullText.split(/(\s+)/);     // keep whitespace tokens so spacing is exact
+  let i=0, shown="";
+  const STEP=2;                              // words revealed per tick
+  const TICK=18;                             // ms between ticks
+  _revealTimers[mid]=setInterval(()=>{
+    // If the message vanished (chat switched / restarted), stop cleanly.
+    const liveBody=document.querySelector('.bubble[data-mid="'+mid+'"] .body');
+    if(!liveBody){ cancelReveal(mid); if(onDone)onDone(); return; }
+    for(let s=0;s<STEP && i<tokens.length;s++){ shown+=tokens[i++]; }
+    liveBody.innerHTML=md(shown);
+    if(follow && isNearBottom(list)) list.scrollTop=list.scrollHeight;
+    if(i>=tokens.length){ cancelReveal(mid); liveBody.innerHTML=md(fullText); if(onDone)onDone(); }
+  },TICK);
+}
+
 /* ---- OpenRouter ---- */
 async function chatCompletion(messages,model,opts={}){
   if(!state.key)throw{friendly:"No API key set. Add your OpenRouter key in Settings."};
@@ -2497,7 +2592,7 @@ async function modelslabImage(prompt,negative,rule){
   const [w,h]=IMG_WH[state.ratio]||[576,1024];
   const endpoint=(rule&&rule.endpoint)||"images/text2img";
   const body={
-    model_id:(rule&&rule.model_id)||"sdxl",
+    model_id:(rule&&rule.model_id)||"realtime_t2i",
     prompt,
     negative_prompt:negative||"low quality, blurry, deformed, bad anatomy, watermark, text",
     width:String(w),height:String(h),
@@ -2694,7 +2789,7 @@ async function pickRule(rules,prompt){
   try{
     const list=active.map((r,i)=>`${i}. ${r.label}: ${r.when}`).join("\n");
     const ans=await chatCompletion([
-      {role:"system",content:state.routerPrompt},
+      {role:"system",content:up("routerPrompt")},
       {role:"user",content:`SCENE:\n${prompt}\n\nMODEL RULES:\n${list}\n\nReturn only the best index.`}
     ],state.routerModel,{temp:fnTemp("router",0),max:fnTok("router",5),dbg:"Scene selector (model router)"});
     const idx=parseInt((ans.match(/\d+/)||["0"])[0],10);
@@ -2748,6 +2843,80 @@ function curUniverseObj(){
   const uid=(chat&&chat.universeId)||state.curUniverse;
   return universeById(uid)||state.universes[0]||null;
 }
+/* ===================== PER-UNIVERSE PROMPTS =====================
+   Each universe can override any of the prompts below. When a universe has no
+   override for a given prompt, we fall back to the global value in state (which
+   itself falls back to the hard-coded DEFAULT_*). Overrides live on the universe
+   object under u.prompts[key]. The `up(key)` resolver is the single read path used
+   everywhere a prompt is consumed, so behaviour stays identical whether or not a
+   universe customizes it.
+
+   Each entry: key (state field), label, default constant, and `json` flag — json
+   prompts demand a structured JSON output, which the "Write with AI" generator is
+   told to preserve when it rewrites them. */
+const PROMPT_REGISTRY=[
+  {key:"baseInstruction", label:"🌍 Global Base Instruction", def:()=>DEFAULT_BASE_INSTRUCTION, json:false,
+   hint:"Applied to every character before their individual details."},
+  {key:"formatRules", label:"✍️ Response Format Rules", def:()=>DEFAULT_FORMAT_RULES, json:false,
+   hint:"How replies are written: *narration*, _thoughts_, \"dialogue\"."},
+  {key:"rewritePrompt", label:"🖼️ Image-prompt rewriter", def:()=>DEFAULT_REWRITE, json:false,
+   hint:"Turns each roleplay reply into a vivid image-generation prompt."},
+  {key:"vidPrompt", label:"🎬 Video-prompt rewriter", def:()=>DEFAULT_VIDPROMPT, json:false,
+   hint:"Turns a still scene into a motion prompt on Animate."},
+  {key:"routerPrompt", label:"🧭 Image/Video router", def:()=>DEFAULT_ROUTER, json:false,
+   hint:"Picks which image/video model rule fits the scene."},
+  {key:"memBuild", label:"🛠️ Memory builder", def:()=>DEFAULT_MEMBUILD, json:true,
+   hint:"Produces a structured JSON memory. Use {{char}} and {{user}}."},
+  {key:"queryGen", label:"🔍 Memory query generator", def:()=>DEFAULT_QUERYGEN, json:false,
+   hint:"Turns the current moment into a search query."},
+  {key:"ranker", label:"📊 Memory ranker", def:()=>DEFAULT_RANKER, json:true,
+   hint:"Picks the most relevant memories. Use {{maxCount}}."},
+  {key:"condensePrompt", label:"🗜️ Memory condenser", def:()=>DEFAULT_CONDENSE, json:true,
+   hint:"Merges old low-importance memories. Use {{char}} and {{user}}."},
+  {key:"bioPrompt", label:"🪪 Character bio generator", def:()=>DEFAULT_BIO, json:true,
+   hint:"Turns a brief into a full character card as JSON."},
+  {key:"univPrompt", label:"🌌 Universe generator", def:()=>DEFAULT_UNIV, json:true,
+   hint:"Turns a brief into a full universe as JSON."},
+  {key:"relPrompt", label:"❤️ Relationship tracker", def:()=>DEFAULT_REL, json:true,
+   hint:"Decides how feelings shift each turn. Returns JSON deltas."},
+  {key:"trackPrompt", label:"📊 Freeform tracker", def:()=>DEFAULT_TRACK, json:true,
+   hint:"Judges soft deltas and detects trigger phrases."},
+  {key:"voiceCheckPrompt", label:"⚠️ Voice consistency", def:()=>DEFAULT_VOICECHECK, json:true,
+   hint:"Flags out-of-character replies. Returns {ok, note}."},
+  {key:"travelPrompt", label:"🗺️ Travel narration", def:()=>DEFAULT_TRAVEL, json:false,
+   hint:"Narrates a journey between places. Use {{user}}."},
+  {key:"calPrompt", label:"📅 Calendar plan-detector", def:()=>DEFAULT_CAL, json:true,
+   hint:"Extracts future plans from conversation as JSON."},
+  {key:"gmJudge", label:"⚖️ Gamemaster staleness judge", def:()=>DEFAULT_GM_JUDGE, json:true,
+   hint:"Returns JSON {stale, reason, energy}. Use {{user}}, {{sensitivity}}."},
+  {key:"gmAuthor", label:"✍️ Gamemaster event author", def:()=>DEFAULT_GM_AUTHOR, json:false,
+   hint:"Writes the hidden nudge. Use {{user}} and {{reason}}."},
+  {key:"daySummaryPrompt", label:"🌙 Day-summary", def:()=>DEFAULT_DAY_SUMMARY, json:false,
+   hint:"Condenses a finished day into one memory. Use {{char}}, {{user}}."},
+  {key:"sceneSetup", label:"🧩 Scene Writer setup", def:()=>DEFAULT_SCENE_SETUP, json:true,
+   hint:"Classifies a new event. Returns JSON."},
+  {key:"sceneWriter", label:"✍️ Scene Writer advance", def:()=>DEFAULT_SCENE_WRITER, json:true,
+   hint:"Returns JSON. Use {{user}}, {{summary}}, {{turn}}, {{min}}, {{max}}."},
+  {key:"routerPlayer", label:"🗣️ Multi-char router 1 (player)", def:()=>DEFAULT_ROUTER_PLAYER, json:true,
+   hint:"Returns JSON {addressed, responders}. Use {{user}}."},
+  {key:"routerChar", label:"↔️ Multi-char router 2 (character)", def:()=>DEFAULT_ROUTER_CHAR, json:true,
+   hint:"Returns JSON {continue, responder, addressed}. Use {{user}}, {{speaker}}."},
+  {key:"presencePrompt", label:"🚶 Presence tracker", def:()=>DEFAULT_PRESENCE_TRACKER, json:true,
+   hint:"Detects entrances/exits. Returns JSON {exit, enter}. Use {{user}}."}
+];
+const PROMPT_BY_KEY=Object.fromEntries(PROMPT_REGISTRY.map(p=>[p.key,p]));
+// Resolve a prompt: per-universe override (if the active universe set one) → global
+// state value → hard-coded default. This is the ONLY read path for prompts.
+function up(key,uid){
+  const u=uid?universeById(uid):curUniverseObj();
+  const ov=u&&u.prompts&&typeof u.prompts[key]==="string"&&u.prompts[key].trim()!=="" ? u.prompts[key] : null;
+  if(ov!=null) return ov;
+  const g=state[key];
+  if(typeof g==="string"&&g.trim()!=="") return g;
+  const reg=PROMPT_BY_KEY[key];
+  return reg?reg.def():"";
+}
+
 // World-setting text for the active story's universe (empty string if none).
 function curWorldSetting(){const u=curUniverseObj();return (u&&u.setting&&u.setting.trim())?u.setting.trim():"";}
 // Interject / pressure-point sheet for the present cast — fed to the director engines
@@ -2951,7 +3120,7 @@ async function travelTo(locId,companionIds){
   chat.location=dest.name; chat.locationId=dest.id;
   let narration="";
   try{
-    const sys=fillTpl(state.travelPrompt||DEFAULT_TRAVEL,{user:state.user});
+    const sys=fillTpl(up("travelPrompt"),{user:state.user});
     const who=companions.map(c=>c.name).join(", ")||"alone";
     const ctx=`Origin: ${fromName}\nDestination: ${dest.name} — ${dest.description||""}\nTravelling: ${who}\nWorld: ${curWorldSetting()||""}\nTime now: Day ${chat.gameDay}, ${chatPeriod(chat)}`;
     narration=await chatCompletion([
@@ -3128,7 +3297,7 @@ async function runCalendarEngine(chat){
   if(!state.calOn||!chat||!state.key)return;
   try{
     const today=chat.gameDay||1;
-    const msgs=[{role:"system",content:state.calPrompt||DEFAULT_CAL}];
+    const msgs=[{role:"system",content:up("calPrompt")}];
     recentExchangeMsgs(chat,6).forEach(m=>msgs.push(m));
     msgs.push({role:"user",content:`Current: Day ${today}, ${chatPeriod(chat)}.\n\nBased ONLY on the exchange above, return the JSON array of any concrete future plans.`});
     const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",260),dbg:"Calendar plan detector"});
@@ -3353,8 +3522,8 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs){
   const o=relObj(chat,fromP.id,toId);
   // Use the stored prompt only if it's the CURRENT multi-axis format (now including fear);
   // otherwise a returning user's older prompt would miss the fear axis — fall back to default.
-  let sys=state.relPrompt||DEFAULT_REL;
-  if(!(/affection/i.test(sys)&&/description/i.test(sys)&&/fear/i.test(sys))){ sys=DEFAULT_REL; state.relPrompt=DEFAULT_REL; }
+  let sys=up("relPrompt");
+  if(!(/affection/i.test(sys)&&/description/i.test(sys)&&/fear/i.test(sys))){ sys=DEFAULT_REL; }
   const curLine=`Evaluating: how ${fromP.name} feels about ${toName}.\n`+
     `Current axis values for ${fromP.name} → ${toName}:\n`+
     REL_DIMS.map(d=>`- ${d.key}: ${o[d.key]||0}`).join("\n")+
@@ -3411,7 +3580,7 @@ async function runTrackerEngine(chat){
     const ts=curTrackers();
     if(ts.length){
       try{
-        const sys=state.trackPrompt||DEFAULT_TRACK;
+        const sys=up("trackPrompt");
         const defs=ts.map(t=>{
           let d=`id:${t.id} | name:${t.name} | range:${t.min!=null?t.min:0}..${t.max!=null?t.max:100} | current:${trackerVal(chat,t)} | mode:${t.updateMode||"llm"}`;
           if(t.triggerPhrase)d+=` | TRIGGER PHRASE: "${t.triggerPhrase}"`;
@@ -3524,7 +3693,7 @@ async function runVoiceCheck(chat,msg,p){
   try{
     const prof=`Character: ${p.name}\nPersonality: ${p.personality||"(none)"}\nSpeaking style: ${p.style||"(none)"}`;
     const out=await chatCompletion([
-      {role:"system",content:state.voiceCheckPrompt||DEFAULT_VOICECHECK},
+      {role:"system",content:up("voiceCheckPrompt")},
       {role:"user",content:`${prof}\n\nLatest line:\n${msg.content}`}
     ],state.mcModel,{temp:fnTemp("mc",0),max:fnTok("mc",60),dbg:"Voice check · "+p.name});
     const j=parseJSON(out);
@@ -3593,6 +3762,8 @@ function editUniverse(id){
   renderTrackerEditor();
   _ueLocs=Array.isArray(u.locations)?JSON.parse(JSON.stringify(u.locations)):[];
   renderLocEditor();
+  _uePrompts=(u.prompts&&typeof u.prompts==="object")?JSON.parse(JSON.stringify(u.prompts)):{};
+  renderUePrompts();
   document.getElementById('ueDelete').style.display=id?"block":"none";
   openModal('universeModal');
 }
@@ -3843,7 +4014,8 @@ function saveUniverse(){
     userLook:document.getElementById('ueUserLook').value.trim(),
     userBio:document.getElementById('ueUserBio').value.trim(),
     trackers:_ueTrackers.slice(),
-    locations:_ueLocs.slice()};
+    locations:_ueLocs.slice(),
+    prompts:JSON.parse(JSON.stringify(_uePrompts||{}))};
   if(editingUniverse){
     Object.assign(editingUniverse,obj);
   }else{
@@ -3864,6 +4036,123 @@ function saveUniverse(){
   }else{renderUniverses();}
   toast("Universe saved ✓");
 }
+/* ---- Per-universe prompt overrides (draft state on the universe editor) ---- */
+let _uePrompts={};            // draft: { promptKey: overrideText }
+let _promptEditKey=null;      // which prompt the editor is currently editing
+let _promptEditScope="universe"; // "universe" (uses _uePrompts) or "global" (uses state)
+function renderUePrompts(){
+  const box=document.getElementById('uePromptList'); if(!box)return;
+  box.innerHTML="";
+  PROMPT_REGISTRY.forEach(reg=>{
+    const overridden=typeof _uePrompts[reg.key]==="string"&&_uePrompts[reg.key].trim()!=="";
+    const row=document.createElement('div');
+    row.style.cssText="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 10px";
+    row.innerHTML=`<div style="flex:1;min-width:0">
+        <div style="font-size:13px">${esc(reg.label)}${reg.json?' <span class="pill" style="font-size:9px">JSON</span>':''}</div>
+        <div class="pill" style="font-size:10px;margin-top:3px;border-color:${overridden?'var(--accent)':'var(--border)'};color:${overridden?'var(--accent)':'var(--muted)'}">${overridden?'Custom for this universe':'Default (global)'}</div>
+      </div>
+      <button class="btn sec small" type="button" style="width:auto;padding:6px 10px" onclick="openPromptEdit('${reg.key}','universe')">Edit</button>
+      ${overridden?`<button class="btn sec small" type="button" style="width:auto;padding:6px 8px" title="Revert to global" onclick="clearUePrompt('${reg.key}')">↺</button>`:''}`;
+    box.appendChild(row);
+  });
+}
+function clearUePrompt(key){ delete _uePrompts[key]; renderUePrompts(); toast("Reverted to global — Save the universe to apply"); }
+
+// Open the prompt editor for either a universe override or a global prompt.
+function openPromptEdit(key,scope){
+  const reg=PROMPT_BY_KEY[key]; if(!reg)return;
+  _promptEditKey=key; _promptEditScope=scope||"universe";
+  document.getElementById('peEditTitle').textContent=reg.label;
+  document.getElementById('peEditHint').textContent=(reg.hint||"")+(reg.json?" This prompt must return structured JSON.":"");
+  let cur;
+  if(_promptEditScope==="universe"){
+    cur=(typeof _uePrompts[key]==="string"&&_uePrompts[key].trim()!=="")?_uePrompts[key]:(reg.def?reg.def():"");
+    const nm=(document.getElementById('ueName')&&document.getElementById('ueName').value.trim())||"this universe";
+    document.getElementById('peEditScope').textContent=`Editing for ${nm}. Leaving it identical to the default keeps it inheriting your global prompt.`;
+  }else{
+    cur=(typeof state[key]==="string"&&state[key].trim()!=="")?state[key]:(reg.def?reg.def():"");
+    document.getElementById('peEditScope').textContent="Editing the GLOBAL prompt (used by every universe that hasn't overridden it).";
+  }
+  document.getElementById('peEditText').value=cur;
+  openModal('promptEditModal');
+}
+function promptEditReset(){
+  const reg=PROMPT_BY_KEY[_promptEditKey]; if(!reg)return;
+  document.getElementById('peEditText').value=reg.def?reg.def():"";
+  toast("Loaded the default — Save to apply");
+}
+function promptEditSave(){
+  const reg=PROMPT_BY_KEY[_promptEditKey]; if(!reg)return;
+  const val=document.getElementById('peEditText').value;
+  if(_promptEditScope==="universe"){
+    const def=reg.def?reg.def():"";
+    // If the user left it exactly equal to the default, treat it as "inherit global"
+    // rather than storing a redundant override.
+    if(val.trim()===def.trim()||val.trim()===""){ delete _uePrompts[_promptEditKey]; }
+    else { _uePrompts[_promptEditKey]=val; }
+    renderUePrompts();
+    toast("Prompt set — Save the universe to apply");
+  }else{
+    state[_promptEditKey]=val;
+    // Persist the single global prompt immediately.
+    const Kk=K[_promptEditKey]; if(Kk)store.setRaw(Kk,val);
+    if(typeof syncSettingsUI==="function")syncSettingsUI();
+    toast("Global prompt saved ✓");
+  }
+  closeModal('promptEditModal');
+}
+
+/* ---- Write with AI: generate a full system prompt from a short user brief ---- */
+function openWriteAi(){
+  const reg=PROMPT_BY_KEY[_promptEditKey]; if(!reg)return;
+  _writeAiTargetTextarea=null;   // universe/global-editor scope, not a Settings textarea
+  document.getElementById('waiTarget').innerHTML=`Generating: <b>${esc(reg.label)}</b>${reg.json?' — must return structured JSON':''}`;
+  document.getElementById('waiBrief').value="";
+  openModal('writeAiModal');
+}
+async function runWriteAi(){
+  const reg=PROMPT_BY_KEY[_promptEditKey]; if(!reg)return;
+  const brief=document.getElementById('waiBrief').value.trim();
+  if(!brief){toast("Describe what you want first");return;}
+  const btn=document.getElementById('waiGo'); btn.disabled=true; btn.textContent="Writing…";
+  try{
+    const cur=document.getElementById('peEditText').value.trim();
+    // Pull the {{placeholders}} present in the current/default prompt so the model keeps them.
+    const tpl=cur||(reg.def?reg.def():"");
+    const placeholders=Array.from(new Set((tpl.match(/\{\{\w+\}\}/g)||[])));
+    const jsonRule=reg.json
+      ? `\n\nCRITICAL OUTPUT REQUIREMENT: This prompt drives a function whose output is parsed as JSON by the app. The prompt you write MUST instruct the model to respond with ONLY a valid JSON object (or array) and nothing else — no prose, no markdown fences. Preserve the exact JSON schema/shape shown in the reference prompt below; do not rename or drop fields.`
+      : "";
+    const phRule=placeholders.length
+      ? `\n\nThe app substitutes these placeholders at runtime — keep them verbatim where appropriate: ${placeholders.join(", ")}.`
+      : "";
+    const sys=`You are a prompt engineer. You write a single, complete SYSTEM PROMPT that will be given to another AI model.
+Write the full prompt text only — no preamble, no explanation, no surrounding quotes or code fences. The prompt should be clear, well-structured, and directly usable.${jsonRule}${phRule}`;
+    const usr=`PURPOSE OF THIS PROMPT (what the function does):\n${reg.label} — ${reg.hint||""}\n\nREFERENCE PROMPT (current/default version — match its output format and any JSON schema; improve or replace the rest per the request):\n"""\n${tpl}\n"""\n\nUSER'S REQUEST (what they want this prompt to do):\n${brief}\n\nWrite the new system prompt now.`;
+    const out=await chatCompletion(
+      [{role:"system",content:sys},{role:"user",content:usr}],
+      state.bioModel||state.model,
+      {temp:0.6,max:1500,dbg:"Write prompt with AI · "+reg.key}
+    );
+    let cleaned=(out||"").trim().replace(/^```[a-z]*\n?/i,"").replace(/```$/,"").trim();
+    if(!cleaned){toast("The model returned nothing — try again");return;}
+    if(_writeAiTargetTextarea){
+      // Targeting a global Settings textarea directly.
+      const ta=document.getElementById(_writeAiTargetTextarea);
+      if(ta)ta.value=cleaned;
+      _writeAiTargetTextarea=null;
+      closeModal('writeAiModal');
+      toast("Drafted ✓ — review, then Save Settings");
+    }else{
+      document.getElementById('peEditText').value=cleaned;
+      closeModal('writeAiModal');
+      toast("Drafted ✓ — review, then Save");
+    }
+  }catch(e){
+    toast("✗ "+(e.friendly||"Couldn't generate"));
+  }finally{ btn.disabled=false; btn.textContent="✨ Generate"; }
+}
+
 function deleteUniverse(){
   if(!editingUniverse)return;
   if(state.universes.length<=1){toast("Keep at least one universe");return;}
@@ -3952,7 +4241,7 @@ function editPersona(id){
   // Reset the Create-with-AI box for each open.
   {const panel=document.getElementById('peAiPanel');if(panel)panel.classList.add('hide');const brief=document.getElementById('peAiBrief');if(brief)brief.value="";}
   document.getElementById('peDelete').style.display=id?"block":"none";
-  const bp=document.getElementById('peBasePreview');if(bp)bp.textContent=state.baseInstruction||DEFAULT_BASE_INSTRUCTION;
+  const bp=document.getElementById('peBasePreview');if(bp)bp.textContent=up("baseInstruction");
   renderAvatarPreview();
   openModal('personaModal');
 }
@@ -4048,7 +4337,7 @@ function saveUniversePic(){
    card fields (name, avatar, personality, backstory, style, look, instructions, interject) or
    null on failure. Never throws. */
 async function generateBio(brief,context){
-  const sys=state.bioPrompt||DEFAULT_BIO;
+  const sys=up("bioPrompt");
   let user="USER BRIEF:\n"+(brief||"(none — invent a fitting character)");
   if(context) user+="\n\nCONVERSATION CONTEXT (the character has appeared here):\n"+context;
   let out;
@@ -4144,7 +4433,7 @@ Make some homes (assign residents from the cast) and some points of interest (no
 // One-shot universe generator: brief + count → a full universe object with characters.
 // Returns {universe, characters[], userName/userLook/userBio} or null. Never throws.
 async function generateUniverse(brief,count){
-  const sys=state.univPrompt||DEFAULT_UNIV;
+  const sys=up("univPrompt");
   const n=Math.max(1,Math.min(9,count||3));
   const user=`USER BRIEF:\n${brief||"(none — invent a fitting world)"}\n\nNUMBER OF CHARACTERS TO CREATE: ${n}`;
   let out;
@@ -4333,7 +4622,7 @@ function buildSystemPrompt(injectedMemories){
 
   // 1) TASK — the core directive comes first.
   {let task=`# TASK\nYou are ${charName}. Your task is to embody your personality fully and generate responses as someone with your responsibility would.`;
-   const base=(state.baseInstruction||"").trim();
+   const base=(up("baseInstruction")||"").trim();
    if(base)task+=`\n\n${base}`;
    blocks.push(task);}
 
@@ -4342,8 +4631,8 @@ function buildSystemPrompt(injectedMemories){
   if(_uni&&_uni.setting&&_uni.setting.trim())blocks.push(`# UNIVERSE / WORLD SETTING\n${_uni.setting.trim()}`);
 
   // 3) FORMATTING RULES
-  if(state.formatRules&&state.formatRules.trim())
-    blocks.push(`# FORMATTING RULES\n${state.formatRules.trim()}`);
+  {const _fr=(up("formatRules")||"").trim();
+   if(_fr)blocks.push(`# FORMATTING RULES\n${_fr}`);}
 
   // 4) OUT OF CHARACTER COMMANDS
   blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
@@ -4420,7 +4709,7 @@ function buildSystemPrompt(injectedMemories){
   }
 
   // 13) RESPONSE GUIDANCE — last system instruction before the recent dialogue.
-  blocks.push(`# RESPONSE GUIDANCE\nRespond as ${charName}. Move the scene forward. Keep replies vivid but a reasonable length (1-3 short paragraphs), and leave room for ${state.user} to respond.`);
+  blocks.push(`# RESPONSE GUIDANCE\nRespond as ${charName}. Move the scene forward, and leave room for ${state.user} to respond.`);
 
   // Sections separated by a blank line, so every "# HEADER" starts on its own line.
   return blocks.join("\n\n");
@@ -4435,7 +4724,7 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
 
   // 1) TASK
   {let task=`# TASK\nYou are ${p.name}. Your task is to embody your personality fully and generate responses as someone with your responsibility would.`;
-   const base=(state.baseInstruction||"").trim();
+   const base=(up("baseInstruction")||"").trim();
    if(base)task+=`\n\n${base}`;
    blocks.push(task);}
 
@@ -4444,7 +4733,8 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   if(_uni&&_uni.setting&&_uni.setting.trim())blocks.push(`# UNIVERSE / WORLD SETTING\n${_uni.setting.trim()}`);
 
   // 3) FORMATTING RULES
-  if(state.formatRules&&state.formatRules.trim())blocks.push(`# FORMATTING RULES\n${state.formatRules.trim()}`);
+  {const _fr=(up("formatRules")||"").trim();
+   if(_fr)blocks.push(`# FORMATTING RULES\n${_fr}`);}
 
   // 4) OUT OF CHARACTER COMMANDS
   blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
@@ -4501,7 +4791,7 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   }
 
   // 13) RESPONSE GUIDANCE / YOUR TURN — last system instruction before recent dialogue.
-  let turn=`# RESPONSE GUIDANCE\nRespond as ${p.name}. Move the scene forward. Write ONLY ${p.name}'s next turn — a single response, not a script. Do NOT prefix it with your name. Do NOT write anyone else's actions or dialogue. Keep it to 1-2 short paragraphs and leave room for others to react.`;
+  let turn=`# RESPONSE GUIDANCE\nRespond as ${p.name}. Move the scene forward. Write ONLY ${p.name}'s next turn — a single response, not a script. Do NOT prefix it with your name. Do NOT write anyone else's actions or dialogue. Leave room for others to react.`;
   if(addressed==="leaving"){
     turn+=`\n\nIMPORTANT: ${p.name} is leaving the scene right now. Give a brief parting beat — a final line, gesture, or exit consistent with why you're going. Keep it short.`;
   }else if(addressed==="arriving"){
@@ -4820,6 +5110,43 @@ const RENDER_WINDOW=120;
 let _renderedChatId=null;
 let _renderedCount=0;
 
+/* ---- Scroll anchoring ----------------------------------------------------
+   Problem: new replies, images, and videos used to force the chat to the very
+   bottom every time, yanking the page down while the user was reading earlier
+   text. Fix: only auto-scroll when the user is already AT (or very near) the
+   bottom. If they've scrolled up to read, we leave the viewport exactly where
+   it is and surface a "↓ New" button instead. */
+const SCROLL_STICK_PX=140;   // within this many px of the bottom = "following the conversation"
+function chatScrollEl(){ return document.getElementById('chatList'); }
+function isNearBottom(list){
+  list=list||chatScrollEl(); if(!list)return true;
+  return (list.scrollHeight - list.scrollTop - list.clientHeight) <= SCROLL_STICK_PX;
+}
+function scrollChatToBottom(smooth){
+  const list=chatScrollEl(); if(!list)return;
+  list.scrollTop=list.scrollHeight;
+  hideNewMsgPill();
+}
+// "↓ New" pill shown when content arrives while the user is scrolled up.
+function showNewMsgPill(){
+  let p=document.getElementById('newMsgPill');
+  if(!p){
+    p=document.createElement('button'); p.id="newMsgPill";
+    p.textContent="↓ New";
+    p.style.cssText="position:absolute;left:50%;transform:translateX(-50%);bottom:14px;z-index:40;background:var(--accent);color:#fff;border:none;border-radius:18px;padding:8px 16px;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer";
+    p.onclick=()=>scrollChatToBottom(true);
+    const screen=document.getElementById('screen-chat')||document.body;
+    screen.appendChild(p);
+  }
+  p.style.display="";
+}
+function hideNewMsgPill(){ const p=document.getElementById('newMsgPill'); if(p)p.style.display="none"; }
+// Hide the pill automatically once the user scrolls back down to the bottom themselves.
+document.addEventListener('DOMContentLoaded',()=>{
+  const list=chatScrollEl();
+  if(list)list.addEventListener('scroll',()=>{ if(isNearBottom(list))hideNewMsgPill(); });
+});
+
 // Full rebuild — used on chat-switch, restart, or any structural change. O(window), not O(all).
 function renderChat(){
   const list=document.getElementById('chatList');list.innerHTML="";
@@ -4830,7 +5157,9 @@ function renderChat(){
   const start=Math.max(0,msgs.length-RENDER_WINDOW);
   for(let i=start;i<msgs.length;i++){ const m=msgs[i]; if(!m.mid) m.mid=newMid(); const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); }
   _renderedCount=msgs.length-start;
+  // A full rebuild happens on chat-open/switch/restart — landing at the latest line is expected.
   list.scrollTop=list.scrollHeight;
+  hideNewMsgPill();
 }
 // Incremental render — append only messages not yet in the DOM. Falls back to a full
 // rebuild if the rendered chat changed underneath us (e.g. chat-switch) so callers can
@@ -4839,6 +5168,8 @@ function appendNewBubbles(){
   const list=document.getElementById('chatList');
   const chat=curChat();
   if(_renderedChatId!==state.curChat || !list.querySelector('.bubble,[data-mid]')){ renderChat(); return; }
+  // Capture whether the user is following the conversation BEFORE we mutate the DOM.
+  const wasAtBottom=isNearBottom(list);
   const msgs=chat.messages;
   // Find messages after the last one we have a node for.
   const have=new Set(); list.querySelectorAll('[data-mid]').forEach(n=>have.add(n.dataset.mid));
@@ -4850,7 +5181,10 @@ function appendNewBubbles(){
     let nodes=list.querySelectorAll('[data-mid]');
     while(nodes.length>RENDER_WINDOW){ list.removeChild(nodes[0]); nodes=list.querySelectorAll('[data-mid]'); }
     _renderedCount=Math.min(msgs.length,RENDER_WINDOW);
-    list.scrollTop=list.scrollHeight;
+    // Only follow to the bottom if the user was already there; otherwise keep their
+    // position and let them know new content arrived.
+    if(wasAtBottom){ list.scrollTop=list.scrollHeight; hideNewMsgPill(); }
+    else { showNewMsgPill(); }
   }
 }
 function findMsg(mid){
@@ -4947,7 +5281,8 @@ function bubble(m){
       tempTag=` <span class="pill" style="font-size:9px;border-color:var(--accent);color:var(--accent)">guest</span>`;
     }
   }
-  b.innerHTML=`<div class="meta">${avatar}${esc(name)}${tempTag}${gmTag}${voiceTag}</div><div class="body">${md(m.content)}</div>`;
+  const _revealing=m._reveal && _revealTimers[m.mid];
+  b.innerHTML=`<div class="meta">${avatar}${esc(name)}${tempTag}${gmTag}${voiceTag}</div><div class="body">${_revealing?"":md(m.content)}</div>`;
   if(m.role==='assistant'){
     // For finished image/video use the safe DOM builder (handles huge base64 data URLs);
     // loading/error states are cheap strings.
@@ -5071,7 +5406,7 @@ async function sendMessage(){
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
   typing.className="bubble ai";{const _sp=present[0];typing.innerHTML=`<div class="meta">${avatarHTML(_sp)}${esc((_sp||{name:"…"}).name)}</div><div class="typing"><span></span><span></span><span></span></div>`;}
-  list.appendChild(typing);list.scrollTop=list.scrollHeight;
+  list.appendChild(typing);if(isNearBottom(list))list.scrollTop=list.scrollHeight;
   document.getElementById('sendBtn').disabled=true;
 
   try{
@@ -5102,9 +5437,10 @@ async function sendMessage(){
     }
     const reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply"});
     typing.remove();
-    const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
+    const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
+    typewriterReveal(msg.mid,reply,()=>{ delete msg._reveal; });
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,solo);
     // Detect anyone the reply (or the player) narrated entering/leaving — this was previously
@@ -5249,7 +5585,7 @@ async function runMultiCharTurn(chat,playerText){
     // ROUTER 1 — who did the player address, who responds
     let responders=[],addressed="group";
     try{
-      const sys=fillTpl(state.routerPlayer,{user:state.user});
+      const sys=fillTpl(up("routerPlayer"),{user:state.user});
       const out=await chatCompletion([
         {role:"system",content:sys},
         {role:"user",content:`Characters present (in earshot):\n${roster}\n\n${state.user} just said:\n"${playerText}"\n\nRecent exchange:\n${castConvoText(chat,8)}`}
@@ -5277,7 +5613,7 @@ async function runMultiCharTurn(chat,playerText){
       if(!others.length)break;
       let next=null;
       try{
-        const sys=fillTpl(state.routerChar,{user:state.user,speaker:lastSpeaker?lastSpeaker.name:cast[0].name});
+        const sys=fillTpl(up("routerChar"),{user:state.user,speaker:lastSpeaker?lastSpeaker.name:cast[0].name});
         const out=await chatCompletion([
           {role:"system",content:sys},
           {role:"user",content:`${lastSpeaker?lastSpeaker.name:"Someone"} just spoke. Other characters present:\n${others.map(c=>`- ${c.name}`+(c.interject&&c.interject.trim()?` — hooks: ${c.interject.trim().slice(0,140)}`:"")).join("\n")}\n\nWhat ${lastSpeaker?lastSpeaker.name:"they"} just said:\n${lastSpeaker?lastSpeaker.name+": ":""}${(chat.messages.filter(m=>!m.sysError&&m.role==='assistant').slice(-1)[0]||{}).content||""}\n\nShould a present character respond, or does it return to ${state.user}?`}
@@ -5308,7 +5644,7 @@ async function playCharacterTurn(chat,p,addressed){
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
   typing.className="bubble ai";typing.innerHTML=`<div class="meta">${avatarHTML(p)}${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
-  if(list){list.appendChild(typing);list.scrollTop=list.scrollHeight;}
+  if(list){list.appendChild(typing);if(isNearBottom(list))list.scrollTop=list.scrollHeight;}
   try{
     let injected=[];
     if(state.mem && state.memory.length){
@@ -5325,9 +5661,12 @@ async function playCharacterTurn(chat,p,addressed){
     // strip a leading "Name:" prefix if the model added one (regex-safe)
     const prefix=p.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
     const cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
-    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
+    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
+    // Reveal this character's line before the next character in the chain speaks, so
+    // multi-character turns roll in one after another instead of all snapping in at once.
+    await new Promise(res=>typewriterReveal(msg.mid,cleaned,()=>{ delete msg._reveal; res(); }));
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
     return true;
@@ -5408,7 +5747,7 @@ async function runPresenceTracker(chat){
     const present=presentCast(chat).map(c=>c.name);
     const offstage=cast.filter(c=>!present.includes(c.name)).map(c=>c.name);
     // Nothing present and nobody clearly summoned? Skip the call cheaply most turns.
-    const sys=fillTpl(state.presencePrompt||DEFAULT_PRESENCE_TRACKER,{user:state.user});
+    const sys=fillTpl(up("presencePrompt"),{user:state.user});
     const out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:`Currently present: ${present.join(", ")||"(none)"}\nOffstage (could enter): ${offstage.join(", ")||"(none)"}\nAll cast: ${cast.map(c=>c.name).join(", ")}\n\nLatest exchange:\n${castConvoText(chat,4)}`}
@@ -5486,7 +5825,7 @@ async function illustrate(mid,replyText){
     if(state.userLook)castSheet+=`\n${state.user} (the player): ${state.userLook}`;
 
     // ---- Step 1: rewrite -> image prompt, consistent with the previous image ----
-    const sys=state.rewritePrompt+`\n\nInclude in the image ONLY the characters actually present in this moment. If ${state.user} (the player) is physically part of the scene, include them using their appearance from the sheet. Describe appearances accurately from the sheet. Do not invent characters who aren't there.`;
+    const sys=up("rewritePrompt")+`\n\nInclude in the image ONLY the characters actually present in this moment. If ${state.user} (the player) is physically part of the scene, include them using their appearance from the sheet. Describe appearances accurately from the sheet. Do not invent characters who aren't there.`;
     const usr=`CHARACTER SHEET:\n${castSheet}\n\n`+
       (prevPrompt?`PREVIOUS IMAGE PROMPT (keep everything here unless the latest exchange changes it):\n${prevPrompt}\n\n`:`(No previous image — describe the scene fresh.)\n\n`)+
       `LATEST EXCHANGE (what just happened — change only what this alters):\n${latestExchange}`;
@@ -5554,7 +5893,7 @@ async function animateScene(mid){
     // Step 1: rewrite still prompt -> motion prompt (OpenRouter LLM call)
     setStat("Directing the shot…");
     const motion=await chatCompletion([
-      {role:"system",content:state.vidPrompt},
+      {role:"system",content:up("vidPrompt")},
       {role:"user",content:`Characters present:\n${castSheet}\n\nStill scene:\n${msg.imgPrompt||msg.content}`}
     ],state.rewriter,{temp:fnTemp("rewriter",0.6),max:fnTok("rewriter",160),dbg:"Video motion prompt writer"});
     const vidPrompt=motion.trim().replace(/^["']|["']$/g,"");
@@ -5721,7 +6060,7 @@ async function endDay(){
       .map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
     for(const c of cast){
       try{
-        const sys=fillTpl(state.daySummaryPrompt,{char:c.name,user:state.user})+
+        const sys=fillTpl(up("daySummaryPrompt"),{char:c.name,user:state.user})+
           (cast.length>1?`\n\nWrite strictly from ${c.name}'s own perspective. Only what ${c.name} personally experienced and would remember.`:"");
         const out=await chatCompletion([
           {role:"system",content:sys},
@@ -5824,7 +6163,7 @@ async function maybeGamemaster(chat,force){
       .slice(-Math.max(6,(state.gmEvery||8))).map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
     // STAGE 1 — judge (skipped when manually forced; the user explicitly wants an event)
     if(!force){
-      const judgeSys=fillTpl(state.gmJudge,{user:state.user,sensitivity:state.gmSensitivity||"balanced"});
+      const judgeSys=fillTpl(up("gmJudge"),{user:state.user,sensitivity:state.gmSensitivity||"balanced"});
       const judgeOut=await chatCompletion([
         {role:"system",content:judgeSys},
         {role:"user",content:(ctx?ctx+"\n\n":"")+`Recent exchange:\n${since}`}
@@ -5841,7 +6180,7 @@ async function maybeGamemaster(chat,force){
         : "the player asked for something to happen — nudge the current scene meaningfully";
     }
     // STAGE 2 — author the hidden nudge
-    const authorSys=fillTpl(state.gmAuthor,{user:state.user,reason});
+    const authorSys=fillTpl(up("gmAuthor"),{user:state.user,reason});
     const presentSheet=present.map(c=>c.name+(c.look?` (${c.look})`:"")).join("; ")||"(nobody is currently nearby)";
     const offstageSheet=cast.filter(c=>!present.some(pc=>pc.id===c.id)).map(c=>c.name).join("; ");
     const nudge=await chatCompletion([
@@ -5893,7 +6232,7 @@ async function setupActiveEvent(chat,eventText){
     const known=curCast().map(c=>c.name).join(", ");
     const ctx=directorContext(chat);
     const out=await chatCompletion([
-      {role:"system",content:state.sceneSetup},
+      {role:"system",content:up("sceneSetup")},
       {role:"user",content:(ctx?ctx+"\n\n":"")+`Known characters already in the cast: ${known}\nPlayer: ${state.user}\n\nThe event just introduced:\n${eventText}`}
     ],state.gmModel,{temp:fnTemp("gm",0.4),max:fnTok("gm",200),dbg:"Scene writer: setup"});
     // If the classifier reply doesn't parse, still set up a minimal environment
@@ -5966,7 +6305,7 @@ async function runSceneWriter(chat){
         forceBringIn=true;
       }
     }
-    const sys=fillTpl(state.sceneWriter,{user:state.user,summary:ev.summary,turn:ev.turn,min:ev.minTurns,max:ev.maxTurns});
+    const sys=fillTpl(up("sceneWriter"),{user:state.user,summary:ev.summary,turn:ev.turn,min:ev.minTurns,max:ev.maxTurns});
     const swMsgs=[{role:"system",content:sys+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(forceBringIn&&ev.participant?`\n\n${state.user} just addressed ${ev.participant.name} directly. You MUST set "bring_in":"${ev.participant.name}" this turn.`:``)}];
     if(ctx)swMsgs.push({role:"user",name:"context",content:ctx});
     recentExchangeMsgs(chat,8).forEach(m=>swMsgs.push(m));
@@ -6120,7 +6459,7 @@ async function gamemasterReactions(chat){
     if(!others.length)break;
     let next=null,addr=state.user;
     try{
-      const sys=fillTpl(state.routerChar,{user:state.user,speaker:lastSpeaker?lastSpeaker.name:"the narrator"});
+      const sys=fillTpl(up("routerChar"),{user:state.user,speaker:lastSpeaker?lastSpeaker.name:"the narrator"});
       const out=await chatCompletion([
         {role:"system",content:sys},
         {role:"user",content:`A narrator event just occurred. Which present character (if any) would react? Present:\n${others.map(c=>`- ${c.name}`+(c.interject&&c.interject.trim()?` — hooks: ${c.interject.trim().slice(0,140)}`:"")).join("\n")}\n\nRecent exchange:\n${castConvoText(chat,6)}`}
@@ -6143,7 +6482,7 @@ async function playSingleReaction(chat,p,eventText){
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
   typing.className="bubble ai";typing.innerHTML=`<div class="meta">${avatarHTML(p)}${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
-  if(list){list.appendChild(typing);list.scrollTop=list.scrollHeight;}
+  if(list){list.appendChild(typing);if(isNearBottom(list))list.scrollTop=list.scrollHeight;}
   try{
     let injected=[];
     if(state.mem && state.memory.length){try{injected=await retrieveMemories(eventText,chat);}catch(e){injected=[];}}
@@ -6209,7 +6548,7 @@ async function maybeBuildMemory(chat){
     try{
       const convo=witnessed.slice(-10)
         .map(m=>`${m.role==='user'?state.user:(m.speaker||cast[0].name)}: ${m.content}`).join("\n");
-      const sys=fillTpl(state.memBuild,{char:p.name,user:state.user})+
+      const sys=fillTpl(up("memBuild"),{char:p.name,user:state.user})+
         (cast.length>1?`\n\nIMPORTANT: Write this memory strictly from ${p.name}'s own perspective and personal experience. Only record what ${p.name} personally witnessed. Do not include events that happened while ${p.name} was absent.`:"");
       const out=await chatCompletion([
         {role:"system",content:sys},
@@ -6256,7 +6595,7 @@ async function maybeCondenseMemories(ownerId,name){
   if(candidates.length < Math.min(state.condenseBatch, 6)) return; // not enough to bother
   const batch=candidates.slice(0, state.condenseBatch);
   const listed=batch.map((m,i)=>`[${i}] ${memText(m)} | importance: ${m.importance} | day: ${m.gameDay||1} | tags: ${(m.tags||[]).join(", ")}`).join("\n");
-  const sys=fillTpl(state.condensePrompt,{char:name,user:state.user});
+  const sys=fillTpl(up("condensePrompt"),{char:name,user:state.user});
   let out;
   try{
     out=await chatCompletion([
@@ -6314,7 +6653,7 @@ async function genQuery(userText,chat){
   const recent=chat.messages.filter(m=>m.role!=='system'&&!m.sysError).slice(-4)
     .map(m=>`${m.role==='user'?state.user:(m.speaker||p.name)}: ${m.content}`).join("\n");
   const out=await chatCompletion([
-    {role:"system",content:state.queryGen},
+    {role:"system",content:up("queryGen")},
     {role:"user",content:`Recent conversation:\n${recent}\n\n${state.user}'s newest message:\n${userText}`}
   ],state.memModel,{temp:fnTemp("mem",0.3),max:fnTok("mem",120),dbg:"Memory query generator"});
   return (out||"").replace(/```/g,"").trim();
@@ -6343,7 +6682,7 @@ async function retrieveMemories(userText,chat){
   const listed=candidates.map((m,i)=>
     `[${i}] ${memText(m)} | tags: ${(m.tags||[]).join(", ")} | importance: ${m.importance} | day: ${m.gameDay||1}`
   ).join("\n");
-  const sys=fillTpl(state.ranker,{maxCount:String(MAX)});
+  const sys=fillTpl(up("ranker"),{maxCount:String(MAX)});
   try{
     const out=await chatCompletion([
       {role:"system",content:sys},
@@ -6429,7 +6768,7 @@ function renderRules(kind){
           <label>When to use (the router reads this)</label>
           <textarea class="fld" data-k="when" style="min-height:54px">${esc(r.when||'')}</textarea>
           <div class="row">
-            <div style="flex:1"><label>ModelsLab model_id</label><input type="text" data-k="model_id" value="${esc(r.model_id||'')}" placeholder="sdxl"></div>
+            <div style="flex:1"><label>ModelsLab model_id</label><input type="text" data-k="model_id" value="${esc(r.model_id||'')}" placeholder="realtime_t2i"></div>
             <div style="flex:1"><label>Endpoint</label><input type="text" data-k="endpoint" value="${esc(r.endpoint||(kind==='img'?'images/text2img':'video/img2video'))}"></div>
           </div>
           <label>LoRA model (optional)</label>
@@ -6455,7 +6794,7 @@ function renderRules(kind){
 function addRule(kind){
   const id=(kind==='img'?'r_':'rv_')+Date.now();
   rulesFor(kind).push({id,label:"New rule",when:"Describe the kind of shot this model is best for.",
-    model_id:kind==='img'?"sdxl":"wan2.7-i2v",endpoint:kind==='img'?"images/text2img":"video/img2video",
+    model_id:kind==='img'?"realtime_t2i":"wan2.7-i2v",endpoint:kind==='img'?"images/text2img":"video/img2video",
     lora_model:"",negative:"",enabled:true});
   renderRules(kind);
 }
@@ -6527,7 +6866,43 @@ function renderToggleSegs(){
       rsg.appendChild(b);
     });
   }
+  injectGlobalPromptAiButtons();
 }
+// Map each global-prompt textarea (in Settings → Prompts) to its registry key, and add a
+// "✨ Write with AI" button under each so the same generator works on global prompts too.
+const GLOBAL_PROMPT_TEXTAREAS={
+  setBaseInstruction:"baseInstruction", setFormatRules:"formatRules",
+  setRewritePrompt:"rewritePrompt", setVidPrompt:"vidPrompt", setRouterPrompt:"routerPrompt",
+  setMemBuild:"memBuild", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
+  setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setRelPrompt:"relPrompt", setTrackPrompt:"trackPrompt",
+  setVoiceCheckPrompt:"voiceCheckPrompt", setTravelPrompt:"travelPrompt", setCalPrompt:"calPrompt",
+  setGmJudge:"gmJudge", setGmAuthor:"gmAuthor", setDaySummary:"daySummaryPrompt",
+  setSceneSetup:"sceneSetup", setSceneWriter:"sceneWriter",
+  setRouterPlayer:"routerPlayer", setRouterChar:"routerChar", setPresencePrompt:"presencePrompt"
+};
+function injectGlobalPromptAiButtons(){
+  Object.entries(GLOBAL_PROMPT_TEXTAREAS).forEach(([taId,key])=>{
+    const ta=document.getElementById(taId); if(!ta)return;
+    if(ta.parentElement.querySelector('[data-gpai]'))return;   // already added
+    const btn=document.createElement('button');
+    btn.type="button"; btn.className="btn sec small"; btn.dataset.gpai="1";
+    btn.style.cssText="width:auto;margin-top:6px;padding:6px 10px";
+    btn.textContent="✨ Write with AI";
+    btn.onclick=()=>writeAiForTextarea(taId,key);
+    ta.insertAdjacentElement('afterend',btn);
+  });
+}
+// Open the Write-with-AI modal targeting a global Settings textarea directly.
+function writeAiForTextarea(taId,key){
+  _promptEditKey=key; _promptEditScope="global";
+  _writeAiTargetTextarea=taId;
+  const reg=PROMPT_BY_KEY[key];
+  document.getElementById('peEditText').value=document.getElementById(taId).value; // reference for the generator
+  document.getElementById('waiTarget').innerHTML=`Generating: <b>${esc(reg?reg.label:key)}</b>${reg&&reg.json?' — must return structured JSON':''}`;
+  document.getElementById('waiBrief').value="";
+  openModal('writeAiModal');
+}
+let _writeAiTargetTextarea=null;
 function seg(container,val,current,cb){
   const b=document.createElement('button');b.textContent=val;if(val===current)b.classList.add('on');
   b.onclick=()=>{cb(val);container.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
@@ -6622,6 +6997,7 @@ function syncSettingsUI(){
   document.getElementById('setTemp').value=state.temp;document.getElementById('tempVal').textContent=state.temp;
   document.getElementById('setMem').checked=state.mem;
   document.getElementById('setFont').value=state.font;document.getElementById('fontVal').textContent=state.font;
+  {const sr=document.getElementById('setStreamReveal'); if(sr)sr.checked=state.streamReveal!==false;}
   document.querySelectorAll('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.t===state.theme));
   renderToggleSegs();renderOvrFields();updateStorage();
 }
@@ -6702,6 +7078,8 @@ function saveSettings(notify){
   state.temp=+document.getElementById('setTemp').value;
   state.mem=document.getElementById('setMem').checked;
   state.font=+document.getElementById('setFont').value;
+  {const sr=document.getElementById('setStreamReveal'); if(sr)state.streamReveal=sr.checked;}
+  store.set(K.streamReveal,state.streamReveal);
   store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.atlasKey,state.atlasKey||"");store.setRaw(K.model,state.model);
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
