@@ -306,6 +306,7 @@
         <div class="card">
           <div><label>OpenRouter API Key (chat + prompt rewriters + routers)</label><input type="password" id="setKey" placeholder="sk-or-v1-…"></div>
           <div><label>ModelsLab API Key (image + video)</label><input type="password" id="setSegKey" placeholder="your ModelsLab key"></div>
+          <div><label>AtlasCloud API Key (image + video)</label><input type="password" id="setAtlasKey" placeholder="your AtlasCloud key"></div>
           <button class="btn sec" id="testBtn" onclick="testConnection()">Test OpenRouter</button>
           <div class="desc">⚠️ ModelsLab's API may block direct browser calls (CORS). If images/videos fail here, they'll work from the packaged mobile app or through a small proxy.</div>
         </div>
@@ -538,8 +539,10 @@
           <div><label>Provider</label>
             <div class="seg" id="imgProvSeg">
               <button data-p="modelslab" class="on">ModelsLab</button>
+              <button data-p="atlascloud">AtlasCloud</button>
               <button data-p="openrouter">OpenRouter</button>
             </div></div>
+          <div id="atlasImgWrap" style="display:none"><label>AtlasCloud image model</label><input type="text" id="setAtlasImgModel" placeholder="seedream-3.0"><div class="desc">Model id from AtlasCloud's library (e.g. seedream-3.0, flux-1.1-pro). Smart-routing rules below also apply.</div></div>
           <div id="orImgWrap"><label>OpenRouter image model</label><input type="text" id="setImgModel" value="x-ai/grok-imagine-image-quality"></div>
           <div id="mlImgWrap">
             <div><label>Sampling steps (all models): <span id="stepsVal">25</span></label>
@@ -564,8 +567,10 @@
           <div><label>Provider</label>
             <div class="seg" id="vidProvSeg">
               <button data-p="modelslab" class="on">ModelsLab</button>
+              <button data-p="atlascloud">AtlasCloud</button>
               <button data-p="openrouter">OpenRouter</button>
             </div></div>
+          <div id="atlasVidWrap" style="display:none"><label>AtlasCloud video model</label><input type="text" id="setAtlasVidModel" placeholder="kling-v2.0"><div class="desc">Model id from AtlasCloud (e.g. kling-v2.0, wan-2.2). Image-to-video: the scene image is the first frame.</div></div>
           <div id="orVidWrap"><label>OpenRouter video model</label><input type="text" id="setVidModel" value="x-ai/grok-imagine-video"></div>
           <div id="mlVidWrap">
             <div class="desc">Smart routing applies to video too (toggle is shared with images).</div>
@@ -811,7 +816,7 @@
 
 <script>
 const OR="https://openrouter.ai/api/v1";
-const K={key:"sm_key",segkey:"sm_segkey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
+const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidSound:"sm_vidsound",
   memModel:"sm_memmodel",memBuild:"sm_membuild",queryGen:"sm_querygen",ranker:"sm_ranker",
@@ -837,6 +842,7 @@ const K={key:"sm_key",segkey:"sm_segkey",model:"sm_model",rewriter:"sm_rewriter"
   locModel:"sm_locmodel",travelPrompt:"sm_travelprompt",travelTime:"sm_traveltime",calOn:"sm_calon",calPrompt:"sm_calprompt"};
 // ModelsLab API base. Image and video endpoints live under different paths.
 const ML="https://modelslab.com/api/v6/";
+const ATLAS="https://api.atlascloud.ai/api/v1/";   // AtlasCloud image/video (async submit→poll)
 const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){console.warn("storage set failed",k,e);return false;}},
   raw(k,d){const v=localStorage.getItem(k);return v===null?d:v;},
@@ -945,7 +951,7 @@ function collectAppData(includeKeys){
     const k=localStorage.key(i);
     if(!k||!k.startsWith(APP_PREFIX))continue;
     // optionally strip the two API-key fields
-    if(!includeKeys && (k==="sm_key"||k==="sm_segkey"))continue;
+    if(!includeKeys && (k==="sm_key"||k==="sm_segkey"||k==="sm_atlaskey"))continue;
     data[k]=localStorage.getItem(k);   // store raw string; values are already JSON/string
   }
   return data;
@@ -985,7 +991,7 @@ function handleImportFile(input){
       if(!data||typeof data!=="object")throw new Error("Unrecognized backup file");
       const keys=Object.keys(data).filter(k=>k.startsWith(APP_PREFIX));
       if(!keys.length)throw new Error("No StoryMind data found in file");
-      const hasKeys=keys.includes("sm_key")||keys.includes("sm_segkey");
+      const hasKeys=keys.includes("sm_key")||keys.includes("sm_segkey")||keys.includes("sm_atlaskey");
       const msg=`Restore ${keys.length} items from this backup?`+
         (parsed.exportedAt?`\nExported: ${new Date(parsed.exportedAt).toLocaleString()}`:"")+
         `\n\nThis REPLACES your current chats, memories, characters and settings`+
@@ -2070,6 +2076,7 @@ function loadState(){
   state={
     key:store.raw(K.key,""),
     segkey:store.raw(K.segkey,""),
+    atlasKey:store.raw(K.atlasKey,""),
     model:store.raw(K.model,"google/gemma-4-31b-it"),
     rewriter:store.raw(K.rewriter,"google/gemini-2.5-flash"),
     imgProvider:store.raw(K.imgProvider,"modelslab"),
@@ -2536,6 +2543,71 @@ async function modelslabVideo(prompt,imageUrl,negative,rule){
   catch(e){dbgDone(entry,"error",e.friendly||"failed");throw e;}
 }
 
+/* ===== ATLASCLOUD: async image + image-to-video (submit → poll → url) ===== */
+// Shared: submit a generation request, then poll the prediction endpoint until done.
+async function atlasGenerate(kind,body,label,setStat){
+  if(!state.atlasKey)throw{friendly:"No AtlasCloud API key set. Add it in Settings."};
+  const endpoint=kind==="video"?"model/generateVideo":"model/generateImage";
+  const hdr={"Authorization":"Bearer "+state.atlasKey,"Content-Type":"application/json"};
+  const entry=dbg(label,"AtlasCloud",ATLAS+endpoint,
+    Object.assign({},body,body.image_url?{image_url:"[image data omitted]"}:{},body.image?{image:"[image data omitted]"}:{}));
+  let res;
+  try{res=await fetch(ATLAS+endpoint,{method:"POST",headers:hdr,body:JSON.stringify(body)});}
+  catch(e){dbgDone(entry,"error","CORS / network");throw{friendly:"Couldn't reach AtlasCloud (network/CORS). Check your connection."};}
+  if(!res.ok){dbgDone(entry,"error","HTTP "+res.status);throw{friendly:atlasMsg(res.status)};}
+  let d;try{d=await res.json();}catch(e){dbgDone(entry,"error","Unreadable response");throw{friendly:"AtlasCloud returned an unreadable response."};}
+  const id=d&&d.data&&d.data.id;
+  // Some models may already return outputs synchronously.
+  const immediate=d&&d.data&&Array.isArray(d.data.outputs)&&d.data.outputs[0];
+  if(immediate){dbgDone(entry,"ok",atlasOut(immediate));return atlasOut(immediate);}
+  if(!id){dbgDone(entry,"error","No prediction id");throw{friendly:"AtlasCloud gave no result to fetch."};}
+  // Poll the prediction endpoint.
+  const pollUrl=ATLAS+"model/prediction/"+id;
+  const stepMs=(kind==="video"?5000:2000);
+  for(let i=0;i<90;i++){
+    if(setStat)setStat(`Generating… (${i*Math.round(stepMs/1000)}s)`);
+    await new Promise(r=>setTimeout(r,stepMs));
+    let r;
+    try{r=await fetch(pollUrl,{method:"GET",headers:{"Authorization":"Bearer "+state.atlasKey}});}
+    catch(e){continue;}
+    if(!r.ok){ if(r.status>=500)continue; dbgDone(entry,"error","HTTP "+r.status); throw{friendly:atlasMsg(r.status)}; }
+    let s;try{s=await r.json();}catch(e){continue;}
+    const st=s&&s.data&&s.data.status;
+    if(st==="completed"||st==="succeeded"||st==="success"){
+      const out=atlasOut(s.data.outputs&&s.data.outputs[0]);
+      if(out){dbgDone(entry,"ok",out);return out;}
+    }
+    if(st==="failed"||st==="error"){dbgDone(entry,"error",(s.data&&s.data.error)||"failed");throw{friendly:"AtlasCloud: "+((s.data&&s.data.error)||"generation failed")};}
+  }
+  dbgDone(entry,"error","timed out");throw{friendly:"AtlasCloud timed out. Try again or a faster model."};
+}
+// An output item may be a plain URL string or an object with a url field.
+function atlasOut(o){ if(!o)return null; if(typeof o==="string")return o; return o.url||o.image_url||o.video_url||o.output||null; }
+function atlasMsg(s){
+  if(s===401||s===403)return "AtlasCloud rejected the key. Check your API key in Settings.";
+  if(s===402)return "Out of AtlasCloud credit. Add funds at console.atlascloud.ai.";
+  if(s===429)return "AtlasCloud rate limit hit. Wait a moment and retry.";
+  return "AtlasCloud error (HTTP "+s+").";
+}
+// Text-to-image via AtlasCloud. Returns a remote image URL.
+async function atlasImage(prompt,negative,rule){
+  const model=(rule&&rule.model_id)||state.imgModel||"seedream-3.0";
+  const body={model,prompt};
+  if(negative)body.negative_prompt=negative;
+  if(rule&&rule.size)body.size=rule.size;
+  const label="Image generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
+  return await atlasGenerate("image",body,label,null);
+}
+// Image-to-video via AtlasCloud. imageUrl may be a public URL or a base64 data URI.
+async function atlasVideo(prompt,imageUrl,negative,rule){
+  const model=(rule&&rule.model_id)||state.vidModel||"kling-v2.0";
+  const dur=[5,8].includes(state.vidDur)?state.vidDur:5;
+  const body={model,prompt,image_url:imageUrl,duration:dur};
+  if(rule&&rule.resolution)body.resolution=rule.resolution;
+  const label="Video generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
+  return await atlasGenerate("video",body,label,null);
+}
+
 /* ===== SMART ROUTER: an LLM picks the model rule from the prompt ===== */
 async function pickRule(rules,prompt){
   const active=(rules||[]).filter(r=>r.enabled!==false);
@@ -2770,6 +2842,11 @@ async function generateLocationImage(loc){
   const prompt=`${loc.name}, ${loc.description||""}, establishing wide shot, scenery, no people, atmospheric, detailed environment`.replace(/, ,/g,",");
   const neg="people, person, character, portrait, text, watermark, low quality";
   try{
+    if(state.imgProvider==="atlascloud"){
+      const rule=await pickRule(state.imgRules,prompt);
+      const r=state.locModel?Object.assign({},rule||{},{model_id:state.locModel}):rule;
+      return await atlasImage(prompt,(rule&&rule.negative)||neg,r);
+    }
     if(state.imgProvider==="modelslab"){
       const rule=await pickRule(state.imgRules,prompt);
       const r=state.locModel?Object.assign({},rule,{model_id:state.locModel}):rule;
@@ -3827,7 +3904,10 @@ async function generateProfilePic(){
     const prompt=`character portrait, ${look}, upper body, facing viewer, looking at camera, neutral background, soft studio lighting, ${STYLES[state.style]||""}`.replace(/, $/,"");
     const neg="full body, multiple people, text, watermark, deformed face, extra limbs, low quality, blurry";
     let url;
-    if(state.imgProvider==="modelslab"){
+    if(state.imgProvider==="atlascloud"){
+      const rule=await pickRule(state.imgRules,prompt);
+      url=await atlasImage(prompt,(rule&&rule.negative)||neg,rule);
+    }else if(state.imgProvider==="modelslab"){
       const rule=await pickRule(state.imgRules,prompt);
       url=await modelslabImage(prompt,(rule&&rule.negative)||neg,rule);
     }else{
@@ -4040,6 +4120,10 @@ async function generatePicForLook(look){
   try{
     const prompt=`character portrait, ${look}, upper body, facing viewer, looking at camera, neutral background, soft studio lighting, ${STYLES[state.style]||""}`.replace(/, $/,"");
     const neg="full body, multiple people, text, watermark, deformed face, extra limbs, low quality, blurry";
+    if(state.imgProvider==="atlascloud"){
+      const rule=await pickRule(state.imgRules,prompt);
+      return await atlasImage(prompt,(rule&&rule.negative)||neg,rule);
+    }
     if(state.imgProvider==="modelslab"){
       const rule=await pickRule(state.imgRules,prompt);
       return await modelslabImage(prompt,(rule&&rule.negative)||neg,rule);
@@ -5336,7 +5420,13 @@ async function illustrate(mid,replyText){
     const baseNeg="low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature";
     // Step 2: route to a ModelsLab model based on scene content, then generate
     let url;
-    if(state.imgProvider==="modelslab"){
+    if(state.imgProvider==="atlascloud"){
+      const rule=await pickRule(state.imgRules,finalPrompt);
+      if(rule&&rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
+      const neg=(rule&&rule.negative)||baseNeg;
+      url=await atlasImage(finalPrompt,neg,rule);
+      msg.imgRule=rule?rule.label:"";
+    }else if(state.imgProvider==="modelslab"){
       const rule=await pickRule(state.imgRules,finalPrompt);
       if(rule&&rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
       const neg=(rule&&rule.negative)||baseNeg;
@@ -5392,7 +5482,12 @@ async function animateScene(mid){
     const vidPrompt=motion.trim().replace(/^["']|["']$/g,"");
     const baseNeg="blur, distortion, artifacts, watermark, text";
     let videoUrl;
-    if(state.vidProvider==="openrouter"){
+    if(state.vidProvider==="atlascloud"){
+      const rule=await pickRule(state.vidRules,vidPrompt);
+      setStat("Generating video on AtlasCloud"+(rule&&rule.label?" ("+rule.label+")":"")+"… (~1 min)");
+      const neg=(rule&&rule.negative)||baseNeg;
+      videoUrl=await atlasVideo(vidPrompt,msg.img,neg,rule);
+    }else if(state.vidProvider==="openrouter"){
       setStat("Submitting to OpenRouter…");
       const job=await submitVideo(vidPrompt,msg.img);
       videoUrl=await pollVideo(job,setStat);
@@ -6355,10 +6450,12 @@ function setProvSeg(segId,cur){
   document.querySelectorAll('#'+segId+' button').forEach(b=>b.classList.toggle('on',b.dataset.p===cur));
 }
 function updateProvVis(){
-  document.getElementById('mlImgWrap').style.display=state.imgProvider==="modelslab"?"block":"none";
+  document.getElementById('mlImgWrap').style.display=(state.imgProvider==="modelslab"||state.imgProvider==="atlascloud")?"block":"none";
   document.getElementById('orImgWrap').style.display=state.imgProvider==="openrouter"?"block":"none";
-  document.getElementById('mlVidWrap').style.display=state.vidProvider==="modelslab"?"block":"none";
+  const aiw=document.getElementById('atlasImgWrap'); if(aiw)aiw.style.display=state.imgProvider==="atlascloud"?"block":"none";
+  document.getElementById('mlVidWrap').style.display=(state.vidProvider==="modelslab"||state.vidProvider==="atlascloud")?"block":"none";
   document.getElementById('orVidWrap').style.display=state.vidProvider==="openrouter"?"block":"none";
+  const avw=document.getElementById('atlasVidWrap'); if(avw)avw.style.display=state.vidProvider==="atlascloud"?"block":"none";
 }
 function syncSettingsUI(){
   {const gd=globalUserDefaults();
@@ -6367,6 +6464,9 @@ function syncSettingsUI(){
    document.getElementById('setUserBio').value=gd.userBio||'';}
   document.getElementById('setKey').value=state.key;
   document.getElementById('setSegKey').value=state.segkey;
+  {const ak=document.getElementById('setAtlasKey'); if(ak)ak.value=state.atlasKey||'';}
+  {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud")aim.value=state.imgModel||'';}
+  {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")avm.value=state.vidModel||'';}
   document.getElementById('setModel').value=state.model;
   document.getElementById('setRewriter').value=state.rewriter;
   document.getElementById('setImgModel').value=state.imgModel;
@@ -6448,10 +6548,14 @@ function saveSettings(notify){
   applyUniverseProfile(state.curUniverse);
   state.key=document.getElementById('setKey').value.trim();
   state.segkey=document.getElementById('setSegKey').value.trim();
+  {const ak=document.getElementById('setAtlasKey'); if(ak)state.atlasKey=ak.value.trim();}
   state.model=document.getElementById('setModel').value.trim()||"anthropic/claude-3.5-sonnet";
   state.rewriter=document.getElementById('setRewriter').value.trim()||"openai/gpt-4o-mini";
   state.imgModel=document.getElementById('setImgModel').value.trim()||"x-ai/grok-imagine-image-quality";
   state.vidModel=document.getElementById('setVidModel').value.trim()||"x-ai/grok-imagine-video";
+  // AtlasCloud, when active, uses its own model fields as the source of truth.
+  {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud"&&aim.value.trim())state.imgModel=aim.value.trim();}
+  {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud"&&avm.value.trim())state.vidModel=avm.value.trim();}
   state.routeOn=document.getElementById('setRouteOn').checked;
   state.routerModel=document.getElementById('setRouterModel').value.trim()||"openai/gpt-4o-mini";
   state.routerPrompt=document.getElementById('setRouterPrompt').value.trim()||DEFAULT_ROUTER;
@@ -6511,7 +6615,7 @@ function saveSettings(notify){
   state.temp=+document.getElementById('setTemp').value;
   state.mem=document.getElementById('setMem').checked;
   state.font=+document.getElementById('setFont').value;
-  store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.model,state.model);
+  store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.atlasKey,state.atlasKey||"");store.setRaw(K.model,state.model);
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
   store.setRaw(K.vidProvider,state.vidProvider);store.setRaw(K.vidModel,state.vidModel);
