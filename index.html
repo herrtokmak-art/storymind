@@ -570,7 +570,7 @@
               <button data-p="atlascloud">AtlasCloud</button>
               <button data-p="openrouter">OpenRouter</button>
             </div></div>
-          <div id="atlasVidWrap" style="display:none"><label>AtlasCloud video model</label><input type="text" id="setAtlasVidModel" placeholder="kling-v2.0"><div class="desc">Model id from AtlasCloud (e.g. kling-v2.0, wan-2.2). Image-to-video: the scene image is the first frame.</div></div>
+          <div id="atlasVidWrap" style="display:none"><label>AtlasCloud video model</label><input type="text" id="setAtlasVidModel" placeholder="atlascloud/wan-2.2-turbo-spicy/image-to-video"><div class="desc">Model id from AtlasCloud (default: atlascloud/wan-2.2-turbo-spicy/image-to-video). Image-to-video: the scene image is the first frame.</div></div>
           <div id="orVidWrap"><label>OpenRouter video model</label><input type="text" id="setVidModel" value="x-ai/grok-imagine-video"></div>
           <div id="mlVidWrap">
             <div class="desc">Smart routing applies to video too (toggle is shared with images).</div>
@@ -580,6 +580,7 @@
           </div>
           <div style="height:1px;background:var(--border);margin:6px 0"></div>
           <div><label>Video length</label><div class="seg" id="durSeg"></div></div>
+          <div style="margin-top:6px"><label>Video resolution</label><div class="seg" id="resSeg"></div><div class="desc">AtlasCloud WAN i2v supports 480p, 720p, 1080p. Higher resolution costs more and takes longer.</div></div>
           <div class="kvline"><span>🔊 Generate sound (WAN audio)</span>
             <label class="switchLbl"><input type="checkbox" id="setVidSound"><span class="sl"></span></label></div>
           <div class="desc">When supported by the video model (e.g. WAN 2.x i2v), requests audio along with the clip.</div>
@@ -818,7 +819,7 @@
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
-  rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidSound:"sm_vidsound",
+  rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",
   memModel:"sm_memmodel",memBuild:"sm_membuild",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",baseInstruction:"sm_baseinstr",
   routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
@@ -2082,11 +2083,12 @@ function loadState(){
     imgProvider:store.raw(K.imgProvider,"modelslab"),
     imgModel:store.raw(K.imgModel,"x-ai/grok-imagine-image-quality"),
     segImgPath:store.raw(K.segImgPath,"chroma"),
-    vidProvider:store.raw(K.vidProvider,"modelslab"),
-    vidModel:store.raw(K.vidModel,"x-ai/grok-imagine-video"),
+    vidProvider:store.raw(K.vidProvider,"atlascloud"),
+    vidModel:store.raw(K.vidModel,"atlascloud/wan-2.2-turbo-spicy/image-to-video"),
     segVidPath:store.raw(K.segVidPath,"wan-2.2-i2v-flash"),
     vidPrompt:store.raw(K.vidPrompt,DEFAULT_VIDPROMPT),
-    vidDur:+store.raw(K.vidDur,5),
+    vidDur:+store.raw(K.vidDur,8),
+    vidRes:store.raw(K.vidRes,"480p"),
     vidSound:store.get(K.vidSound,false),
     user:store.raw(K.user,"You"),
     userLook:store.raw(K.userLook,""),
@@ -2200,6 +2202,19 @@ function loadState(){
   // Migrate legacy provider value
   if(state.imgProvider==="segmind")state.imgProvider="modelslab";
   if(state.vidProvider==="segmind")state.vidProvider="modelslab";
+  // One-time upgrade: default AtlasCloud video to the wan-2.2-turbo-spicy i2v model.
+  // If the AtlasCloud provider is selected but the stored model id isn't an AtlasCloud-style
+  // id (e.g. it's still an old OpenRouter "x-ai/..." string or the "kling-v2.0" placeholder),
+  // switch it to the spicy model. Genuine atlascloud/* (and other vendor/*) ids are left alone.
+  if(state.vidProvider==="atlascloud"){
+    const vm=(state.vidModel||"").trim();
+    const isAtlasStyle=/^(atlascloud|alibaba|bytedance|google|qwen|kuaishou)\//i.test(vm);
+    if(!vm || !isAtlasStyle){
+      state.vidModel="atlascloud/wan-2.2-turbo-spicy/image-to-video";
+    }
+  }
+  if(!state.vidRes) state.vidRes="480p";
+  if(![5,8].includes(+state.vidDur)) state.vidDur=8;
   // One-time upgrade: the old default Scene-Setup prompt told the model a character's
   // name could be "null", which made it literally create characters named "null". If the
   // stored prompt is still that stock default, replace it with the corrected one. Custom
@@ -2563,9 +2578,10 @@ async function atlasGenerate(kind,body,label,setStat){
   const immediate=sub&&Array.isArray(sub.outputs)&&sub.outputs[0];
   if(immediate){dbgDone(entry,"ok",atlasOut(immediate));return atlasOut(immediate);}
   if(!id){dbgDone(entry,"error","No prediction id");throw{friendly:"AtlasCloud gave no result to fetch."};}
-  // Poll the result endpoint. The canonical path is /model/result/{id}; older examples used
-  // /model/prediction/{id}, so fall back to that if result 404s.
-  let pollPath="model/result/";
+  // Poll the prediction endpoint. The canonical path is /model/prediction/{id}
+  // (see AtlasCloud docs); some older/newer routes used /model/result/{id}, so we
+  // fall back to that if prediction 404s.
+  let pollPath="model/prediction/";
   const stepMs=(kind==="video"?5000:2000);
   for(let i=0;i<120;i++){
     if(setStat)setStat(`Generating… (${i*Math.round(stepMs/1000)}s)`);
@@ -2573,14 +2589,15 @@ async function atlasGenerate(kind,body,label,setStat){
     let r;
     try{r=await fetch(ATLAS+pollPath+id,{method:"GET",headers:{"Authorization":"Bearer "+state.atlasKey}});}
     catch(e){continue;}
-    if(r.status===404 && pollPath==="model/result/"){ pollPath="model/prediction/"; continue; }  // try legacy path
+    if(r.status===404 && pollPath==="model/prediction/"){ pollPath="model/result/"; continue; }  // try alternate path
     if(!r.ok){ if(r.status>=500)continue; dbgDone(entry,"error","HTTP "+r.status); throw{friendly:atlasMsg(r.status)}; }
     let s;try{s=await r.json();}catch(e){continue;}
     // Result may be flat ({status, outputs}) or nested under data — handle both.
     const dd=(s&&s.data)?s.data:s;
     const st=(dd&&dd.status||"").toLowerCase();
     if(st==="completed"||st==="succeeded"||st==="success"){
-      const out=atlasOut(dd.outputs&&dd.outputs[0]);
+      // Result URL may live in outputs[0] (array) or output (object/string) depending on model.
+      const out=atlasOut(dd.outputs&&dd.outputs[0])||atlasOut(dd.output)||atlasOut(dd.video_url)||atlasOut(dd.url);
       if(out){dbgDone(entry,"ok",out);return out;}
     }
     if(st==="failed"||st==="error"||st==="canceled"||st==="cancelled"){
@@ -2589,8 +2606,20 @@ async function atlasGenerate(kind,body,label,setStat){
   }
   dbgDone(entry,"error","timed out");throw{friendly:"AtlasCloud timed out. Try again or a faster model."};
 }
-// An output item may be a plain URL string or an object with a url field.
-function atlasOut(o){ if(!o)return null; if(typeof o==="string")return o; return o.url||o.image_url||o.video_url||o.output||null; }
+// An output item may be a plain URL string or an object. AtlasCloud's outputs array
+// holds objects whose URL field name varies by model, so scan for any url-looking value.
+function atlasOut(o){
+  if(!o) return null;
+  if(typeof o==="string") return o;
+  if(Array.isArray(o)){ for(const x of o){ const u=atlasOut(x); if(u)return u; } return null; }
+  if(typeof o==="object"){
+    // Prefer well-known keys, then fall back to any string value that looks like a URL.
+    const named=o.url||o.video_url||o.image_url||o.output_url||o.output||o.media_url||o.file_url||o.src;
+    if(typeof named==="string"&&named) return named;
+    for(const k in o){ const v=o[k]; if(typeof v==="string"&&/^https?:\/\//i.test(v)) return v; if(v&&typeof v==="object"){ const u=atlasOut(v); if(u)return u; } }
+  }
+  return null;
+}
 function atlasMsg(s){
   if(s===401||s===403)return "AtlasCloud rejected the key. Check your API key in Settings.";
   if(s===402)return "Out of AtlasCloud credit. Add funds at console.atlascloud.ai.";
@@ -2606,12 +2635,53 @@ async function atlasImage(prompt,negative,rule){
   const label="Image generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
   return await atlasGenerate("image",body,label,null);
 }
+// Upload a base64 data URI to AtlasCloud and get back a hosted URL.
+// AtlasCloud's image-to-video models require a hosted image URL (from uploadMedia),
+// not a raw base64 data URI. If the source is already an http(s) URL, pass it through.
+async function atlasUpload(dataUri){
+  if(!dataUri) return dataUri;
+  if(/^https?:\/\//i.test(dataUri)) return dataUri;          // already hosted
+  if(!/^data:/i.test(dataUri)) return dataUri;               // not something we can upload
+  if(!state.atlasKey) throw{friendly:"No AtlasCloud API key set. Add it in Settings."};
+  // data URI -> Blob
+  const m=/^data:([^;,]+)?(;base64)?,(.*)$/i.exec(dataUri);
+  if(!m) return dataUri;
+  const mime=m[1]||"image/png";
+  const isB64=!!m[2];
+  const raw=isB64?atob(m[3]):decodeURIComponent(m[3]);
+  const bytes=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  const blob=new Blob([bytes],{type:mime});
+  const ext=(mime.split("/")[1]||"png").split("+")[0];
+  const fd=new FormData();
+  fd.append("file",blob,"frame."+ext);
+  const entry=dbg("Upload source frame (AtlasCloud)","AtlasCloud",ATLAS+"model/uploadMedia",{file:"[image data omitted]"});
+  let res;
+  try{res=await fetch(ATLAS+"model/uploadMedia",{method:"POST",headers:{"Authorization":"Bearer "+state.atlasKey},body:fd});}
+  catch(e){dbgDone(entry,"error","CORS / network");throw{friendly:"Couldn't upload the scene image to AtlasCloud (network/CORS)."};}
+  if(!res.ok){dbgDone(entry,"error","HTTP "+res.status);throw{friendly:atlasMsg(res.status)};}
+  let d;try{d=await res.json();}catch(e){dbgDone(entry,"error","Unreadable response");throw{friendly:"AtlasCloud upload returned an unreadable response."};}
+  const sub=(d&&d.data)?d.data:d;
+  // AtlasCloud's uploadMedia returns the hosted URL under data.download_url (per API schema);
+  // accept the other common field names too in case the response shape varies.
+  const url=sub&&(sub.download_url||sub.url||sub.image_url||sub.media_url||sub.file_url||(Array.isArray(sub.urls)&&sub.urls[0])||(sub.urls&&sub.urls.download_url));
+  if(!url){dbgDone(entry,"error","No URL in upload response");throw{friendly:"AtlasCloud didn't return an uploaded image URL."};}
+  dbgDone(entry,"ok",url);
+  return url;
+}
 // Image-to-video via AtlasCloud. imageUrl may be a public URL or a base64 data URI.
 async function atlasVideo(prompt,imageUrl,negative,rule){
-  const model=(rule&&rule.model_id)||state.vidModel||"kling-v2.0";
-  const dur=[5,8].includes(state.vidDur)?state.vidDur:5;
-  const body={model,prompt,image_url:imageUrl,duration:dur};
-  if(rule&&rule.resolution)body.resolution=rule.resolution;
+  const model=(rule&&rule.model_id)||state.vidModel||"atlascloud/wan-2.2-turbo-spicy/image-to-video";
+  const dur=[5,8].includes(+state.vidDur)?+state.vidDur:5;             // model supports only 5 or 8
+  const res=(rule&&rule.resolution)||state.vidRes||"480p";             // 480p | 720p | 1080p
+  // AtlasCloud i2v wants a hosted URL in the "image" field. Upload base64 data URIs first;
+  // if the upload fails (e.g. CORS from the browser), fall back to sending the data URI
+  // directly — some deployments accept it inline.
+  let img=imageUrl;
+  try{ img=await atlasUpload(imageUrl); }
+  catch(e){ img=imageUrl; }
+  // Per the official schema, the request body is { model, image, prompt, resolution, duration, seed }.
+  const body={model,image:img,prompt,resolution:res,duration:dur,seed:-1};
   const label="Video generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
   return await atlasGenerate("video",body,label,null);
 }
@@ -6443,11 +6513,20 @@ function renderToggleSegs(){
   const rs=document.getElementById('ratioSeg');rs.innerHTML="";
   Object.keys(RATIOS).forEach(r=>seg(rs,r,state.ratio,v=>{state.ratio=v;}));
   const ds=document.getElementById('durSeg');ds.innerHTML="";
-  [5,10,15].forEach(d=>{
-    const b=document.createElement('button');b.textContent=d+"s";if(d===state.vidDur)b.classList.add('on');
+  [5,8].forEach(d=>{
+    const b=document.createElement('button');b.textContent=d+"s";if(d===+state.vidDur)b.classList.add('on');
     b.onclick=()=>{state.vidDur=d;ds.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
     ds.appendChild(b);
   });
+  const rsg=document.getElementById('resSeg');
+  if(rsg){
+    rsg.innerHTML="";
+    ["480p","720p","1080p"].forEach(rv=>{
+      const b=document.createElement('button');b.textContent=rv;if(rv===(state.vidRes||"480p"))b.classList.add('on');
+      b.onclick=()=>{state.vidRes=rv;rsg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
+      rsg.appendChild(b);
+    });
+  }
 }
 function seg(container,val,current,cb){
   const b=document.createElement('button');b.textContent=val;if(val===current)b.classList.add('on');
@@ -6563,7 +6642,7 @@ function saveSettings(notify){
   state.vidModel=document.getElementById('setVidModel').value.trim()||"x-ai/grok-imagine-video";
   // AtlasCloud, when active, uses its own model fields as the source of truth.
   {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud"&&aim.value.trim())state.imgModel=aim.value.trim();}
-  {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud"&&avm.value.trim())state.vidModel=avm.value.trim();}
+  {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")state.vidModel=avm.value.trim()||"atlascloud/wan-2.2-turbo-spicy/image-to-video";}
   state.routeOn=document.getElementById('setRouteOn').checked;
   state.routerModel=document.getElementById('setRouterModel').value.trim()||"openai/gpt-4o-mini";
   state.routerPrompt=document.getElementById('setRouterPrompt').value.trim()||DEFAULT_ROUTER;
@@ -6630,7 +6709,7 @@ function saveSettings(notify){
   store.set(K.imgRules,state.imgRules);store.set(K.vidRules,state.vidRules);
   store.set(K.routeOn,state.routeOn);store.setRaw(K.routerModel,state.routerModel);store.setRaw(K.routerPrompt,state.routerPrompt);
   store.setRaw(K.steps,state.steps);
-  store.setRaw(K.vidPrompt,state.vidPrompt);store.setRaw(K.vidDur,state.vidDur);store.set(K.vidSound,state.vidSound);
+  store.setRaw(K.vidPrompt,state.vidPrompt);store.setRaw(K.vidDur,state.vidDur);store.setRaw(K.vidRes,state.vidRes);store.set(K.vidSound,state.vidSound);
   store.set(K.autoImg,state.autoImg);store.setRaw(K.rewritePrompt,state.rewritePrompt);
   store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
   store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);
