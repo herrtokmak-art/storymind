@@ -2556,28 +2556,36 @@ async function atlasGenerate(kind,body,label,setStat){
   catch(e){dbgDone(entry,"error","CORS / network");throw{friendly:"Couldn't reach AtlasCloud (network/CORS). Check your connection."};}
   if(!res.ok){dbgDone(entry,"error","HTTP "+res.status);throw{friendly:atlasMsg(res.status)};}
   let d;try{d=await res.json();}catch(e){dbgDone(entry,"error","Unreadable response");throw{friendly:"AtlasCloud returned an unreadable response."};}
-  const id=d&&d.data&&d.data.id;
+  // Submit response: the id may be under data.id (generate examples) or flat (id).
+  const sub=(d&&d.data)?d.data:d;
+  const id=sub&&(sub.id||sub.request_id);
   // Some models may already return outputs synchronously.
-  const immediate=d&&d.data&&Array.isArray(d.data.outputs)&&d.data.outputs[0];
+  const immediate=sub&&Array.isArray(sub.outputs)&&sub.outputs[0];
   if(immediate){dbgDone(entry,"ok",atlasOut(immediate));return atlasOut(immediate);}
   if(!id){dbgDone(entry,"error","No prediction id");throw{friendly:"AtlasCloud gave no result to fetch."};}
-  // Poll the prediction endpoint.
-  const pollUrl=ATLAS+"model/prediction/"+id;
+  // Poll the result endpoint. The canonical path is /model/result/{id}; older examples used
+  // /model/prediction/{id}, so fall back to that if result 404s.
+  let pollPath="model/result/";
   const stepMs=(kind==="video"?5000:2000);
-  for(let i=0;i<90;i++){
+  for(let i=0;i<120;i++){
     if(setStat)setStat(`Generating… (${i*Math.round(stepMs/1000)}s)`);
     await new Promise(r=>setTimeout(r,stepMs));
     let r;
-    try{r=await fetch(pollUrl,{method:"GET",headers:{"Authorization":"Bearer "+state.atlasKey}});}
+    try{r=await fetch(ATLAS+pollPath+id,{method:"GET",headers:{"Authorization":"Bearer "+state.atlasKey}});}
     catch(e){continue;}
+    if(r.status===404 && pollPath==="model/result/"){ pollPath="model/prediction/"; continue; }  // try legacy path
     if(!r.ok){ if(r.status>=500)continue; dbgDone(entry,"error","HTTP "+r.status); throw{friendly:atlasMsg(r.status)}; }
     let s;try{s=await r.json();}catch(e){continue;}
-    const st=s&&s.data&&s.data.status;
+    // Result may be flat ({status, outputs}) or nested under data — handle both.
+    const dd=(s&&s.data)?s.data:s;
+    const st=(dd&&dd.status||"").toLowerCase();
     if(st==="completed"||st==="succeeded"||st==="success"){
-      const out=atlasOut(s.data.outputs&&s.data.outputs[0]);
+      const out=atlasOut(dd.outputs&&dd.outputs[0]);
       if(out){dbgDone(entry,"ok",out);return out;}
     }
-    if(st==="failed"||st==="error"){dbgDone(entry,"error",(s.data&&s.data.error)||"failed");throw{friendly:"AtlasCloud: "+((s.data&&s.data.error)||"generation failed")};}
+    if(st==="failed"||st==="error"||st==="canceled"||st==="cancelled"){
+      dbgDone(entry,"error",(dd&&dd.error)||st);throw{friendly:"AtlasCloud: "+((dd&&dd.error)||"generation failed")};
+    }
   }
   dbgDone(entry,"error","timed out");throw{friendly:"AtlasCloud timed out. Try again or a faster model."};
 }
