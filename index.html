@@ -393,7 +393,9 @@
 
         <div class="card">
           <h3>✂️ History Compaction</h3>
-          <div class="desc">Trims <i>*narration*</i> and stage directions from OLDER messages in the roleplay payload to save tokens. Recent messages are always sent in full, so the immediate scene keeps its detail. Applies only to roleplay replies — memory, image and director engines are unaffected.</div>
+          <div><label>Messages of history sent per reply</label><input type="number" id="setHistTurns" min="2" max="200" step="1" value="20"></div>
+          <div class="desc">How many of the most recent messages go into each roleplay request. Lower = cheaper &amp; faster, but the AI remembers less of the immediate scene (older facts are still covered by Memory). Default 20.</div>
+          <div class="desc" style="margin-top:10px">Below: trims <i>*narration*</i> and stage directions from OLDER messages <i>within</i> that window to save tokens. Recent messages are always sent in full. Applies only to roleplay replies — memory, image and director engines are unaffected.</div>
           <div class="kvline"><span>Strip narration from old messages</span>
             <label class="switchLbl"><input type="checkbox" id="setStripNarr"><span class="sl"></span></label></div>
           <div><label>Keep this many recent messages full</label><input type="number" id="setStripKeepFull" min="2" step="1" value="6"></div>
@@ -880,7 +882,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   // Character bio generator + auto-character (Stages 5/6)
   bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",univPrompt:"sm_univprompt",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
   // History compaction (tiered narration stripping)
-  stripNarr:"sm_stripnarr",stripKeepFull:"sm_stripkeepfull",
+  stripNarr:"sm_stripnarr",stripKeepFull:"sm_stripkeepfull",histTurns:"sm_histturns",
   // Quality-of-life features
   recapOn:"sm_recapon",
   // Relationships + freeform trackers
@@ -2186,6 +2188,7 @@ function loadState(){
     autoCharDelay:+store.raw(K.autoCharDelay,5),
     stripNarr:store.get(K.stripNarr,false),
     stripKeepFull:+store.raw(K.stripKeepFull,6),
+    histTurns:+store.raw(K.histTurns,20),
     recapOn:store.get(K.recapOn,true),
     relOn:store.get(K.relOn,true),
     relPrompt:store.raw(K.relPrompt,DEFAULT_REL),
@@ -5608,6 +5611,12 @@ function mapMsgToApi(m,soloName){
 // the user has enabled it. Narrator lines are left intact (they ARE the narration that
 // carries scene state). Returns a new array.
 function compactHistory(mapped){
+  // 1) Hard cap on how many recent messages go into the payload. Without this the full
+  //    conversation (100+ turns) was being sent every request. Default 20, configurable.
+  const lim=Math.max(2, state.histTurns||20);
+  if(mapped.length>lim) mapped=mapped.slice(-lim);
+  // 2) Optional narration stripping: keep the most recent `keep` messages full, thin out
+  //    the older ones (within the capped window).
   if(!state.stripNarr) return mapped;
   const keep=Math.max(2,state.stripKeepFull||6);
   const cut=mapped.length-keep;
@@ -7085,6 +7094,7 @@ function syncSettingsUI(){
   document.getElementById('setAutoCharDelay').value=state.autoCharDelay;
   document.getElementById('setStripNarr').checked=state.stripNarr;
   document.getElementById('setStripKeepFull').value=state.stripKeepFull;
+  {const h=document.getElementById('setHistTurns'); if(h)h.value=state.histTurns;}
   document.getElementById('setRelOn').checked=state.relOn;
   document.getElementById('setRelPrompt').value=state.relPrompt;
   document.getElementById('setTrackOn').checked=state.trackOn;
@@ -7166,6 +7176,7 @@ function saveSettings(notify){
   state.autoCharDelay=Math.max(1,+document.getElementById('setAutoCharDelay').value||5);
   state.stripNarr=document.getElementById('setStripNarr').checked;
   state.stripKeepFull=Math.max(2,+document.getElementById('setStripKeepFull').value||6);
+  {const h=document.getElementById('setHistTurns'); if(h)state.histTurns=Math.max(2,Math.min(200,+h.value||20));}
   state.relOn=document.getElementById('setRelOn').checked;
   state.relPrompt=document.getElementById('setRelPrompt').value.trim()||DEFAULT_REL;
   state.trackOn=document.getElementById('setTrackOn').checked;
@@ -7197,7 +7208,7 @@ function saveSettings(notify){
   store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
   store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);
   store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.setRaw(K.univPrompt,state.univPrompt);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
-  store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);
+  store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);store.setRaw(K.histTurns,state.histTurns);
   store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
   store.setRaw(K.locModel,state.locModel);store.setRaw(K.travelTime,state.travelTime);store.setRaw(K.travelPrompt,state.travelPrompt);store.set(K.calOn,state.calOn);store.setRaw(K.calPrompt,state.calPrompt);
   store.set(K.gmOn,state.gmOn);store.setRaw(K.gmEvery,state.gmEvery);store.setRaw(K.gmSensitivity,state.gmSensitivity);store.setRaw(K.gmModel,state.gmModel);
