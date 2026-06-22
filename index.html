@@ -537,22 +537,23 @@
       <summary><span class="sg-ico">🖼️</span><span class="sg-meta">Image Generation<div class="sg-sub">Provider, model rules (drag-order), style &amp; ratio</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
-          <div><label>Provider</label>
+          <div><label>Default provider</label>
             <div class="seg" id="imgProvSeg">
               <button data-p="modelslab" class="on">ModelsLab</button>
               <button data-p="atlascloud">AtlasCloud</button>
               <button data-p="openrouter">OpenRouter</button>
-            </div></div>
-          <div id="atlasImgWrap" style="display:none"><label>AtlasCloud image model</label><input type="text" id="setAtlasImgModel" placeholder="seedream-3.0"><div class="desc">Model id from AtlasCloud's library (e.g. seedream-3.0, flux-1.1-pro). Smart-routing rules below also apply.</div></div>
+            </div>
+            <div class="desc">Used by any rule set to “Default”. Each rule below can override this and use its own provider — so e.g. standard scenes can run on AtlasCloud while intimate scenes run on ModelsLab.</div></div>
+          <div id="atlasImgWrap" style="display:none"><label>AtlasCloud image model (default)</label><input type="text" id="setAtlasImgModel" placeholder="seedream-3.0"><div class="desc">Used when a rule has no model id of its own.</div></div>
           <div id="orImgWrap"><label>OpenRouter image model</label><input type="text" id="setImgModel" value="x-ai/grok-imagine-image-quality"></div>
-          <div id="mlImgWrap">
-            <div><label>Sampling steps (all models): <span id="stepsVal">25</span></label>
+          <div>
+            <div><label>Sampling steps (ModelsLab): <span id="stepsVal">25</span></label>
               <input type="range" id="setSteps" min="10" max="50" step="1" value="25">
               <div class="desc">Higher = more detail but slower &amp; more credits. 20–30 is a good phone-scale range.</div></div>
-            <div class="kvline"><span>🧠 Smart routing — let an LLM pick the model per scene</span>
+            <div class="kvline"><span>🧠 Smart routing — let an LLM pick the rule per scene</span>
               <label class="switchLbl"><input type="checkbox" id="setRouteOn" checked><span class="sl"></span></label></div>
             <div class="desc">When on, the router reads each scene and chooses a rule below. When off, the first enabled rule is always used. (Router model lives in the LLMs section.)</div>
-            <label style="margin-top:6px">Image model rules — top to bottom = priority. Use ▲▼ to reorder.</label>
+            <label style="margin-top:6px">Image model rules — top to bottom = priority. Use ▲▼ to reorder. Each rule picks its own provider &amp; model.</label>
             <div id="imgRuleList" style="display:flex;flex-direction:column;gap:10px"></div>
             <button class="btn sec small" onclick="addRule('img')" style="margin-top:4px">＋ Add image rule</button>
           </div>
@@ -565,17 +566,18 @@
       <summary><span class="sg-ico">🎥</span><span class="sg-meta">Video Generation<div class="sg-sub">Provider, model rules (drag-order), length &amp; sound</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
-          <div><label>Provider</label>
+          <div><label>Default provider</label>
             <div class="seg" id="vidProvSeg">
               <button data-p="modelslab" class="on">ModelsLab</button>
               <button data-p="atlascloud">AtlasCloud</button>
               <button data-p="openrouter">OpenRouter</button>
-            </div></div>
-          <div id="atlasVidWrap" style="display:none"><label>AtlasCloud video model</label><input type="text" id="setAtlasVidModel" placeholder="atlascloud/wan-2.2-turbo-spicy/image-to-video"><div class="desc">Model id from AtlasCloud (default: atlascloud/wan-2.2-turbo-spicy/image-to-video). Image-to-video: the scene image is the first frame.</div></div>
+            </div>
+            <div class="desc">Used by any rule set to “Default”. Each rule below can override this with its own provider.</div></div>
+          <div id="atlasVidWrap" style="display:none"><label>AtlasCloud video model (default)</label><input type="text" id="setAtlasVidModel" placeholder="atlascloud/wan-2.2-turbo-spicy/image-to-video"><div class="desc">Used when a rule has no model id of its own. Image-to-video: the scene image is the first frame.</div></div>
           <div id="orVidWrap"><label>OpenRouter video model</label><input type="text" id="setVidModel" value="x-ai/grok-imagine-video"></div>
-          <div id="mlVidWrap">
+          <div>
             <div class="desc">Smart routing applies to video too (toggle is shared with images).</div>
-            <label style="margin-top:6px">Video model rules — top to bottom = priority. Use ▲▼ to reorder.</label>
+            <label style="margin-top:6px">Video model rules — top to bottom = priority. Use ▲▼ to reorder. Each rule picks its own provider &amp; model.</label>
             <div id="vidRuleList" style="display:flex;flex-direction:column;gap:10px"></div>
             <button class="btn sec small" onclick="addRule('vid')" style="margin-top:4px">＋ Add video rule</button>
           </div>
@@ -2797,6 +2799,44 @@ async function pickRule(rules,prompt){
   }catch(e){ return active[0]; }
 }
 
+/* ===== PER-RULE PROVIDER DISPATCH ============================================
+   Each image/video rule may carry its own `provider`. When it does, that provider
+   generates this rule's media — so you can run e.g. the "Default" rule on AtlasCloud
+   and the "Intimate" rule on ModelsLab in the same story. A rule with no provider
+   (or provider:"") falls back to the global state.imgProvider / state.vidProvider,
+   preserving old behaviour for existing rules. */
+function effImgProvider(rule){
+  const p=rule&&rule.provider; return (p&&p!=="default")?p:(state.imgProvider||"modelslab");
+}
+function effVidProvider(rule){
+  const p=rule&&rule.provider; return (p&&p!=="default")?p:(state.vidProvider||"modelslab");
+}
+// Generate one image for an already-picked rule, routed to that rule's effective provider.
+async function genImageForRule(rule,finalPrompt,baseNeg){
+  const prov=effImgProvider(rule);
+  const neg=(rule&&rule.negative)||baseNeg;
+  if(prov==="atlascloud") return await atlasImage(finalPrompt,neg,rule);
+  if(prov==="modelslab")  return await modelslabImage(finalPrompt,neg,rule);
+  // OpenRouter / direct: ignores rule model_id, uses the global OpenRouter image model.
+  return await imageCompletion(finalPrompt,state.imgModel,RATIOS[state.ratio]);
+}
+// Generate one video for an already-picked rule, routed to that rule's effective provider.
+async function genVideoForRule(rule,vidPrompt,firstFrame,baseNeg,setStat){
+  const prov=effVidProvider(rule);
+  const neg=(rule&&rule.negative)||baseNeg;
+  if(prov==="atlascloud"){
+    if(setStat)setStat("Generating video on AtlasCloud"+(rule&&rule.label?" ("+rule.label+")":"")+"… (~1 min)");
+    return await atlasVideo(vidPrompt,firstFrame,neg,rule);
+  }
+  if(prov==="openrouter"){
+    if(setStat)setStat("Submitting to OpenRouter…");
+    const job=await submitVideo(vidPrompt,firstFrame);
+    return await pollVideo(job,setStat);
+  }
+  if(setStat)setStat("Generating video on ModelsLab"+(rule&&rule.label?" ("+rule.label+")":"")+"… (~1 min)");
+  return await modelslabVideo(vidPrompt,firstFrame,neg,rule);
+}
+
 function blobToDataURL(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("read"));r.readAsDataURL(blob);});}
 function mlCorsMsg(){return"Couldn't reach ModelsLab from the browser. Their API may block direct browser requests (CORS); it works from the packaged app or a small proxy.";}
 function mlMsg(s){
@@ -3089,16 +3129,13 @@ async function generateLocationImage(loc){
   const prompt=`${loc.name}, ${loc.description||""}, establishing wide shot, scenery, no people, atmospheric, detailed environment`.replace(/, ,/g,",");
   const neg="people, person, character, portrait, text, watermark, low quality";
   try{
-    if(state.imgProvider==="atlascloud"){
-      const rule=await pickRule(state.imgRules,prompt);
-      const r=state.locModel?Object.assign({},rule||{},{model_id:state.locModel}):rule;
-      return await atlasImage(prompt,(rule&&rule.negative)||neg,r);
-    }
-    if(state.imgProvider==="modelslab"){
-      const rule=await pickRule(state.imgRules,prompt);
+    const rule=await pickRule(state.imgRules,prompt);
+    if(rule){
       const r=state.locModel?Object.assign({},rule,{model_id:state.locModel}):rule;
-      return await modelslabImage(prompt,(rule&&rule.negative)||neg,r);
+      return await genImageForRule(r,prompt,neg);
     }
+    if(state.imgProvider==="atlascloud") return await atlasImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
+    if(state.imgProvider==="modelslab")  return await modelslabImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
     return await imageCompletion(prompt,state.locModel||state.imgModel,"1024x576");
   }catch(e){ return null; }
 }
@@ -4271,15 +4308,11 @@ async function generateProfilePic(){
     const prompt=`character portrait, ${look}, upper body, facing viewer, looking at camera, neutral background, soft studio lighting, ${STYLES[state.style]||""}`.replace(/, $/,"");
     const neg="full body, multiple people, text, watermark, deformed face, extra limbs, low quality, blurry";
     let url;
-    if(state.imgProvider==="atlascloud"){
-      const rule=await pickRule(state.imgRules,prompt);
-      url=await atlasImage(prompt,(rule&&rule.negative)||neg,rule);
-    }else if(state.imgProvider==="modelslab"){
-      const rule=await pickRule(state.imgRules,prompt);
-      url=await modelslabImage(prompt,(rule&&rule.negative)||neg,rule);
-    }else{
-      url=await imageCompletion(prompt,state.imgModel,RATIOS[state.ratio]||"576x1024");
-    }
+    {const rule=await pickRule(state.imgRules,prompt);
+     url=rule?await genImageForRule(rule,prompt,neg)
+            :(state.imgProvider==="atlascloud"?await atlasImage(prompt,neg,null)
+             :state.imgProvider==="modelslab"?await modelslabImage(prompt,neg,null)
+             :await imageCompletion(prompt,state.imgModel,RATIOS[state.ratio]||"576x1024"));}
     peImageData=url;renderAvatarPreview();toast("Profile picture ready ✓");
   }catch(e){
     toast("🖼️ "+(e.friendly||"Couldn't generate picture"));
@@ -4487,14 +4520,10 @@ async function generatePicForLook(look){
   try{
     const prompt=`character portrait, ${look}, upper body, facing viewer, looking at camera, neutral background, soft studio lighting, ${STYLES[state.style]||""}`.replace(/, $/,"");
     const neg="full body, multiple people, text, watermark, deformed face, extra limbs, low quality, blurry";
-    if(state.imgProvider==="atlascloud"){
-      const rule=await pickRule(state.imgRules,prompt);
-      return await atlasImage(prompt,(rule&&rule.negative)||neg,rule);
-    }
-    if(state.imgProvider==="modelslab"){
-      const rule=await pickRule(state.imgRules,prompt);
-      return await modelslabImage(prompt,(rule&&rule.negative)||neg,rule);
-    }
+    const rule=await pickRule(state.imgRules,prompt);
+    if(rule) return await genImageForRule(rule,prompt,neg);
+    if(state.imgProvider==="atlascloud") return await atlasImage(prompt,neg,null);
+    if(state.imgProvider==="modelslab")  return await modelslabImage(prompt,neg,null);
     return await imageCompletion(prompt,state.imgModel,RATIOS[state.ratio]||"576x1024");
   }catch(e){ return null; }
 }
@@ -5895,22 +5924,20 @@ async function illustrate(mid,replyText){
     ],state.rewriter,{temp:fnTemp("rewriter",0.6),max:fnTok("rewriter",220),dbg:"Image prompt writer"});
     const finalPrompt=rewritten.trim().replace(/^["']|["']$/g,"")+", "+STYLES[state.style];
     const baseNeg="low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature";
-    // Step 2: route to a ModelsLab model based on scene content, then generate
+    // Step 2: pick the scene's rule, then generate with THAT RULE'S provider (per-rule
+    // override, falling back to the global image provider). This lets different rules use
+    // different providers in the same story.
     let url;
-    if(state.imgProvider==="atlascloud"){
-      const rule=await pickRule(state.imgRules,finalPrompt);
-      if(rule&&rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
-      const neg=(rule&&rule.negative)||baseNeg;
-      url=await atlasImage(finalPrompt,neg,rule);
-      msg.imgRule=rule?rule.label:"";
-    }else if(state.imgProvider==="modelslab"){
-      const rule=await pickRule(state.imgRules,finalPrompt);
-      if(rule&&rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
-      const neg=(rule&&rule.negative)||baseNeg;
-      url=await modelslabImage(finalPrompt,neg,rule);
-      msg.imgRule=rule?rule.label:"";
+    const rule=await pickRule(state.imgRules,finalPrompt);
+    if(rule){
+      if(rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
+      url=await genImageForRule(rule,finalPrompt,baseNeg);
+      msg.imgRule=rule.label||"";
     }else{
-      url=await imageCompletion(finalPrompt,state.imgModel,RATIOS[state.ratio]);
+      // No rules configured at all → use the global provider directly.
+      if(state.imgProvider==="atlascloud")      url=await atlasImage(finalPrompt,baseNeg,null);
+      else if(state.imgProvider==="modelslab")  url=await modelslabImage(finalPrompt,baseNeg,null);
+      else                                      url=await imageCompletion(finalPrompt,state.imgModel,RATIOS[state.ratio]);
     }
     msg.img=url;msg.imgState="done";msg.imgPrompt=finalPrompt;
     state.images.push({id:"img_"+Date.now(),url,prompt:finalPrompt,character:cast.map(c=>c.name).join(", "),date:Date.now()});
@@ -5959,21 +5986,22 @@ async function animateScene(mid){
     const vidPrompt=motion.trim().replace(/^["']|["']$/g,"");
     const baseNeg="blur, distortion, artifacts, watermark, text";
     let videoUrl;
-    if(state.vidProvider==="atlascloud"){
-      const rule=await pickRule(state.vidRules,vidPrompt);
-      setStat("Generating video on AtlasCloud"+(rule&&rule.label?" ("+rule.label+")":"")+"… (~1 min)");
-      const neg=(rule&&rule.negative)||baseNeg;
-      videoUrl=await atlasVideo(vidPrompt,msg.img,neg,rule);
-    }else if(state.vidProvider==="openrouter"){
-      setStat("Submitting to OpenRouter…");
-      const job=await submitVideo(vidPrompt,msg.img);
-      videoUrl=await pollVideo(job,setStat);
+    const rule=await pickRule(state.vidRules,vidPrompt);
+    if(rule){
+      videoUrl=await genVideoForRule(rule,vidPrompt,msg.img,baseNeg,setStat);
     }else{
-      // ModelsLab image-to-video, routed by content (the scene image is the first frame)
-      const rule=await pickRule(state.vidRules,vidPrompt);
-      setStat("Generating video on ModelsLab"+(rule&&rule.label?" ("+rule.label+")":"")+"… (~1 min)");
-      const neg=(rule&&rule.negative)||baseNeg;
-      videoUrl=await modelslabVideo(vidPrompt,msg.img,neg,rule);
+      // No rules configured → use the global video provider directly.
+      if(state.vidProvider==="atlascloud"){
+        setStat("Generating video on AtlasCloud… (~1 min)");
+        videoUrl=await atlasVideo(vidPrompt,msg.img,baseNeg,null);
+      }else if(state.vidProvider==="openrouter"){
+        setStat("Submitting to OpenRouter…");
+        const job=await submitVideo(vidPrompt,msg.img);
+        videoUrl=await pollVideo(job,setStat);
+      }else{
+        setStat("Generating video on ModelsLab… (~1 min)");
+        videoUrl=await modelslabVideo(vidPrompt,msg.img,baseNeg,null);
+      }
     }
     msg.video=videoUrl;msg.vidState="done";msg.vidPrompt=vidPrompt;
     state.videos.push({id:"vid_"+Date.now(),url:videoUrl,prompt:vidPrompt,character:cast.map(c=>c.name).join(", "),date:Date.now()});
@@ -6833,7 +6861,17 @@ function renderRules(kind){
           <label>When to use (the router reads this)</label>
           <textarea class="fld" data-k="when" style="min-height:54px">${esc(r.when||'')}</textarea>
           <div class="row">
-            <div style="flex:1"><label>ModelsLab model_id</label><input type="text" data-k="model_id" value="${esc(r.model_id||'')}" placeholder="realtime_t2i"></div>
+            <div style="flex:1"><label>Provider</label>
+              <select data-k="provider" data-sel="1" style="width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px">
+                <option value="default"${(!r.provider||r.provider==='default')?' selected':''}>Default (use global ${kind==='img'?'image':'video'} provider)</option>
+                <option value="modelslab"${r.provider==='modelslab'?' selected':''}>ModelsLab</option>
+                <option value="atlascloud"${r.provider==='atlascloud'?' selected':''}>AtlasCloud</option>
+                <option value="openrouter"${r.provider==='openrouter'?' selected':''}>OpenRouter</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div style="flex:1"><label>Model id</label><input type="text" data-k="model_id" value="${esc(r.model_id||'')}" placeholder="realtime_t2i"></div>
             <div style="flex:1"><label>Endpoint</label><input type="text" data-k="endpoint" value="${esc(r.endpoint||(kind==='img'?'images/text2img':'video/img2video'))}"></div>
           </div>
           <label>LoRA model (optional)</label>
@@ -6849,7 +6887,8 @@ function renderRules(kind){
     // wire inputs
     c.querySelectorAll('[data-k]').forEach(inp=>{
       const key=inp.dataset.k;
-      const ev=inp.type==='checkbox'?'change':'input';
+      const isSel=inp.tagName==='SELECT';
+      const ev=(inp.type==='checkbox'||isSel)?'change':'input';
       inp.addEventListener(ev,()=>{ r[key]= inp.type==='checkbox'?inp.checked:inp.value; });
     });
     c.querySelector('[data-del]').onclick=()=>{rulesFor(kind).splice(i,1);renderRules(kind);};
@@ -6859,6 +6898,7 @@ function renderRules(kind){
 function addRule(kind){
   const id=(kind==='img'?'r_':'rv_')+Date.now();
   rulesFor(kind).push({id,label:"New rule",when:"Describe the kind of shot this model is best for.",
+    provider:"default",
     model_id:kind==='img'?"realtime_t2i":"wan2.7-i2v",endpoint:kind==='img'?"images/text2img":"video/img2video",
     lora_model:"",negative:"",enabled:true});
   renderRules(kind);
@@ -6977,11 +7017,11 @@ function setProvSeg(segId,cur){
   document.querySelectorAll('#'+segId+' button').forEach(b=>b.classList.toggle('on',b.dataset.p===cur));
 }
 function updateProvVis(){
-  document.getElementById('mlImgWrap').style.display=(state.imgProvider==="modelslab"||state.imgProvider==="atlascloud")?"block":"none";
-  document.getElementById('orImgWrap').style.display=state.imgProvider==="openrouter"?"block":"none";
+  // The rule lists are now always visible (rules carry their own providers). Only the
+  // provider-specific "default model" fields toggle with the global default provider.
+  const orImg=document.getElementById('orImgWrap'); if(orImg)orImg.style.display=state.imgProvider==="openrouter"?"block":"none";
   const aiw=document.getElementById('atlasImgWrap'); if(aiw)aiw.style.display=state.imgProvider==="atlascloud"?"block":"none";
-  document.getElementById('mlVidWrap').style.display=(state.vidProvider==="modelslab"||state.vidProvider==="atlascloud")?"block":"none";
-  document.getElementById('orVidWrap').style.display=state.vidProvider==="openrouter"?"block":"none";
+  const orVid=document.getElementById('orVidWrap'); if(orVid)orVid.style.display=state.vidProvider==="openrouter"?"block":"none";
   const avw=document.getElementById('atlasVidWrap'); if(avw)avw.style.display=state.vidProvider==="atlascloud"?"block":"none";
 }
 function syncSettingsUI(){
