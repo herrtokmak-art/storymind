@@ -4630,9 +4630,10 @@ function buildSystemPrompt(injectedMemories){
   const _uni=curUniverseObj();
   if(_uni&&_uni.setting&&_uni.setting.trim())blocks.push(`# UNIVERSE / WORLD SETTING\n${_uni.setting.trim()}`);
 
-  // 3) FORMATTING RULES
+  // 3) FORMATTING RULES — if the prompt already starts with its own "#" header, don't
+  //    wrap it in a second one (that produced an empty-looking duplicate header).
   {const _fr=(up("formatRules")||"").trim();
-   if(_fr)blocks.push(`# FORMATTING RULES\n${_fr}`);}
+   if(_fr)blocks.push(/^#/.test(_fr)?_fr:`# FORMATTING RULES\n${_fr}`);}
 
   // 4) OUT OF CHARACTER COMMANDS
   blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
@@ -4667,24 +4668,16 @@ function buildSystemPrompt(injectedMemories){
     }
   }
 
-  // 6) RESPONSE TARGET BIO — who you are responding to (the player)
-  {let pb=`# RESPONSE TARGET BIO — THIS IS WHO YOU ARE RESPONDING TO\n${state.user}`;
+  // 6) PLAYER BIO — who the human player is in this story (NOT necessarily who you're
+  //    replying to this turn; the actual target is tagged inline on the last message and
+  //    re-stated in the post-dialogue guidance block).
+  {let pb=`# PLAYER CHARACTER\n${state.user} is the human player in this roleplay.`;
    if(state.userBio&&state.userBio.trim())pb+=`\nBackground: ${state.userBio.trim()}`;
    if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
    blocks.push(pb);}
 
-  // 7) HOW YOU FEEL TOWARD RESPONSE TARGET (relationship: numbers + description)
-  if(state.relOn&&chat){
-    const feel=[];
-    cast.forEach(c=>{
-      const o=relObj(chat,c.id,"__user__");
-      if(relHasContent(o))feel.push(`${multi?c.name+" — ":""}toward ${state.user}: ${relProfile(o)}`);
-      if(multi){
-        cast.forEach(other=>{ if(other.id===c.id)return; const oo=relObj(chat,c.id,other.id); if(relHasContent(oo))feel.push(`${c.name} toward ${other.name}: ${relProfile(oo)}`); });
-      }
-    });
-    if(feel.length)blocks.push(`# HOW YOU FEEL TOWARD RESPONSE TARGET\nThese are your private feelings on six axes (trust, affection, desire, respect, comfort, fear; -100..+100) plus what they add up to. Let them shape your behavior — show them, never state the numbers. Notably, fear makes you guarded, placating, or submissive even toward someone you also like or want:\n`+feel.map(f=>`- ${f}`).join("\n"));
-  }
+  // (Relationship feelings and RESPONSE GUIDANCE are appended AFTER the dialogue by
+  //  buildTailGuidance(), so the strongest instructions sit closest to generation.)
 
   // 8) CURRENT TIME
   blocks.push(`# CURRENT TIME\nIt is currently Day ${curGameDay()} of this story.`);
@@ -4708,9 +4701,6 @@ function buildSystemPrompt(injectedMemories){
     blocks.push(`# MULTI-CHARACTER FORMAT\nPrefix each character's turn with their name and a colon on its own line, e.g.\n${names[0]}: ...\nOnly voice the characters who would naturally be present and involved in this beat; you do not have to use every character every turn. Let ${state.user} drive their own actions.`);
   }
 
-  // 13) RESPONSE GUIDANCE — last system instruction before the recent dialogue.
-  blocks.push(`# RESPONSE GUIDANCE\nRespond as ${charName}. Move the scene forward, and leave room for ${state.user} to respond.`);
-
   // Sections separated by a blank line, so every "# HEADER" starts on its own line.
   return blocks.join("\n\n");
 }
@@ -4732,9 +4722,10 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   const _uni=curUniverseObj();
   if(_uni&&_uni.setting&&_uni.setting.trim())blocks.push(`# UNIVERSE / WORLD SETTING\n${_uni.setting.trim()}`);
 
-  // 3) FORMATTING RULES
+  // 3) FORMATTING RULES — if the prompt already starts with its own "#" header, don't
+  //    wrap it in a second one (that produced an empty-looking duplicate header).
   {const _fr=(up("formatRules")||"").trim();
-   if(_fr)blocks.push(`# FORMATTING RULES\n${_fr}`);}
+   if(_fr)blocks.push(/^#/.test(_fr)?_fr:`# FORMATTING RULES\n${_fr}`);}
 
   // 4) OUT OF CHARACTER COMMANDS
   blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
@@ -4758,20 +4749,14 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
     blocks.push(ob);
   }
 
-  // 6) RESPONSE TARGET BIO (the player)
-  {let pb=`# RESPONSE TARGET BIO — THIS IS WHO YOU ARE RESPONDING TO\n${state.user}`;
+  // 6) PLAYER BIO (the human player; the per-turn target is tagged inline + in the tail)
+  {let pb=`# PLAYER CHARACTER\n${state.user} is the human player in this roleplay.`;
    if(state.userBio&&state.userBio.trim())pb+=`\nBackground: ${state.userBio.trim()}`;
    if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
    blocks.push(pb);}
 
-  // 7) HOW YOU FEEL — toward the player and the others present
-  if(state.relOn&&chat){
-    const feel=[];
-    const op=relObj(chat,p.id,"__user__");
-    if(relHasContent(op))feel.push(`Toward ${state.user}: ${relProfile(op)}`);
-    (others||[]).forEach(o=>{ const oo=relObj(chat,p.id,o.id); if(relHasContent(oo))feel.push(`Toward ${o.name}: ${relProfile(oo)}`); });
-    if(feel.length)blocks.push(`# HOW YOU FEEL TOWARD RESPONSE TARGET\nThese are your private feelings on six axes (trust, affection, desire, respect, comfort, fear; -100..+100) plus what they add up to. Let them shape your behavior — show them, never state the numbers. Notably, fear makes you guarded, placating, or submissive even toward someone you also like or want:\n`+feel.map(f=>`- ${f}`).join("\n"));
-  }
+  // (Relationship feelings and the core RESPONSE GUIDANCE are appended after the dialogue
+  //  by buildTailGuidance(). Only situational entrance/exit notes stay here.)
 
   // 8) CURRENT TIME
   blocks.push(`# CURRENT TIME\nIt is currently Day ${curGameDay()} of this story.`);
@@ -4790,18 +4775,73 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
        mems.map(m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;}).join("\n"));
   }
 
-  // 13) RESPONSE GUIDANCE / YOUR TURN — last system instruction before recent dialogue.
-  let turn=`# RESPONSE GUIDANCE\nRespond as ${p.name}. Move the scene forward. Write ONLY ${p.name}'s next turn — a single response, not a script. Do NOT prefix it with your name. Do NOT write anyone else's actions or dialogue. Leave room for others to react.`;
+  // Situational entrance/exit note only (the generic "voice only your turn" rules now live
+  // in the post-dialogue FINAL GUARDRAILS so they fire closest to generation).
   if(addressed==="leaving"){
-    turn+=`\n\nIMPORTANT: ${p.name} is leaving the scene right now. Give a brief parting beat — a final line, gesture, or exit consistent with why you're going. Keep it short.`;
+    blocks.push(`# SITUATION\n${p.name} is leaving the scene right now. Give a brief parting beat — a final line, gesture, or exit consistent with why you're going. Keep it short.`);
   }else if(addressed==="arriving"){
-    turn+=`\n\nIMPORTANT: ${p.name} has just entered the scene. Give a brief entrance beat — how you arrive and your first words or action as you join.`;
-  }else if(addressed&&addressed!=='group'&&addressed!==p.name){
-    turn+=`\n\nIMPORTANT: Right now you are responding directly to ${addressed}. Direct your reply to ${addressed}.`;
-  }else if(addressed==='group'){
-    turn+=`\n\nYou are responding to the group.`;
+    blocks.push(`# SITUATION\n${p.name} has just entered the scene. Give a brief entrance beat — how you arrive and your first words or action as you join.`);
   }
-  blocks.push(turn);
+
+  return blocks.join("\n\n");
+}
+
+/* ===== POST-DIALOGUE TAIL =====================================================
+   These two helpers implement the "instructions closest to generation win" layout:
+   the recent dialogue is followed by (1) a tag on the very last line naming who you're
+   replying to, then a single system block containing (2) RESPONSE GUIDANCE,
+   (3) HOW YOU FEEL TOWARD <target> as plain prose (no numbers), and (4) FINAL GUARDRAILS.
+
+   tagLastForTarget(history, targetName): returns a COPY of the mapped-history array with
+   the final entry annotated inline ("Name — THIS IS WHO YOU ARE RESPONDING TO" /
+   "...content... — THIS IS WHAT YOU ARE RESPONDING TO"). The original stored messages are
+   never mutated, so memory/condensation never see these tags. */
+function tagLastForTarget(history){
+  if(!Array.isArray(history)||!history.length) return history;
+  const out=history.slice();
+  const i=out.length-1;
+  const last={...out[i]};
+  const nm=last.name||"";
+  if(nm && !/THIS IS WHO YOU ARE RESPONDING TO/.test(nm))
+    last.name=`${nm} — THIS IS WHO YOU ARE RESPONDING TO`;
+  if(typeof last.content==="string" && !/THIS IS WHAT YOU ARE RESPONDING TO/.test(last.content))
+    last.content=`${last.content} — THIS IS WHAT YOU ARE RESPONDING TO`;
+  out[i]=last;
+  return out;
+}
+
+/* Build the single system message that goes AFTER the dialogue.
+   opts: { chat, selfId, selfName, targetName, targetId, multi }
+   - targetId === "__user__" for the player, otherwise a character id (or null/unknown). */
+function buildTailGuidance(opts){
+  const {chat,selfName,targetName,targetId,multi}=opts||{};
+  const blocks=[];
+
+  // (1) RESPONSE GUIDANCE
+  let g=`# RESPONSE GUIDANCE\nYou are ${selfName}. Continue the scene with your single next turn`;
+  if(targetName) g+=`, responding to ${targetName}`;
+  g+=`. Advance the moment and leave room for ${targetName||state.user} to react.`;
+  blocks.push(g);
+
+  // (2) HOW YOU FEEL TOWARD <target> — prose result only, no axis numbers.
+  if(state.relOn && chat && targetId){
+    const o=relObj(chat,opts.selfId,targetId);
+    const desc=relDescription(o);
+    if(desc && desc.trim() && !/^Roughly:/.test(desc.trim())){
+      blocks.push(`# HOW YOU FEEL TOWARD ${(targetName||"THEM").toUpperCase()}\nThese are your private feelings — let them shape how you speak and act, but never state them outright:\n${desc.trim()}`);
+    }
+  }
+
+  // (3) FINAL GUARDRAILS — deduplicated, fires last.
+  const rails=[
+    `Speak and act ONLY as ${selfName}. Never voice ${state.user}, the narrator, or any other character.`,
+    multi?`Write ONLY ${selfName}'s turn — a single response, never a script of several characters.`:`Write a single in-character response.`,
+    `Lead with dialogue and action. Keep narration thin — a light connective layer, not the substance. Avoid long stacked stage directions.`,
+    `One emotional beat is stronger than five. Don't resolve everything in one reply; leave things unsaid.`,
+    `Do NOT end with a reflexive question aimed at ${targetName||state.user}. End on what you DO or leave a beat open instead.`,
+    `Stay consistent with your established voice, mood, and the relationship above — don't reset between replies.`
+  ];
+  blocks.push(`# FINAL GUARDRAILS\n`+rails.map(r=>`- ${r}`).join("\n"));
 
   return blocks.join("\n\n");
 }
@@ -5430,7 +5470,13 @@ async function sendMessage(){
       chat.messages.filter(m=>m.role!=='system'&&(!m.sysError||m.dayMarker||m.narratorEvent||m.presenceNote))
         .map(m=>mapMsgToApi(m,solo.name))
     );
-    const messages=[sysMsg,...history];
+    // Tag the last line as the response target, then append the post-dialogue guidance.
+    const taggedHistory=tagLastForTarget(history);
+    const tailMsg={role:"system",content:buildTailGuidance({
+      chat, selfId:solo.id, selfName:solo.name,
+      targetName:state.user, targetId:"__user__", multi:false
+    })};
+    const messages=[sysMsg,...taggedHistory,tailMsg];
     if(chat.pendingGmNudge){
       messages.push({role:"system",content:`[Director's note — do not mention or acknowledge this as out-of-character. React to it naturally in-scene as ${solo.name}:] ${chat.pendingGmNudge}`});
       chat.pendingGmNudge=null;persistChats();
@@ -5651,7 +5697,21 @@ async function playCharacterTurn(chat,p,addressed){
       try{ injected=(await retrieveMemories(castConvoText(chat,4),chat)).filter(m=>m.ownerId===p.id); }catch(e){ injected=[]; }
     }
     const sys={role:"system",content:buildCharPrompt(p,others,injected,addressed)};
-    const messages=[sys,...castHistory(chat,p)];
+    // Resolve who this character is replying to → name + id for the tail guidance.
+    let targetName=state.user, targetId="__user__";
+    if(addressed && addressed!=='group' && addressed!=='leaving' && addressed!=='arriving' && addressed!==state.user){
+      const t=present.find(c=>c.name===addressed)||others.find(c=>c.name===addressed);
+      if(t){ targetName=t.name; targetId=t.id; }
+      else { targetName=addressed; targetId=null; }
+    } else if(addressed==='group'){
+      targetName=null; targetId=null;
+    }
+    const baseHist=castHistory(chat,p);
+    const taggedHist=tagLastForTarget(baseHist);
+    const tailMsg={role:"system",content:buildTailGuidance({
+      chat, selfId:p.id, selfName:p.name, targetName, targetId, multi:true
+    })};
+    const messages=[sys,...taggedHist,tailMsg];
     if(chat.pendingGmNudge){
       messages.push({role:"system",content:`[Director's note — react naturally in-scene as ${p.name}, do not mention this:] ${chat.pendingGmNudge}`});
       chat.pendingGmNudge=null;persistChats();
@@ -6491,7 +6551,12 @@ async function playSingleReaction(chat,p,eventText){
       chat.messages.filter(m=>m.role!=='system'&&(!m.sysError||m.dayMarker||m.presenceNote))
         .map(m=>mapMsgToApi(m,p.name))
     );
-    const reply=await chatCompletion([sysMsg,...history],state.model,{dbg:"Roleplay reply (gamemaster reaction)"});
+    const taggedHistory=tagLastForTarget(history);
+    const tailMsg={role:"system",content:buildTailGuidance({
+      chat, selfId:p.id, selfName:p.name,
+      targetName:state.user, targetId:"__user__", multi:false
+    })};
+    const reply=await chatCompletion([sysMsg,...taggedHistory,tailMsg],state.model,{dbg:"Roleplay reply (gamemaster reaction)"});
     typing.remove();
     const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
