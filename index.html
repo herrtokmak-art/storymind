@@ -3452,7 +3452,7 @@ function typewriterReveal(mid,fullText,onDone){
   if(!body || state.streamReveal===false){ if(body)body.innerHTML=md(fullText); if(onDone)onDone(); return; }
   cancelReveal(mid);
   const list=chatScrollEl();
-  let follow=isNearBottom(list);          // only auto-scroll if user is at the bottom…
+  let follow=isNearBottom(list)||_followAfterSend;   // follow if at bottom, or the user just sent this turn
   // …and the moment the user scrolls UP during this reveal, latch follow OFF for good. We can't
   // rely on isNearBottom() here: our own per-tick auto-scroll keeps the viewport pinned inside
   // the stick band, so a slow finger-drag never crosses the threshold before the next tick yanks
@@ -3464,7 +3464,7 @@ function typewriterReveal(mid,fullText,onDone){
     if(!list) return;
     // A drag upward of more than a few px past our last auto-position = user intent. 24px absorbs
     // sub-pixel/elastic jitter without needing the wide stick band.
-    if(list.scrollTop < _lastAutoTop - 24){ follow=false; }
+    if(list.scrollTop < _lastAutoTop - 24){ follow=false; _followAfterSend=false; }
     else if(!isNearBottom(list)){ follow=false; }
   };
   if(list) list.addEventListener('scroll',onScroll,{passive:true});
@@ -3478,7 +3478,7 @@ function typewriterReveal(mid,fullText,onDone){
     i++;                                       // reveal one more character
     const shown=fullText.slice(0,i);
     liveBody.innerHTML=md(shown);
-    if(follow){ list.scrollTop=list.scrollHeight; _lastAutoTop=list.scrollTop; }  // record our own write so onScroll can tell it apart from a user drag
+    if(follow){ setScrollTop(list,list.scrollHeight); _lastAutoTop=list.scrollTop; }  // record our own write so onScroll can tell it apart from a user drag
     if(i>=fullText.length){ cancelReveal(mid); stopFollow(); liveBody.innerHTML=md(fullText); if(onDone)onDone(); return; }
     // a longer beat after sentence-ending punctuation, a small one after clause punctuation
     const lastCh=fullText.charAt(i-1);
@@ -3508,6 +3508,23 @@ function enqueuePresent(mid){
     _drainPresentQueue();
   });
 }
+// When the USER sends a message, we want the view to follow the whole resulting turn to the
+// bottom (their line → typing indicator → reply reveal), regardless of momentary isNearBottom()
+// readings — removing the typing indicator shrinks scrollHeight, and front-trimming can clamp
+// scrollTop toward 0, which together produced the "send jumps to my first message / parks on my
+// own line" bug. This intent flag overrides the follow heuristic until the turn settles or the
+// user deliberately scrolls up.
+let _followAfterSend=false;
+// Distinguishing OUR scroll writes from the user's. Every assignment to scrollTop fires a
+// 'scroll' event, indistinguishable from a finger drag. Without this guard, the front-trim's
+// scrollTop clamp (and other programmatic scrolls during a turn) fire 'scroll', momentarily read
+// !isNearBottom, and wipe _followAfterSend BEFORE the character's reply bubble is appended — so
+// the reply append sees no follow intent, the trim clamps scrollTop to 0, and the view jumps to
+// the first message. We mark programmatic writes and have the scroll listener ignore them; only a
+// genuine user gesture clears the follow intent.
+let _progScrollUntil=0;
+function setScrollTop(list,v){ if(!list)return; _progScrollUntil=Date.now()+120; list.scrollTop=v; }
+function _isProgrammaticScroll(){ return Date.now() < _progScrollUntil; }
 function _drainPresentQueue(){
   if(_presentPlaying) return;
   const job=_presentQueue.shift();
@@ -3528,6 +3545,9 @@ function _drainPresentQueue(){
     _presentingMid=null;
     _presentPlaying=false;
     job.resolve&&job.resolve();
+    // Turn settled (nothing else queued to present) — drop the post-send follow intent so it
+    // can't bleed into unrelated background appends later.
+    if(_presentQueue.length===0) _followAfterSend=false;
     _drainPresentQueue();
   });
 }
@@ -3547,9 +3567,9 @@ function appendOneBubble(m){
   let nodes=list.querySelectorAll('[data-mid]');
   let removedH=0;
   while(nodes.length>RENDER_WINDOW){ const first=nodes[0]; removedH+=first.getBoundingClientRect().height; list.removeChild(first); nodes=list.querySelectorAll('[data-mid]'); }
-  if(removedH>0){ list.scrollTop=Math.max(0,list.scrollTop-removedH); }
+  if(removedH>0){ setScrollTop(list,Math.max(0,list.scrollTop-removedH)); }
   _renderedCount=Math.min(curChat().messages.length,RENDER_WINDOW);
-  if(wasAtBottom){ list.scrollTop=list.scrollHeight; hideNewMsgPill(); }
+  if(wasAtBottom||_followAfterSend){ setScrollTop(list,list.scrollHeight); hideNewMsgPill(); }
   else { showNewMsgPill(); }
 }
 
@@ -3740,7 +3760,7 @@ async function atlasGenerate(kind,body,label,setStat){
   const id=sub&&(sub.id||sub.request_id);
   // Some models may already return outputs synchronously.
   const immediate=sub&&Array.isArray(sub.outputs)&&sub.outputs[0];
-  if(immediate){dbgDone(entry,"ok",atlasOut(immediate));return atlasOut(immediate);}
+  if(immediate){const u=atlasOut(immediate,kind);dbgDone(entry,"ok",u);return u;}
   if(!id){dbgDone(entry,"error","No prediction id");throw{friendly:"AtlasCloud gave no result to fetch."};}
   // Poll the prediction endpoint. The canonical path is /model/prediction/{id}
   // (see AtlasCloud docs); some older/newer routes used /model/result/{id}, so we
@@ -3761,7 +3781,7 @@ async function atlasGenerate(kind,body,label,setStat){
     const st=(dd&&dd.status||"").toLowerCase();
     if(st==="completed"||st==="succeeded"||st==="success"){
       // Result URL may live in outputs[0] (array) or output (object/string) depending on model.
-      const out=atlasOut(dd.outputs&&dd.outputs[0])||atlasOut(dd.output)||atlasOut(dd.video_url)||atlasOut(dd.url);
+      const out=atlasOut(dd.outputs&&dd.outputs[0],kind)||atlasOut(dd.output,kind)||atlasOut(dd.video_url,kind)||atlasOut(dd.url,kind);
       if(out){dbgDone(entry,"ok",out);return out;}
     }
     if(st==="failed"||st==="error"||st==="canceled"||st==="cancelled"){
@@ -3772,15 +3792,53 @@ async function atlasGenerate(kind,body,label,setStat){
 }
 // An output item may be a plain URL string or an object. AtlasCloud's outputs array
 // holds objects whose URL field name varies by model, so scan for any url-looking value.
-function atlasOut(o){
+// IMPORTANT: video results (e.g. WAN i2v) often ALSO carry a cover/preview image URL in the
+// same object. A kind-blind scan could return that image URL, which then gets stuffed into a
+// <video src> and renders as a "broken video image". So extraction is kind-aware: for video we
+// prefer video-typed fields/URLs and reject image-typed ones (and vice-versa for image).
+const _VIDEO_EXT=/\.(mp4|webm|mov|m4v|gif)(\?|#|$)/i;
+const _IMAGE_EXT=/\.(png|jpe?g|webp|bmp|avif|gif)(\?|#|$)/i;   // gif counts as image here
+function _looksVideoUrl(u){ return _VIDEO_EXT.test(u) || /\/video|videos?\//i.test(u); }
+function _looksImageUrl(u){ return _IMAGE_EXT.test(u) && !_VIDEO_EXT.test(u); }
+function atlasOut(o,kind){
   if(!o) return null;
-  if(typeof o==="string") return o;
-  if(Array.isArray(o)){ for(const x of o){ const u=atlasOut(x); if(u)return u; } return null; }
+  if(typeof o==="string"){
+    // For video, a bare string that clearly points at an image is a preview, not the result.
+    if(kind==="video" && _looksImageUrl(o) && !_looksVideoUrl(o)) return null;
+    if(kind==="image" && _looksVideoUrl(o) && !_looksImageUrl(o)) return null;
+    return o;
+  }
+  if(Array.isArray(o)){
+    // First pass: a kind-matching URL. Second pass: anything (last resort).
+    for(const x of o){ const u=atlasOut(x,kind); if(u)return u; }
+    if(kind){ for(const x of o){ const u=atlasOut(x); if(u)return u; } }
+    return null;
+  }
   if(typeof o==="object"){
-    // Prefer well-known keys, then fall back to any string value that looks like a URL.
-    const named=o.url||o.video_url||o.image_url||o.output_url||o.output||o.media_url||o.file_url||o.src;
-    if(typeof named==="string"&&named) return named;
-    for(const k in o){ const v=o[k]; if(typeof v==="string"&&/^https?:\/\//i.test(v)) return v; if(v&&typeof v==="object"){ const u=atlasOut(v); if(u)return u; } }
+    // Kind-prioritized field order. For video, video_url/output beat image_url/thumbnail/cover.
+    const videoFirst=[o.video_url,o.video,o.output_url,o.output,o.url,o.media_url,o.file_url,o.src];
+    const imageFirst=[o.image_url,o.image,o.url,o.output_url,o.output,o.media_url,o.file_url,o.src];
+    const ordered=kind==="video"?videoFirst:(kind==="image"?imageFirst:[o.url,o.video_url,o.image_url,o.output_url,o.output,o.media_url,o.file_url,o.src]);
+    for(const named of ordered){
+      if(typeof named==="string" && named){
+        if(kind==="video" && _looksImageUrl(named) && !_looksVideoUrl(named)) continue; // skip preview image
+        if(kind==="image" && _looksVideoUrl(named) && !_looksImageUrl(named)) continue;
+        return named;
+      }
+    }
+    // Fallback: scan all string values; honor the kind filter first, then accept anything.
+    let anyUrl=null;
+    for(const k in o){ const v=o[k];
+      if(typeof v==="string"&&/^https?:\/\//i.test(v)){
+        if(!anyUrl)anyUrl=v;
+        if(kind==="video"&&_looksVideoUrl(v))return v;
+        if(kind==="image"&&_looksImageUrl(v))return v;
+        if(!kind)return v;
+      } else if(v&&typeof v==="object"){ const u=atlasOut(v,kind); if(u)return u; }
+    }
+    // Nothing kind-matching found; for video, only fall back to a non-image URL if one exists.
+    if(kind==="video" && anyUrl && !(_looksImageUrl(anyUrl)&&!_looksVideoUrl(anyUrl))) return anyUrl;
+    if(kind!=="video") return anyUrl;
   }
   return null;
 }
@@ -6761,7 +6819,7 @@ function isNearBottom(list){
 }
 function scrollChatToBottom(smooth){
   const list=chatScrollEl(); if(!list)return;
-  list.scrollTop=list.scrollHeight;
+  setScrollTop(list,list.scrollHeight);
   hideNewMsgPill();
 }
 // "↓ New" pill shown when content arrives while the user is scrolled up.
@@ -6781,7 +6839,10 @@ function hideNewMsgPill(){ const p=document.getElementById('newMsgPill'); if(p)p
 // Hide the pill automatically once the user scrolls back down to the bottom themselves.
 document.addEventListener('DOMContentLoaded',()=>{
   const list=chatScrollEl();
-  if(list)list.addEventListener('scroll',()=>{ if(isNearBottom(list))hideNewMsgPill(); });
+  if(list)list.addEventListener('scroll',()=>{
+    if(_isProgrammaticScroll()) return;        // ignore our own scrollTop writes (trim, follow, snap)
+    if(isNearBottom(list)){hideNewMsgPill();} else {_followAfterSend=false;}
+  });
 });
 
 // Full rebuild — used on chat-switch, restart, or any structural change. O(window), not O(all).
@@ -6795,7 +6856,7 @@ function renderChat(){ return perf("renderChat",()=>{
   for(let i=start;i<msgs.length;i++){ const m=msgs[i]; if(!m.mid) m.mid=newMid(); if(_presentPendingMids.has(m.mid)) continue; const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); }
   _renderedCount=msgs.length-start;
   // A full rebuild happens on chat-open/switch/restart — landing at the latest line is expected.
-  list.scrollTop=list.scrollHeight;
+  setScrollTop(list,list.scrollHeight);
   hideNewMsgPill();
 }); }
 // Incremental render — append only messages not yet in the DOM. Falls back to a full
@@ -6835,11 +6896,11 @@ function appendNewBubbles(){ return perf("appendNewBubbles",()=>{
       list.removeChild(first);
       nodes=list.querySelectorAll('[data-mid]');
     }
-    if(removedH>0){ list.scrollTop=Math.max(0,list.scrollTop-removedH); }
+    if(removedH>0){ setScrollTop(list,Math.max(0,list.scrollTop-removedH)); }
     _renderedCount=Math.min(msgs.length,RENDER_WINDOW);
-    // Only follow to the bottom if the user was already there; otherwise keep their
-    // position and let them know new content arrived.
-    if(wasAtBottom){ list.scrollTop=list.scrollHeight; hideNewMsgPill(); }
+    // Only follow to the bottom if the user was already there (or just sent a message this turn);
+    // otherwise keep their position and let them know new content arrived.
+    if(wasAtBottom||_followAfterSend){ setScrollTop(list,list.scrollHeight); hideNewMsgPill(); }
     else { showNewMsgPill(); }
   }
 }); }
@@ -7061,8 +7122,8 @@ function refreshBubble(mid){
   const prevTop=list?list.scrollTop:0, prevH=list?list.scrollHeight:0;
   const _restoreScroll=()=>{
     if(!list)return;
-    if(wasAtBottom){ list.scrollTop=list.scrollHeight; }
-    else { list.scrollTop=prevTop + (list.scrollHeight-prevH); } // keep the same content in view
+    if(wasAtBottom){ setScrollTop(list,list.scrollHeight); }
+    else { setScrollTop(list,prevTop + (list.scrollHeight-prevH)); } // keep the same content in view
   };
   const old=b.querySelector('.scene');
   if(old) old.remove();
@@ -7085,6 +7146,14 @@ function refreshBubble(mid){
     const vid=document.createElement('video');vid.src=m.video;vid.controls=true;vid.playsInline=true;vid.loop=true;
     vid.style.cssText="width:100%;display:block;border-radius:12px";
     vid.onloadedmetadata=_restoreScroll;
+    // If the embed fails to load (expired/signed URL, cross-origin block, or a non-video URL),
+    // don't leave a dead broken-media icon — swap in a tappable link to open it directly so the
+    // generated video is still reachable, and show why.
+    vid.onerror=()=>{
+      const fb=document.createElement('div');fb.style.cssText="padding:10px;font-size:13px;line-height:1.4";
+      fb.innerHTML=`⚠️ The video generated but couldn't play inline here. <a href="${m.video}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">Open video ↗</a>`;
+      if(vid.parentNode){ vid.parentNode.insertBefore(fb,vid); vid.remove(); }
+    };
     const bar=document.createElement('div');bar.style.padding="8px";
     const btn=document.createElement('button');btn.className="btn sec small";btn.textContent="⬇ Save video";btn.onclick=()=>downloadVideo(mid);
     bar.appendChild(btn);scene.appendChild(vid);scene.appendChild(bar);b.appendChild(scene);
@@ -7110,13 +7179,14 @@ async function sendMessage(){
 
   chat.messages.push({mid:newMid(),role:"user",content:text,present:presentIds(chat).slice()});
   chat.lastActive=Date.now();
+  _followAfterSend=true;   // follow this whole turn to the bottom (see flag definition)
   {const bn=document.getElementById('recapBanner'); if(bn)bn.classList.add('hide');}
   inp.value="";inp.style.height="auto";
   appendNewBubbles();persistChats();
   // The user just sent — always bring THEIR message into view (snap to bottom), regardless of
   // prior scroll position. appendNewBubbles only auto-follows if you were already near the
   // bottom, which (with front-trimming) could otherwise leave the view parked up the transcript.
-  {const _list=document.getElementById('chatList'); if(_list){_list.scrollTop=_list.scrollHeight;} if(typeof hideNewMsgPill==="function")hideNewMsgPill();}
+  {const _list=document.getElementById('chatList'); if(_list){setScrollTop(_list,_list.scrollHeight);} if(typeof hideNewMsgPill==="function")hideNewMsgPill();}
 
   // ----- Nobody nearby: the user is speaking to themselves. Let directors react, no character speaks. -----
   const present=presentCast(chat);
@@ -7132,7 +7202,7 @@ async function sendMessage(){
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
   typing.className="bubble ai";{const _sp=present[0];typing.innerHTML=`<div class="meta">${avatarHTML(_sp)}${esc((_sp||{name:"…"}).name)}</div><div class="typing"><span></span><span></span><span></span></div>`;}
-  list.appendChild(typing);if(isNearBottom(list))list.scrollTop=list.scrollHeight;
+  list.appendChild(typing);if(isNearBottom(list)||_followAfterSend)setScrollTop(list,list.scrollHeight);
   document.getElementById('sendBtn').disabled=true;
 
   try{
@@ -7392,7 +7462,7 @@ async function playCharacterTurn(chat,p,addressed){
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
   typing.className="bubble ai";typing.innerHTML=`<div class="meta">${avatarHTML(p)}${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
-  if(list){list.appendChild(typing);if(isNearBottom(list))list.scrollTop=list.scrollHeight;}
+  if(list){list.appendChild(typing);if(isNearBottom(list)||_followAfterSend)setScrollTop(list,list.scrollHeight);}
   try{
     let injected=[];
     if(state.mem && state.memory.length){
@@ -7977,6 +8047,7 @@ async function maybeGamemaster(chat,force){
     const since=chat.messages.filter(m=>m.role!=='system'&&!m.sysError)
       .slice(-Math.max(6,(state.gmEvery||8))).map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
     // STAGE 1 — judge (skipped when manually forced; the user explicitly wants an event)
+    var triggerContext="", energy="";
     if(!force){
       const judgeSys=fillTpl(up("gmJudge"),{user:state.user,sensitivity:state.gmSensitivity||"balanced"});
       const judgeOut=await chatCompletion([
@@ -7984,8 +8055,15 @@ async function maybeGamemaster(chat,force){
         {role:"user",content:(ctx?ctx+"\n\n":"")+`Recent exchange:\n${since}`}
       ],state.gmModel,{temp:fnTemp("gm",0.2),max:fnTok("gm",120),dbg:"Gamemaster: judge"});
       const j=parseJSON(judgeOut);
-      if(!j||!j.stale){return;}            // scene healthy → stay invisible
-      var reason=j.reason||"the scene has stalled";
+      // The judge now reports TWO independent signals: staleness (the scene has stalled) and a
+      // tension trigger (the scene is healthy but ripe for an external complication). Intervene if
+      // EITHER fires — previously this gated on j.stale only, so every trigger-only event (the
+      // whole point of the tension-trigger feature) was silently dropped even though the model
+      // returned trigger:true with a trigger_context.
+      if(!j||(!j.stale&&!j.trigger)){return;}   // scene healthy and not ripe → stay invisible
+      triggerContext=(typeof j.trigger_context==="string"&&j.trigger_context.trim())?j.trigger_context.trim():"";
+      energy=(j.energy!=null)?String(j.energy):"";
+      var reason=j.reason||(j.trigger?"the scene is ripe for a complication":"the scene has stalled");
     }else{
       // Manual trigger: give the author a concrete, scene-aware reason instead of a vague one,
       // so it grounds the beat in the current situation (and introduces someone if alone).
@@ -7994,8 +8072,15 @@ async function maybeGamemaster(chat,force){
         ? "the player is alone and wants someone to arrive — introduce a fitting character entering this location"
         : "the player asked for something to happen — nudge the current scene meaningfully";
     }
-    // STAGE 2 — author the hidden nudge
-    const authorSys=fillTpl(up("gmAuthor"),{user:state.user,reason});
+    // STAGE 2 — author the hidden nudge. Pass through the judge's trigger_context and energy so
+    // the author can ground the beat in the specific tension the judge spotted; fillTpl leaves
+    // unmapped {{placeholders}} as literal text, so we always supply all three keys.
+    const authorSys=fillTpl(up("gmAuthor"),{
+      user:state.user,
+      reason,
+      trigger_context:triggerContext||"(none provided — infer a fitting complication from the scene)",
+      energy:energy||"3"
+    });
     const presentSheet=present.map(c=>c.name+(c.look?` (${c.look})`:"")).join("; ")||"(nobody is currently nearby)";
     const offstageSheet=cast.filter(c=>!present.some(pc=>pc.id===c.id)).map(c=>c.name).join("; ");
     const nudge=await chatCompletion([
@@ -8301,7 +8386,7 @@ async function playSingleReaction(chat,p,eventText){
   const list=document.getElementById('chatList');
   const typing=document.createElement('div');
   typing.className="bubble ai";typing.innerHTML=`<div class="meta">${avatarHTML(p)}${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
-  if(list){list.appendChild(typing);if(isNearBottom(list))list.scrollTop=list.scrollHeight;}
+  if(list){list.appendChild(typing);if(isNearBottom(list)||_followAfterSend)setScrollTop(list,list.scrollHeight);}
   try{
     let injected=[];
     if(state.mem && state.memory.length){try{injected=await retrieveMemories(eventText,chat);}catch(e){injected=[];}}
