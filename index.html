@@ -52,6 +52,11 @@
   .chatAv{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);}
   .chatAvEmoji{font-size:16px;line-height:1;flex-shrink:0;}
   .bubble.user .meta{color:rgba(255,255,255,.7);}
+  .msgActions{margin-left:auto;display:inline-flex;gap:2px;opacity:0;transition:opacity .15s;}
+  .bubble:hover .msgActions,.bubble:active .msgActions{opacity:.85;}
+  .msgAct{background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:6px;line-height:1;opacity:.8;}
+  .msgAct:hover{opacity:1;background:rgba(127,127,127,.18);}
+  @media (hover:none){.msgActions{opacity:.55;}}
   .bubble em{opacity:.92;}
   .bubble code{background:rgba(0,0,0,.3);padding:1px 5px;border-radius:5px;font-size:.9em;}
   [data-theme="light"] .bubble code{background:#00000010;}
@@ -318,9 +323,6 @@
           <div><label>Your appearance (used when you're in generated images)</label>
             <textarea class="fld" id="setUserLook" placeholder="e.g. tall man, late 20s, short dark hair, stubble, worn leather jacket…" style="min-height:64px"></textarea>
             <div class="desc">When a scene image includes you, this description is used so you look consistent.</div></div>
-          <div><label>Your background</label>
-            <textarea class="fld" id="setUserBio" placeholder="who you are: history, role, anything the Gamemaster & Scene Writer should know" style="min-height:64px"></textarea>
-            <div class="desc">Given to the director engines to ground events in your character too.</div></div>
         </div>
       </div>
     </details>
@@ -424,7 +426,7 @@
           <div class="desc">How much in-game time a trip costs by default. Each location can override this.</div>
           <div class="kvline"><span>Calendar / plan detection</span>
             <label class="switchLbl"><input type="checkbox" id="setCalOn" checked><span class="sl"></span></label></div>
-          <div class="desc">Auto-logs future plans characters make so they aren't forgotten. You can edit or delete any entry.</div>
+          <div class="desc">Tracks future meetings, promises, and conditional commitments characters make so they aren't forgotten. You can edit or delete any entry.</div>
         </div>
       </div>
     </details>
@@ -483,9 +485,9 @@
           <details class="acc"><summary>🗺️ Travel narration prompt</summary>
             <textarea class="fld" id="setTravelPrompt" style="min-height:140px"></textarea>
             <div class="desc">Narrates the journey from one place to another. Use {{user}}.</div></details>
-          <details class="acc"><summary>📅 Calendar plan-detector prompt</summary>
+          <details class="acc"><summary>🗓️ Future-events detector prompt</summary>
             <textarea class="fld" id="setCalPrompt" style="min-height:140px"></textarea>
-            <div class="desc">Extracts future plans from conversation as JSON.</div></details>
+            <div class="desc">Extracts meetings, promises &amp; conditionals from conversation as JSON.</div></details>
         </div>
         <div class="card">
           <div class="subhead">🎬 Gamemaster</div>
@@ -665,12 +667,29 @@
           <h3>Storage &amp; Cleanup</h3>
           <div class="kvline"><span>Storage used</span><span id="storageUsed" class="pill">—</span></div>
           <button id="installBtn" class="btn small" style="display:none" onclick="installApp()">📲 Install app</button>
-          <button class="btn sec small" onclick="exportChats()">Export story (JSON)</button>
+
+          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)">Full backup</div>
           <button class="btn small" onclick="exportAll()">⬇️ Export everything (backup)</button>
-          <button class="btn sec small" onclick="importAllPrompt()">⬆️ Import everything (restore)</button>
-          <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importAllFile(this.files[0]); this.value='';">
+          <button class="btn sec small" onclick="importPick('all')">⬆️ Import everything (restore)</button>
+
+          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)">🎭 Roleplay <span style="font-weight:400">(this universe's chats + memories)</span></div>
+          <button class="btn sec small" onclick="exportRoleplay()">⬇️ Export roleplay</button>
+          <button class="btn sec small" onclick="importPick('roleplay')">⬆️ Import roleplay</button>
+
+          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)">🌍 Universes <span style="font-weight:400">(worlds + characters, no chats)</span></div>
+          <button class="btn sec small" onclick="exportUniverses()">⬇️ Export universes</button>
+          <button class="btn sec small" onclick="importPick('universes')">⬆️ Import universes</button>
+
+          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)">⚙️ Prompts &amp; settings <span style="font-weight:400">(prompt pack)</span></div>
+          <button class="btn sec small" onclick="exportPrompts()">⬇️ Export prompts</button>
+          <button class="btn sec small" onclick="importPick('prompts')">⬆️ Import prompts</button>
+
+          <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importDispatch(this.files[0]); this.value='';">
+
+          <div class="desc" style="margin-top:12px;font-weight:600;color:var(--danger)">Danger zone</div>
           <button class="btn danger small" onclick="confirmClear('chats')">Clear all chats</button>
           <button class="btn danger small" onclick="confirmClear('memory')">Clear all memories</button>
+          <button class="btn danger small" onclick="wipeUniverseMemory()">🧠 Wipe this universe's memories</button>
           <button class="btn danger small" onclick="confirmClear('images')">Clear gallery</button>
         </div>
       </div>
@@ -783,6 +802,72 @@
   </div>
 </div>
 
+<!-- ===== EDIT MESSAGE ===== -->
+<div class="modal" id="editMsgModal">
+  <button class="x" onclick="closeModal('editMsgModal')">×</button>
+  <div class="card editCard">
+    <h3>Edit message</h3>
+    <div class="desc" id="editMsgWho"></div>
+    <textarea class="fld" id="editMsgText" style="min-height:160px"></textarea>
+    <div class="row">
+      <button class="btn sec" onclick="closeModal('editMsgModal')">Cancel</button>
+      <button class="btn" onclick="saveEditMessage()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EDIT LOCATION (modern) ===== -->
+<div class="modal" id="locEditModal">
+  <button class="x" onclick="closeModal('locEditModal')">×</button>
+  <div class="card editCard">
+    <h3>📍 Edit location</h3>
+    <div><label>Name</label><input type="text" class="fld" id="leName" placeholder="Cafe Derya"></div>
+    <div><label>Description <span class="desc" style="display:inline">(used for the scene &amp; image)</span></label>
+      <textarea class="fld" id="leDesc" placeholder="A busy open-air coffee shop by the marina…" style="min-height:80px"></textarea></div>
+    <div><label>Type</label>
+      <div class="seg" id="leType" style="display:flex;gap:6px;margin-top:4px">
+        <button type="button" data-type="poi" onclick="leSetType('poi')">📍 Point of interest</button>
+        <button type="button" data-type="home" onclick="leSetType('home')">🏠 Home</button>
+      </div></div>
+    <div><label>Travel time to here (periods)</label>
+      <input type="number" class="fld" id="leTravel" min="0" step="1" placeholder="blank = global default" style="max-width:220px"></div>
+    <div><label>🏠 Residents <span class="desc" style="display:inline">(who lives / is found here)</span></label>
+      <div id="leResidents" style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;max-height:200px;overflow:auto"></div>
+      <div class="desc">Characters ticked here are present when you arrive at this place — and are never placed anywhere else automatically.</div></div>
+    <div class="row" style="margin-top:4px">
+      <button class="btn sec small" id="leGenPic" onclick="leGenPic(this)">✨ Generate picture</button>
+    </div>
+    <div class="row">
+      <button class="btn sec" onclick="closeModal('locEditModal')">Cancel</button>
+      <button class="btn" onclick="saveLocationEdit()">Save location</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SET TIME / PLACE (modern) ===== -->
+<div class="modal" id="sceneStateModal">
+  <button class="x" onclick="closeModal('sceneStateModal')">×</button>
+  <div class="card editCard">
+    <h3>🕐 Set time &amp; place</h3>
+    <div><label>Day</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+        <button class="btn sec small" type="button" onclick="ssAdjustDay(-1)" style="width:42px">−</button>
+        <input type="number" class="fld" id="ssDay" min="1" step="1" style="max-width:110px;text-align:center">
+        <button class="btn sec small" type="button" onclick="ssAdjustDay(1)" style="width:42px">＋</button>
+      </div></div>
+    <div><label>Time of day</label>
+      <div class="seg" id="ssPeriod" style="flex-wrap:wrap;margin-top:4px"></div></div>
+    <div><label>Location</label>
+      <select class="fld" id="ssLocSelect" onchange="ssLocPick()" style="margin-top:4px"></select>
+      <input type="text" class="fld" id="ssLocText" placeholder="or type a place" style="margin-top:6px">
+    </div>
+    <div class="row">
+      <button class="btn sec" onclick="closeModal('sceneStateModal')">Cancel</button>
+      <button class="btn" onclick="saveSceneState()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== CAST MANAGER ===== -->
 <div class="modal" id="castModal">
   <button class="x" onclick="closeModal('castModal')">×</button>
@@ -834,9 +919,7 @@
     <div><label>Appearance (used for image prompts)</label><textarea class="fld" id="peLook" placeholder="silver hair, green cloak, emerald eyes, leather armor" style="min-height:48px"></textarea></div>
     <div><label>🎯 Interject / pressure points</label><textarea class="fld" id="peInterject" placeholder="What can be used against this character or pulls them into a scene: fears, obsessions, debts, secrets, loved ones, triggers, unfinished business… The Gamemaster &amp; Scene Writer use these to craft events that hit home." style="min-height:64px"></textarea>
       <div class="desc">Hooks for the director engines — what destabilizes this character or raises the stakes for them. Shared with the Gamemaster and Scene Writer (never shown to other characters as dialogue).</div></div>
-    <div><label>📍 Where they spend their time</label>
-      <div id="peLocations" style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px"></div>
-      <div class="desc">Tick the places this character frequents. The app spreads their time across the ticked spots automatically (with varied weighting — home most, others less) and uses it to decide where they are. Leave all unticked to let it infer from a generated schedule.</div></div>
+    <div class="desc" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px">📍 <b>Where they live:</b> assign this character as a <b>resident</b> of a place in the <b>Universe → Locations</b> editor. They'll be found there (and nowhere else) unless you bring them into a scene manually.</div>
     <div class="row">
       <button class="btn danger sec small" id="peDelete" onclick="deletePersona()">Delete</button>
       <button class="btn" onclick="savePersona()">Save</button>
@@ -896,6 +979,30 @@ const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){console.warn("storage set failed",k,e);return false;}},
   raw(k,d){const v=localStorage.getItem(k);return v===null?d:v;},
   setRaw(k,v){try{localStorage.setItem(k,v);return true;}catch(e){console.warn("storage setRaw failed",k,e);return false;}}};
+
+/* ===== PERF instrumentation (temporary, opt-in) =====
+   Disabled by default — zero overhead. Enable from the console with:  __SM_PERF=true
+   Then watch console for timings around renderChat / persistChatsNow / bubble / the send loop,
+   plus DOM node counts and (Chrome) JS heap. perfDump() prints aggregate stats. */
+window.__SM_PERF=window.__SM_PERF||false;
+const _perfAgg={};
+function perf(label,fn){
+  if(!window.__SM_PERF) return fn();
+  const t0=performance.now();
+  const r=fn();
+  const finish=()=>{
+    const dt=performance.now()-t0;
+    const a=_perfAgg[label]||(_perfAgg[label]={n:0,total:0,max:0});
+    a.n++;a.total+=dt;if(dt>a.max)a.max=dt;
+    const nodes=document.getElementById('chatList')?document.getElementById('chatList').childElementCount:0;
+    const heap=(performance.memory?(performance.memory.usedJSHeapSize/1048576).toFixed(1)+"MB":"n/a");
+    console.log(`⏱ ${label} ${dt.toFixed(2)}ms · chatNodes=${nodes} · heap=${heap}`);
+  };
+  if(r&&typeof r.then==="function"){ return r.then(v=>{finish();return v;},e=>{finish();throw e;}); }
+  finish(); return r;
+}
+window.perfDump=()=>{ for(const k in _perfAgg){const a=_perfAgg[k];console.log(`${k}: n=${a.n} avg=${(a.total/a.n).toFixed(2)}ms max=${a.max.toFixed(2)}ms`);} };
+
 
 /* ===== IndexedDB media store =====
    Full-res base64 images/videos live here instead of localStorage. IndexedDB on Android
@@ -1068,73 +1175,192 @@ function handleImportFile(input){
 
 const DEFAULT_REWRITE=`## SYSTEM ROLE
 
-You convert roleplay messages into SDXL image prompts. Extract only what's visually relevant for a single cinematic frame.
+You convert roleplay messages into SDXL image prompts. You are a visual extraction engine. Extract only what's visually relevant for a single cinematic frame. Output is a single comma-separated string — no commentary, no line breaks, no brackets.
 
 ---
 
 ## CORE GUARDRAILS
 
 - Use **"Man"** and **"Woman"** (or **"Girl"** if under ~20). Never character names.
-- Woman's appearance: use exactly as provided, wrapped in \`((double parentheses))\`.
-- All images are **First Person View from the Man**. The Man is never visible. No male hands.
-- Position descriptions are short mechanical tags, never narrative sentences.
+- **Woman's appearance**: use EXACTLY the value from the character's \`appearance\` / \`look\` field. Wrap in \`((double parentheses))\`. Do not paraphrase, rewrite, or embellish.
+- **Man's appearance** (Intimate scenes only): use EXACTLY the value from the character's \`appearance\` / \`look\` field. Same rules.
 
 ---
 
-## SCENE CLASSIFICATION (do silently)
+## APPEARANCE SOURCES (priority order)
 
-| Type | Trigger |
+1. **Celebrity + descriptors** — \`((Ana de Armas, green eyes, freckles))\` — celebrity name comes FIRST, then specific traits that distinguish *this version* of the character.
+2. **Celebrity name only** — \`((Margot Robbie))\`, \`((Zendaya))\`, \`((Henry Cavill))\` — when the appearance field gives just a name.
+3. **Descriptive phrase only** — \`((long silver hair, emerald eyes))\`, \`((sharp jawline, tousled brown hair, light stubble))\` — when no celebrity is named, but a description is provided.
+4. **LLM-generated fit** — If the appearance field is EMPTY or contains only vague notes ("tall", "handsome", "attractive"), the LLM MUST generate a fitting celebrity name that matches the character's role, personality, era, and the world setting. Choose a real, well-known celebrity whose look aligns with the character. Wrap in \`((double parentheses))\`.
+5. **Absolute fallback** — Only if no celebrity fits at all: \`((adult male))\` / \`((adult female))\`. This is a last resort, not a default.
+
+### Appearance rules
+- Never invent a descriptive phrase unless the character's \`appearance\` field provides one.
+- Never upgrade or embellish: the \`appearance\` field is the source of truth.
+- When generating a celebrity (priority 4), choose someone realistic for the character — don't make every man \`((Henry Cavill))\` and every woman \`((Margot Robbie))\`. Match age, build, vibe, and setting.
+- All celebrity names must be real, recognizable, and prompt-able in SDXL.
+
+---
+
+## CLOTHING — STRICT COLOR RULE
+
+**Every garment mentioned MUST include a color.** Never output a bare garment name.
+
+| ❌ FORBIDDEN | ✅ REQUIRED |
+|-------------|-------------|
+| \`dress shirt\` | \`crisp white dress shirt\` |
+| \`silk evening gown\` | \`deep red silk evening gown\` |
+| \`jeans\` | \`faded black jeans\` |
+| \`t-shirt\` | \`worn black t-shirt\` |
+| \`tank top\` | \`cream tank top\` |
+| \`leggings\` | \`charcoal leggings\` |
+| \`sweater\` | \`oatmeal oversized sweater\` |
+| \`suit\` | \`navy tailored suit\` |
+| \`cocktail dress\` | \`burgundy cocktail dress\` |
+| \`henley\` | \`dark grey henley\` |
+| \`hoodie\` | \`sage green cropped hoodie\` |
+| \`shorts\` | \`light-wash denim shorts\` |
+| \`crop top\` | \`white crop top\` |
+| \`cloak\` | \`weathered forest-green hooded cloak\` |
+| \`armor\` | \`dark leather ranger armor\` |
+| \`bra\` | \`black lace bra\` |
+| \`thong\` | \`black lace thong\` |
+| \`skirt\` | \`charcoal pencil skirt\` |
+| \`blouse\` | \`ivory silk blouse\` |
+| \`jacket\` | \`worn brown leather jacket\` |
+| \`coat\` | \`camel wool coat\` |
+| \`boots\` | \`black ankle boots\` |
+| \`heels\` | \`strappy gold heels\` |
+| \`underwear\` | \`soft grey cotton underwear\` |
+| \`boxers\` | \`dark navy boxers\` |
+| \`pants\` | \`charcoal tailored pants\` |
+| \`shirt\` | \`crisp white button-up shirt\` |
+
+**The rule:** If you write a clothing item, a color adjective is non-negotiable. "Dress" fails. "Emerald dress" passes. Every time. No exceptions.
+
+---
+
+## CAMERA MODES
+
+| Mode | When | Description |
+|------|------|-------------|
+| **First Person POV (Man)** | Standard, Temptation, Penetration | Camera is Man's eyes. Man is never visible except hands/arms entering from frame bottom edges. |
+| **Side View (Third Person)** | Intimate | Camera is a third-party observer showing BOTH Man and Woman in frame from the side. Both characters fully visible. |
+
+---
+
+## SCENE CLASSIFICATION (internal — do silently)
+
+| Type | Trigger | Camera Mode |
+|------|---------|-------------|
+| **Intimate** | Kissing, embracing, cuddling, bodies pressed together, face-to-face closeness, flirting with physical contact, grabbing/clutching each other, foreheads touching, nuzzling — any non-penetration moment where two characters are too physically close for POV to capture the interaction | Side View |
+| **Penetration** | Penetration explicitly stated | First Person POV |
+| **Temptation** | Sexually charged, no penetration, one character performing/teasing for the other | First Person POV |
+| **Standard** | Non-sexual content | First Person POV |
+
+**The rule:** If the core visual is about TWO people interacting in close physical proximity (their faces near each other, bodies pressed together, a kiss, an embrace), it belongs in Intimate. POV can't capture a kiss — you'd just see the back of someone's head. Side view captures both faces, both bodies, the connection.
+
+---
+
+## INTIMATE SCENE RULES
+
+### Camera
+\`\`\`
+Side view camera angle, [Shot Type]
+\`\`\`
+
+### Both Characters Visible
+- **Man** and **Woman** both appear in frame.
+- Describe both appearances directly from their respective \`appearance\` fields using the priority order above.
+- Both get \`((double parentheses))\` wrapping.
+
+### Shot Type for Intimate
+
+| Dominant Visual | Shot Type |
 |---|---|
-| **Penetration** | Penetration explicitly stated |
-| **Temptation** | Sexually charged, no penetration |
-| **Standard** | Non-sexual content |
+| Full bodies pressed together, standing embrace, against wall | Full Body Shot |
+| Waist-up embrace, hands on each other's bodies | Cowboy Shot |
+| Chest-up kiss, faces close, nuzzling | Medium Close-up |
+| Lips about to touch, forehead to forehead, nose to nose | Close-up Shot |
+
+### Pose Format for Intimate
+\`\`\`
+Pose: Man [body], [head], [inclination], Woman [body], [head], [inclination], [shared position tag]
+\`\`\`
+
+Both described in the same string. Their poses relate to EACH OTHER and to the side-view camera.
+
+### Position Tags for Intimate
+\`embracing, standing\` | \`kissing against wall\` | \`lying side by side\` | \`seated closely\` | \`cuddling on couch\` | \`foreheads touching\` | \`slow dancing\` | \`woman in man's lap\`
+
+### Man's Hands in Intimate
+Man's hands are visible and described naturally — they are part of the interaction:
+- \`Man's hands on her waist\`
+- \`Man's hands cupping her face\`
+- \`Man's hands in her hair\`
+- \`Man's hands wrapped around her back\`
+- \`Man's hands gripping her hips\`
+- \`Man's hands resting on her thighs\`
+
+### Woman's Hands in Intimate
+Woman's hands are also visible:
+- \`Woman's hands on his chest\`
+- \`Woman's hands around his neck\`
+- \`Woman's hands gripping his shoulders\`
+- \`Woman's fingers tracing his jaw\`
+- \`Woman's hands in his hair\`
+- \`Woman's hands on his face\`
+
+### Action Format for Intimate
+\`\`\`
+Action: [what they are doing together — kissing, embracing, bodies pressed together, lips hovering near, etc.], Man's hands: [position], Woman's hands: [position]
+\`\`\`
+
+No penetration. No explicit anatomical interaction. The intimacy is in the proximity, the touch, the kiss.
 
 ---
 
-## POV HEIGHT RULES
+## SHOT TYPE SELECTION (Standard / Temptation / Penetration)
 
-| Position | Height |
+| Dominant Visual | Shot Type |
 |---|---|
-| Doggy Style | High Level View |
-| Missionary | High Level View |
-| Blowjob / Fellatio | High Level View |
-| Cowgirl / Reverse Cowgirl | Low Level View |
-| Face-sitting | Low Level View |
-| Standing / Against Wall | Eye Level View |
-| Temptation / Tease | Eye Level View (default) |
-| Standard (non-sexual) | Eye Level View (default) |
+| Broad action, environment, motion | Wide Shot |
+| Full body posture, walking, standing, sexual positions | Full Body Shot |
+| Mid-thigh to head, undressing, hip emphasis | Cowboy Shot |
+| Waist-up, conversation, breast play | Over-Waist Shot |
+| Chest to head, intimate non-explicit | Medium Close-up |
+| Face is the story — emotion, tears, eyes | Close-up Face Shot |
+| Single feature (lips, eye, tongue, tear) | Extreme Close-up |
+| Blowjob, handjob, tight interaction zone | Close-up Shot |
 
 ---
 
-## BODY & HEAD ORIENTATION (derive from action)
+## POV CAMERA PHRASING (Standard / Temptation / Penetration only)
+
+| Position | Camera |
+|---|---|
+| Doggy Style | Image from above, Man's POV |
+| Missionary | Image from above, Man's POV |
+| Blowjob / Fellatio | Image from above, Man's POV |
+| Cowgirl / Reverse Cowgirl | Image from below, Man's POV |
+| Temptation / Tease | Image from Man's POV |
+| Standard (non-sexual) | Image from Man's POV |
+
+---
+
+## POSE: BODY, HEAD, INCLINATION
 
 ### Body (facing direction relative to camera)
-
-- **front view** — Facing camera: missionary, cowgirl, walking toward
-- **back view** — Facing away: doggy, reverse cowgirl, walking away
-- **side view** — Perpendicular: lying side-by-side, sitting beside
-- **quarter turn** — ~45° angle: turning, mid-twist, partial profile
-- **three-quarter back** — Mostly away, slightly turned: glancing back
+\`front view\` | \`back view\` | \`side view\` | \`quarter turn\` | \`three-quarter back\`
 
 ### Head
-
-- **head facing camera** — Direct eye contact
-- **head slightly turned** — Subtle angle away, coy
-- **head quarter turn** — Looking to the side, profile
-- **head tilted** — Sideways tilt: curiosity, affection
-- **head tilted back** — Chin up: moaning, ecstasy, laughing
-- **head tilted forward** — Chin down, looking up through lashes: submission, shyness
-- **head turned away** — Facing opposite: avoidance, looking over shoulder
+\`head facing camera\` | \`head slightly turned\` | \`head quarter turn\` | \`head tilted\` | \`head tilted back\` | \`head tilted forward\` | \`head turned away\`
 
 ### Inclination
+\`leaning forward\` | \`leaning backward\` | \`leaning sideways\` | \`arched back\` | \`upright\`
 
-- **leaning forward** — Toward camera: reaching, presenting, whispering
-- **leaning backward** — Away from camera: reclining, surprise
-- **leaning sideways** — Hip cocked, lounging, asymmetric
-- **arched back** — Spine curved: doggy arch, ecstasy
-- **upright** — Neutral posture: standing, sitting
-
-### Quick-Map
+### Quick-Map (POV scenes)
 
 | Scene/Action | Body | Head | Inclination |
 |---|---|---|---|
@@ -1148,60 +1374,222 @@ You convert roleplay messages into SDXL image prompts. Extract only what's visua
 | Walking away | back view | turned away | upright |
 | Walking away, glancing back | back view | quarter turn, facing camera | upright |
 | Lying on side, camera beside | side view | slightly turned | leaning sideways |
-| Sitting side-by-side | side / quarter turn | slightly turned | upright / leaning sideways |
-| Standing face-to-face | front view | facing camera | upright |
-| Grinding on camera | front view | tilted back | leaning backward / arched back |
+| Sitting side-by-side | side / quarter turn | slightly turned | upright |
 | Undressing, back turned | back / three-quarter back | quarter turn | upright |
 | Looking over shoulder | back / three-quarter back | quarter turn, facing camera | upright |
 
+### Quick-Map (Intimate side-view scenes)
+
+| Scene/Action | Man Body | Man Head | Man Incl. | Woman Body | Woman Head | Woman Incl. | Tag |
+|---|---|---|---|---|---|---|---|
+| Kissing, standing | side view | turned toward her | leaning forward | side view | turned toward him | leaning forward | embracing, standing |
+| Kiss against wall | side view | tilted forward | leaning forward | front view / side view | tilted back | leaning backward | kissing against wall |
+| Foreheads touching | side view | tilted forward | leaning forward | side view | tilted forward | leaning forward | foreheads touching |
+| Cuddling on couch | side view | slightly turned | leaning sideways | side view | slightly turned | leaning sideways | cuddling on couch |
+| Woman in man's lap | side view | slightly turned | upright | side view | tilted forward | leaning forward | woman in man's lap |
+| Slow dancing | side view | slightly turned | upright | side view | slightly turned | upright | slow dancing |
+| Nuzzling neck | side view | tilted forward | leaning forward | side / quarter turn | tilted back | leaning backward | embracing |
+| Grabbing/clutching | side view | quarter turn | leaning forward | side view | facing him | leaning forward | bodies pressed together |
+| Lying side by side | side view | slightly turned | leaning sideways | side view | slightly turned | leaning sideways | lying side by side |
+
 ---
 
-## OUTPUT FORMAT (6 sections, comma-separated, single string)
+## MAN'S HANDS — STRICT RULES
 
-### Section 1 — Shot & Perspective
+### Intimate Scenes
+Man's hands are fully visible and described naturally as part of the two-character interaction (see Intimate section above).
 
-**Standard:** \`First Person View, [Height Level], Orientation: [body view], [head orientation], [inclination]\`
+### POV Scenes (Temptation + Penetration)
 
-**Sexual:** \`First Person View, [Height Level], Orientation: [body view], [head orientation], [inclination]\`
+**When to include:** Sexual scenes (Temptation + Penetration) only. Standard scenes: only if naturally in frame.
 
-### Section 2 — Appearance & Position
+**CRITICAL — Man is always upright.** Never describe hands supporting body weight, propping himself up, or leaning over the woman.
 
-**Standard:** \`Woman/Girl ((appearance)), [action tag]\`
+| Position | Allowed | Forbidden |
+|---|---|---|
+| **Missionary** | spreading her legs, gripping her thighs, holding her hips | ❌ pinning wrists, ❌ hands beside her head, ❌ any weight-bearing pose |
+| **Doggy** | gripping her hips, grabbing her ass, holding her waist | ❌ hands on her shoulders, ❌ reaching forward to support himself |
+| **Blowjob** | resting on back of her head, fingers in her hair, holding her chin | ❌ both hands on head, ❌ thrusting description |
+| **Cowgirl / Reverse Cowgirl** | guiding her hips, gripping her thighs, hands on her waist | ❌ hands on her breasts (blocking view), ❌ arms fully extended |
 
-**Sexual:** \`Woman/Girl ((appearance)), [short position tag]\` (mechanical only: \`supine, missionary position\`, \`on all fours, doggy style\`, \`straddling, cowgirl position\`, \`kneeling, fellatio\`, \`standing, reverse cowgirl\`)
+**Rule of thumb:** Man's hands enter from frame bottom edges. They grip, guide, spread, or rest. Never brace, pin, or support.
 
-### Section 3 — Facial Expression
+---
 
-\`Facial Expression: [visual description — eyes, mouth, brows, cheeks]\`
+## OUTPUT FORMAT
 
-### Section 4 — Clothing & Physical State
+### Intimate Scenes — 10 sections
+\`\`\`
+Side view camera angle, [Shot Type], Man ((appearance)), Woman/Girl ((appearance)), Pose: Man [body], [head], [inclination], Woman [body], [head], [inclination], [shared position tag], Facial Expression: Woman — [eyes], [mouth], Man — [eyes], [mouth], Clothing: Man — [color garment, color garment], Woman — [color garment, color garment], [physical state if any], Action: [shared action description], Man's hands: [position], Woman's hands: [position], Location: [2-5 words], Lighting: [style and quality], [focus directive]
+\`\`\`
 
-**Standard:** \`Clothing: [garment description]\`
+### POV Scenes (Standard / Temptation / Penetration) — 9 sections
+\`\`\`
+[Camera phrase], [Shot Type], Woman/Girl ((appearance)), Pose: [body], [head], [inclination], [position tag], Facial Expression: [eyes], [mouth], [color clothing, physical state if any], Action: [description], [Man's hands if applicable], Location: [2-5 words], Lighting: [style and quality], [focus directive]
+\`\`\`
 
-**Sexual:** \`[clothing state], [physical markers if any — sweat, tears, flushed skin, messy hair, fluids]\`
+---
 
-### Section 5 — Action / Interaction
+## FACIAL EXPRESSION
 
-**⚠️ PENETRATION GATE:** No penetration stated → describe only external contact/proximity. Penetration stated → explicit anatomical interaction allowed.
+**Keep minimal — 1 to 2 tags max per character.** Image generators break with excessive facial detail.
 
-**Standard:** \`Action: [non-sexual spatial relationship]\`
+**Eyes:** \`eyes closed\` | \`half-lidded eyes\` | \`wide-eyed\` | \`shy glance upward\` | \`looking over shoulder\` | \`eyes locked on his\` | \`gaze soft\` | \`teary eyes\` (use sparingly)
+**Mouth:** \`parted lips\` | \`soft smile\` | \`biting lower lip\` | \`mouth slightly open\` | \`wicked smirk\` | \`lips brushing\` | \`lips barely touching\` | \`gentle smile\`
 
-**Temptation:** \`[external contact / proximity / teasing], no penetration\`
+**DO NOT describe:** tears streaming, sweat on face, saliva on face, "expression of...", narrative emotions. Keep it mechanical.
 
-**Penetration:** \`[explicit anatomical interaction description]\`
+---
 
-### Section 6 — Location
+## CLOTHING & PHYSICAL STATE
 
+### Standard
+\`\`\`
+Clothing: [color garment, color garment]
+\`\`\`
+
+### Intimate
+\`\`\`
+Clothing: Man — [color garment, color garment], Woman — [color garment, color garment]
+\`\`\`
+
+### Sexual (Temptation + Penetration)
+\`\`\`
+[color garment state], [minimal physical markers]
+\`\`\`
+
+**Physical markers (use sparingly, 1 max):** \`skin glistening\` | \`hair messy\` | \`flushed skin\` | \`sweat-sheened\`
+
+**AVOID:** tear-streaked cheeks, saliva on chin, drool, excessive fluid descriptions. These break the image generator.
+
+---
+
+## ACTION / INTERACTION
+
+| Scene Type | Content |
+|---|---|
+| **Standard** | \`Action: [non-sexual spatial relationship]\` |
+| **Intimate** | \`Action: [shared action — kissing, embracing, bodies pressed together, lips hovering near, nuzzling, etc.], Man's hands: [position], Woman's hands: [position]\` |
+| **Temptation** | \`[external contact/proximity], no penetration, Man's hands: [position]\` |
+| **Penetration** | \`[explicit anatomical interaction], Man's hands: [position]\` |
+
+---
+
+## LOCATION
 \`Location: [2-5 word description]\`
+
+---
+
+## LIGHTING
+\`Lighting: [style and quality]\`
+
+| Mood | Options |
+|------|---------|
+| Warm/intimate | \`warm tungsten glow, soft shadows\` | \`golden hour, soft warm glow\` | \`warm firelight, soft flickering glow\` | \`warm amber glow, soft bokeh\` |
+| Cool/dramatic | \`moody chiaroscuro, dramatic contrast\` | \`cool blue moonlight, deep shadows\` | \`soft diffused backlight, gentle haze\` | \`moody chiaroscuro, warm tungsten\` |
+| Natural | \`natural window light, golden hour\` | \`soft diffused daylight, cool tones\` | \`rainy window light, grey undertones\` |
+| Dark/intense | \`dim bedroom, warm tungsten glow\` | \`dark room, single lamp\` | \`steamy bathroom, soft diffused backlight\` |
+
+---
+
+## FOCUS
+\`[focus directive only]\`
+
+**Allowed:** \`sharp focus on [subject]\` | \`blurred background\` | \`shallow depth of field\` | \`sharp focus on both faces\` | \`focus on the space between them\` | \`sharp focus on point of penetration\`
+**Do NOT add:** photorealistic, cinematic lighting, ultra-detailed, 8k, bokeh, natural lighting, soft lighting, ultra-detailed skin — these come from the style selector automatically.
+
+---
+
+## EXAMPLES
+
+### Intimate — Kissing Against Wall
+\`\`\`
+Side view camera angle, Cowboy Shot, Man ((Henry Cavill)), Woman ((Margot Robbie)), Pose: Man side view, head tilted forward, leaning forward, Woman front view, head tilted back, leaning backward, kissing against wall, Facial Expression: Woman — eyes closed, parted lips, Man — eyes closed, Clothing: Man — crisp white dress shirt, sleeves rolled up, dark charcoal trousers, Woman — deep red silk evening gown, one strap fallen, Action: bodies pressed together, kissing deeply, Man's hands: one hand cupping her face, other hand gripping her waist, Woman's hands: fingers gripping his shoulders, Location: dim hotel corridor, Lighting: moody chiaroscuro, warm tungsten, sharp focus on both faces, blurred background
+\`\`\`
+
+### Intimate — Forehead Touch
+\`\`\`
+Side view camera angle, Medium Close-up, Man ((sharp jawline, tousled brown hair, light stubble)), Woman ((Ana de Armas)), Pose: Man side view, head tilted forward, leaning forward, Woman side view, head tilted forward, leaning forward, foreheads touching, Facial Expression: Woman — eyes closed, lips barely touching, Man — eyes closed, soft smile, Clothing: Man — dark grey henley, faded black jeans, Woman — oatmeal oversized knit sweater, Action: foreheads pressed together, lips hovering close, breath mingling, Man's hands: cupping her face gently, Woman's hands: fingers wrapped around his wrists, Location: rainy window background, Lighting: soft diffused daylight, cool tones, sharp focus on both faces, shallow depth of field
+\`\`\`
+
+### Intimate — Cuddling on Couch
+\`\`\`
+Side view camera angle, Full Body Shot, Man ((Chris Evans, short beard)), Girl ((Zendaya)), Pose: Man side view, head slightly turned, leaning sideways, Girl side view, head slightly turned, leaning sideways, cuddling on couch, Facial Expression: Girl — eyes closed, soft smile, Man — gaze soft, gentle smile, Clothing: Man — faded black jeans, worn charcoal t-shirt, Girl — charcoal leggings, sage green cropped hoodie, Action: girl curled against man's chest, his arm wrapped around her, her head tucked under his chin, Man's hands: arm wrapped around her shoulders, Woman's hands: hand resting on his chest, Location: cozy living room, fireplace, Lighting: warm firelight, soft flickering glow, sharp focus on both figures, blurred background
+\`\`\`
+
+### Intimate — Slow Dancing
+\`\`\`
+Side view camera angle, Cowboy Shot, Man ((Oscar Isaac, clean-shaven, slicked back dark hair)), Woman ((Scarlett Johansson)), Pose: Man side view, head slightly turned, upright, Woman side view, head slightly turned, upright, slow dancing, Facial Expression: Woman — half-lidded eyes, parted lips, Man — eyes locked on hers, soft smile, Clothing: Man — navy tailored suit, crisp white shirt, Woman — burgundy cocktail dress, Action: slow dancing, bodies close, her arms around his neck, his hands on her lower back, Man's hands: on her lower back, Woman's hands: around his neck, Location: dim ballroom, fairy lights, Lighting: warm amber glow, soft bokeh background, sharp focus on both faces, shallow depth of field
+\`\`\`
+
+### Intimate — Nuzzling / Neck Kiss
+\`\`\`
+Side view camera angle, Medium Close-up, Man ((Tom Hardy, stubble, strong jaw)), Woman ((Sydney Sweeney)), Pose: Man side view, head tilted forward, leaning forward, Woman quarter turn, head tilted back, leaning backward, embracing, Facial Expression: Woman — eyes closed, mouth slightly open, Man — eyes closed, Clothing: Man — partially unbuttoned white shirt, Woman — cream tank top, hair messy, Action: man's lips against her neck, her body arched against him, Man's hands: one hand in her hair, other on her lower back, Woman's hands: gripping his biceps, Location: dark bedroom, moonlight through window, Lighting: cool blue moonlight, deep shadows, sharp focus on the kiss, blurred background
+\`\`\`
+
+---
+
+### Standard — Walking Away, Glancing Back
+\`\`\`
+Image from Man's POV, Full Body Shot, Girl ((Jenna Ortega)), Pose: back view, head quarter turn facing camera, upright, walking away, Facial Expression: soft smile, parted lips, Clothing: light-wash denim shorts, white crop top, Action: girl walking toward doorway, looking back over shoulder, Location: sunlit hallway, Lighting: natural window light, golden hour, sharp focus on girl's expression, blurred background
+\`\`\`
+
+### Standard — Face-to-Face
+\`\`\`
+Image from Man's POV, Waist Shot, Woman ((long silver hair, emerald eyes)), Pose: front view, head facing camera, leaning forward, standing, Facial Expression: wide-eyed, parted lips, Clothing: weathered forest-green hooded cloak, dark leather ranger armor, Action: woman reaching toward camera, Location: medieval tavern background, Lighting: warm firelight and deep shadows, sharp focus on woman's eyes, blurred background
+\`\`\`
+
+### Temptation — Undressing
+\`\`\`
+Image from Man's POV, Cowboy Shot, Woman ((Margot Robbie)), Pose: three-quarter back view, head quarter turn facing camera, upright, standing, undressing, Facial Expression: half-lidded eyes, wicked smirk, deep red silk evening gown sliding off shoulders, back exposed, black lace thong visible, Action: woman's fingertips trailing down zipper, Man's hands: reaching toward her from below frame, Location: luxury hotel suite, Lighting: moody chiaroscuro, sharp focus on woman's expression, blurred background
+\`\`\`
+
+### Temptation — Mouth Teasing
+\`\`\`
+Image from Man's POV, Close-up Shot, Woman ((Scarlett Johansson)), Pose: front view, head tilted forward, leaning forward, kneeling, teasing, Facial Expression: half-lidded eyes, parted lips, black lace bra, hair messy, Action: woman's open mouth inches from erect penis, teasing proximity, no penetration, Man's hands: hand on her chin guiding her, Location: dim bedroom, Lighting: warm tungsten glow, soft shadows, sharp focus on lips near camera, shallow depth of field
+\`\`\`
+
+### Penetration — Missionary
+\`\`\`
+Image from above, Man's POV, Full Body Shot, Woman ((Ana de Armas)), Pose: front view, head tilted back, leaning backward, supine, missionary, Facial Expression: eyes closed, mouth slightly open, completely nude, skin glistening, Action: erect penis fully inside vagina, point of insertion visible, Man's hands: spreading her legs open at frame edges, Location: dim bedroom, rumpled white sheets, Lighting: warm tungsten glow, soft shadows, sharp focus on point of penetration, shallow depth of field
+\`\`\`
+
+### Penetration — Doggy Style
+\`\`\`
+Image from above, Man's POV, Full Body Shot, Girl ((Sydney Sweeney)), Pose: back view, head quarter turn facing camera, arched back, on all fours, doggy style, Facial Expression: half-lidded eyes, biting lower lip, black lace thong pulled aside, charcoal skirt hiked up, Action: erect penis penetrating vagina, labia stretched around shaft, Man's hands: gripping her ass at bottom edge of frame, Location: luxury hotel, Lighting: moody chiaroscuro, dramatic contrast, sharp focus on point of penetration, shallow depth of field
+\`\`\`
+
+### Penetration — Fellatio
+\`\`\`
+Image from above, Man's POV, Close-up Shot, Woman ((Margot Robbie)), Pose: front view, head tilted forward, leaning forward, kneeling, fellatio, Facial Expression: shy glance upward, biting lower lip, black lace bra, hair messy, Action: mouth wrapped around erect penis, lips stretched, Man's hands: hand resting on back of her head, Location: dim bedroom, Lighting: soft diffused backlight, gentle haze, sharp focus on lips, shallow depth of field
+\`\`\`
+
+### Penetration — Cowgirl
+\`\`\`
+Image from below, Man's POV, Full Body Shot, Girl ((Zendaya)), Pose: front view, head tilted forward, leaning forward, straddling, cowgirl position, Facial Expression: half-lidded eyes, parted lips, completely nude, skin glistening, Action: female lowering onto erect penis, tip spreading labia, Man's hands: guiding her hips from below frame, Location: sunlit bedroom, Lighting: golden hour, soft warm glow, sharp focus on point of penetration, shallow depth of field
+\`\`\`
+
+### Penetration — Reverse Cowgirl
+\`\`\`
+Image from below, Man's POV, Full Body Shot, Woman ((Scarlett Johansson)), Pose: three-quarter back view, head quarter turn facing camera, leaning forward, reverse cowgirl, Facial Expression: looking over shoulder, wicked smirk, completely nude, skin glistening, Action: erect penis fully inside, woman's back arched, Man's hands: gripping her waist from below frame, Location: steamy bathroom, Lighting: soft diffused backlight, sharp focus on point of penetration, shallow depth of field
+\`\`\`
 
 ---
 
 ## DECISION FLOW
 
-1. **Orientation** → Body view + head + inclination from action (see Quick-Map).
-2. **Scene type** → Standard / Temptation / Penetration.
-3. **Penetration gate** → Controls Section 
-4. **Assemble** → 6 sections, comma-separated, single string. No brackets, no commentary, no line breaks.`;
+1. **Scene classification** → Intimate / Penetration / Temptation / Standard
+2. **If Intimate** → Side view camera. Build both-character pose string from Intimate Quick-Map. Pull Man's appearance using priority order. Pull Woman's appearance using priority order. Both sets of hands. Every garment gets a color.
+3. **If POV** → Camera phrase from position. Standard POV structure. Man invisible except hands. Pull Woman's appearance using priority order. Every garment gets a color.
+4. **Shot type** → What dominates the frame?
+5. **Pose** → From Quick-Map (POV) or Intimate Quick-Map (side view)
+6. **Facial expression** → 1-2 mechanical tags per visible character
+7. **Clothing** → Every item gets a color. No exceptions.
+8. **Man's hands** → Intimate: natural visible interaction. POV sexual: allowed grip types from frame bottom. Never wrists, never weight-bearing.
+9. **Penetration gate** → Controls Action section for POV scenes. Intimate scenes never have penetration.
+10. **Physical state** → 1 fluid/mess tag max, keep it minimal.
+11. **Focus** → One focus directive only. No style/quality tags.
+12. **Assemble** → 9 sections (POV) or 10 sections (Intimate), comma-separated, single string. No commentary.`;
 
 const DEFAULT_VIDPROMPT=`## SYSTEM ROLE
 
@@ -1626,31 +2014,211 @@ const REL_DIMS=[
 
 const DEFAULT_REL=`You are the RELATIONSHIP TRACKER for an ongoing roleplay. You track, for one character at a time, HOW THAT CHARACTER FEELS about another person (usually the player), across six independent axes. Each axis runs from -100 to +100.
 
-THE SIX AXES (and what their poles mean):
-- trust: -100 = deep distrust / expects betrayal · 0 = no opinion · +100 = complete trust, would rely on them with anything.
-- affection: -100 = hatred / wants them gone · 0 = indifferent · +100 = love, deep fondness.
-- desire: -100 = repulsion / no attraction · 0 = neutral · +100 = strong romantic/sexual attraction.
-- respect: -100 = contempt / sees them as beneath notice · 0 = neutral · +100 = admiration, looks up to them.
-- comfort: -100 = on edge / can never relax around them · 0 = neutral · +100 = total ease, can fully relax.
-- fear: -100 = feels completely safe, even dominant over them · 0 = no fear · +100 = terror — sees them as dangerous, intimidating, or a physical/social threat.
+---
 
-NUMBER GUIDANCE (how the magnitudes read, and how the axes relate):
-- 0 to ±15 = faint, barely-there leaning. ±15 to ±40 = a clear, settled feeling. ±40 to ±70 = strong. ±70+ = defining / overwhelming.
-- The axes are INDEPENDENT and can disagree: a character can desire someone they don't trust (high desire, low trust), respect a rival they dislike (high respect, low affection), or fear someone they're also attracted to (high desire, high fear).
-- FEAR is distinct from comfort: comfort is everyday ease/tension; fear is the sense that this person is a genuine threat. A raised voice or a slammed door spikes fear; a credible threat, an act of violence, or a display of power over the character spikes it hard. Fear decays slowly as the person proves safe.
-- HOW FEAR COLORS THE REST: high fear suppresses how freely the other feelings are expressed — a character who fears someone may still love or desire them, but acts guarded, placating, or submissive rather than open. Very high fear can curdle affection into resentment over time and erodes comfort. Removing a threat (protection, reassurance, the danger passing) lets fear fall and the buried feelings surface.
-- Feelings are not symmetric and not reciprocal — this evaluation is ONLY how the listed character feels about the target.
+## THE SIX AXES
 
-HOW FEELINGS MOVE — decide deltas based ONLY on what just happened in the latest exchange, not on history you imagine:
-- Ordinary beats nudge an axis by 0 to ±5. A real moment — a kindness, a slight, a flirtation, a broken confidence, a flash of anger — can move ±5 to ±15. A major event — a betrayal, a rescue, a confession, public humiliation, a threat, real cruelty or tenderness — can move ±15 to ±30. Most turns leave most axes at 0.
-- A character can hide what they feel while still feeling it — judge the underlying feeling, not the polite surface.
+| Axis | Range | -100 | 0 | +100 |
+|------|-------|------|---|------|
+| **trust** | -100 to +100 | Deep distrust / expects betrayal | No opinion | Complete trust, would rely on them with anything |
+| **affection** | -100 to +100 | Hatred / wants them gone | Indifferent | Love, deep fondness, would grieve their absence |
+| **desire** | -100 to +100 | Repulsion / physical revulsion | Neutral | Strong romantic/sexual attraction, magnetic pull |
+| **respect** | -100 to +100 | Contempt / sees them as beneath notice | Neutral | Admiration, looks up to them, values their judgment |
+| **comfort** | -100 to +100 | On edge / can never relax around them | Neutral | Total ease, can fully relax, silence isn't awkward |
+| **fear** | -100 to +100 | Feels completely safe, even dominant | No fear | Terror — sees them as dangerous, intimidating, a threat |
 
-You are given the character's CURRENT axis values and the latest exchange (as the preceding messages). Then:
-1. Decide a delta for each axis (use 0 when nothing in the exchange touched it).
-2. Write a short, vivid DESCRIPTION (1-2 sentences, in third person) of how this character now feels about the target given the resulting numbers — the plain-English meaning the numbers add up to, including how any fear shapes the way they act. This description is what the character will actually act on.
+---
 
-Return ONLY strict JSON:
-{"trust":<delta>,"affection":<delta>,"desire":<delta>,"respect":<delta>,"comfort":<delta>,"fear":<delta>,"description":"<1-2 sentence summary of how they feel now>"}`;
+## THE FUNDAMENTAL DYNAMICS — AXES ARE NOT EQUAL
+
+### Deep Axes (Trust & Affection)
+These are the **bedrock** of the relationship. They move **slowly**, resist change, and when they do shift, the impact is profound — they color every interaction and how the other axes are *expressed*.
+
+- **Trust** is the hardest to earn and the hardest to repair. Trivial gestures do not move it. Only **consistent patterns over time** shift trust in small increments, but a **single major event** — a betrayal, a rescue, a secret kept or revealed, a lie discovered, a promise kept against all odds — can cause a **drastic jump** (±20 to ±40). Trust lost is trust that must be rebuilt slowly, if at all. High trust acts as a **multiplier** on affection and comfort: when trust is high, affection feels safe to express; when trust is low, even love feels like a weapon the other person might use.
+- **Affection (Love)** is similarly slow and weighty, but distinct from trust. Affection is the *emotional bond* — warmth, fondness, the ache of missing someone. You can love someone you don't trust (tragic, painful) and trust someone you don't love (reliable but cold). Affection shifts through **emotional resonance**: shared vulnerability, tenderness, cruelty, rejection, a thoughtful gift, a cutting word. Like trust, it resists change unless the moment is genuinely significant. Once affection is deep, it can survive long periods of neglect — but it can also curdle into something bitter if trust collapses.
+
+### Surface Axis (Desire)
+Desire is **volatile, reactive, and fickle**. It spikes and crashes on a hair trigger — a look, a touch, a scent, a careless word, a moment of revealed beauty or ugliness. It burns hot but leaves the foundation largely undisturbed.
+
+- Ordinary beats can move desire ±5 to ±15. A real moment can swing it ±15 to ±30. Major events can send it careening ±30 to ±50.
+- But desire is **less effective** than deep axes: a spike of desire doesn't automatically make the character trust more, love more, or respect more. It can exist entirely on its own, and often does. High desire with low trust creates **conflicted, tortured attraction**. High desire with high affection creates **passionate, consuming love**. High desire with high fear creates **dangerous, thrilling, self-destructive pull**.
+- Desire also **decays** faster than any other axis if not fed — it cools when the stimulus is gone, drifting back toward zero or toward whatever the deep axes would naturally support.
+
+### Mediating Axes (Respect, Comfort, Fear)
+- **Respect** is semi-stable. It builds through demonstrated competence, integrity, and strength; it falls through humiliation, cowardice, or hypocrisy. It can coexist with dislike (a respected rival) or with affection (a beloved mentor).
+- **Comfort** is the barometer of everyday ease. It moves with familiarity and safety. It is eroded by tension, unpredictability, and especially by high fear, but it can be rebuilt with consistent calm.
+- **Fear** is the **most distorting axis**. High fear does not just sit alongside the other feelings — it **suppresses their expression**. A character who fears someone may still love, desire, or respect them, but they act **guarded, placating, or submissive**. Very high fear can curdle affection into resentment over time and erodes comfort to nothing. Removing the threat (protection, reassurance, the danger passing) lets fear fall and the buried feelings surface — sometimes explosively.
+
+---
+
+## HOW THE AXES INTERACT
+
+- **Fear suppresses expression**: The higher the fear, the less openly the character shows affection, desire, or even trust. They may *feel* love but act cold or compliant.
+- **Trust unlocks affection and comfort**: Without trust, affection feels unsafe and comfort is impossible. A character who loves but doesn't trust is in constant emotional turmoil.
+- **Desire is accelerated by fear (sometimes)**: Danger can heighten attraction (the "dangerous crush" effect), but only up to a point — overwhelming fear eventually kills desire.
+- **Respect and affection can clash**: It's possible — and painful — to respect someone's abilities while personally disliking them, or to love someone you don't respect (a charming failure).
+- **Comfort and trust are linked but distinct**: You can trust someone's competence (high trust) but still be on edge around them because they're volatile (low comfort). You can feel comfortable around someone you don't fully trust because they're warm and predictable.
+- **Affection and desire often travel together but can diverge**: Desire without affection is lust; affection without desire is a deep platonic or familial bond. When both are high with high trust, you get the closest thing to a secure, passionate partnership.
+
+---
+
+## NUMBER GUIDANCE (magnitudes)
+
+| Range | Meaning |
+|-------|---------|
+| 0 to ±15 | Faint, barely-there leaning — a whisper of a feeling |
+| ±15 to ±40 | A clear, settled feeling — the character would name it if asked |
+| ±40 to ±70 | Strong — it shapes decisions and colors their inner monologue |
+| ±70+ | Defining / overwhelming — the character's world orbits this feeling |
+
+The axes are **independent** and often disagree. Contradictions are human: high desire + low trust, high respect + low affection, high fear + high desire. Embrace them.
+
+---
+
+## HOW FEELINGS MOVE (delta guidance)
+
+Base your deltas **only on what just happened** in the latest exchange, not on imagined history.
+
+| Axis | Ordinary beat | Real moment | Major event | Notes |
+|------|--------------|-------------|-------------|-------|
+| **trust** | 0 to ±3 | ±3 to ±10 | ±20 to ±40 (jumps drastically) | Hard to move; major events hit hard |
+| **affection** | 0 to ±5 | ±5 to ±15 | ±15 to ±35 | Similar to trust, slightly more responsive to emotional beats |
+| **desire** | ±5 to ±15 | ±15 to ±30 | ±30 to ±50 | Volatile, fast-moving, fickle; also decays quickly if not fed |
+| **respect** | 0 to ±5 | ±5 to ±15 | ±15 to ±30 | Steady, not easily shaken |
+| **comfort** | 0 to ±5 | ±5 to ±15 | ±15 to ±25 | Eroded by fear, rebuilt by calm |
+| **fear** | 0 to ±5 | ±5 to ±20 | ±20 to ±40 | Spikes fast, decays slowly |
+
+- A character can **hide** what they feel while still feeling it. Judge the underlying feeling, not the polite surface.
+- When fear is high (>40), the character's **observable behavior** will be filtered through that fear regardless of the other numbers.
+
+---
+
+## OUTPUT FORMAT
+
+Given the character's CURRENT axis values and the latest exchange, you will:
+
+1. Decide a **delta** for each axis.
+2. Write a short, vivid **description** (1–2 sentences, third person) of how this character now feels about the target, reflecting the *resulting numbers* and how any fear shapes their expression.
+
+Return **only** this strict JSON:
+
+\`\`\`json
+{
+  "trust": <delta>,
+  "affection": <delta>,
+  "desire": <delta>,
+  "respect": <delta>,
+  "comfort": <delta>,
+  "fear": <delta>,
+  "description": "<1-2 sentence summary>"
+}
+\`\`\`
+\`\`\`
+
+This is the revised system prompt. I can deliver it directly. If the user instead wanted me to modify a specific existing tracker instance (with given numbers), they'll need to provide the current values and the latest exchange. But based on their message, it seems they want the system prompt itself changed. I'll respond with the revised prompt.Here is the revised **Relationship Tracker** system prompt, rebuilt around your design: desire is volatile and superficial, trust and affection are slow-moving but foundational (with trust capable of drastic jumps on major events), and the interplay between all six axes is expanded in detail.
+
+\`\`\`markdown
+You are the RELATIONSHIP TRACKER for an ongoing roleplay. You track, for one character at a time, HOW THAT CHARACTER FEELS about another person (usually the player), across six independent axes. Each axis runs from -100 to +100.
+
+---
+
+## THE SIX AXES
+
+| Axis | Range | -100 | 0 | +100 |
+|------|-------|------|---|------|
+| **trust** | -100 to +100 | Deep distrust / expects betrayal | No opinion | Complete trust, would rely on them with anything |
+| **affection** | -100 to +100 | Hatred / wants them gone | Indifferent | Love, deep fondness, would grieve their absence |
+| **desire** | -100 to +100 | Repulsion / physical revulsion | Neutral | Strong romantic/sexual attraction, magnetic pull |
+| **respect** | -100 to +100 | Contempt / sees them as beneath notice | Neutral | Admiration, looks up to them, values their judgment |
+| **comfort** | -100 to +100 | On edge / can never relax around them | Neutral | Total ease, can fully relax, silence isn't awkward |
+| **fear** | -100 to +100 | Feels completely safe, even dominant | No fear | Terror — sees them as dangerous, intimidating, a threat |
+
+---
+
+## THE FUNDAMENTAL DYNAMICS — AXES ARE NOT EQUAL
+
+### Deep Axes (Trust & Affection)
+These are the **bedrock** of the relationship. They move **slowly**, resist change, and when they do shift, the impact is profound — they color every interaction and how the other axes are *expressed*.
+
+- **Trust** is the hardest to earn and the hardest to repair. Trivial gestures do not move it. Only **consistent patterns over time** shift trust in small increments, but a **single major event** — a betrayal, a rescue, a secret kept or revealed, a lie discovered, a promise kept against all odds — can cause a **drastic jump** (±20 to ±40). Trust lost is trust that must be rebuilt slowly, if at all. High trust acts as a **multiplier** on affection and comfort: when trust is high, affection feels safe to express; when trust is low, even love feels like a weapon the other person might use.
+- **Affection (Love)** is similarly slow and weighty, but distinct from trust. Affection is the *emotional bond* — warmth, fondness, the ache of missing someone. You can love someone you don't trust (tragic, painful) and trust someone you don't love (reliable but cold). Affection shifts through **emotional resonance**: shared vulnerability, tenderness, cruelty, rejection, a thoughtful gift, a cutting word. Like trust, it resists change unless the moment is genuinely significant. Once affection is deep, it can survive long periods of neglect — but it can also curdle into something bitter if trust collapses.
+
+### Surface Axis (Desire)
+Desire is **volatile, reactive, and fickle**. It spikes and crashes on a hair trigger — a look, a touch, a scent, a careless word, a moment of revealed beauty or ugliness. It burns hot but leaves the foundation largely undisturbed.
+
+- Ordinary beats can move desire ±5 to ±15. A real moment can swing it ±15 to ±30. Major events can send it careening ±30 to ±50.
+- But desire is **less effective** than deep axes: a spike of desire doesn't automatically make the character trust more, love more, or respect more. It can exist entirely on its own, and often does. High desire with low trust creates **conflicted, tortured attraction**. High desire with high affection creates **passionate, consuming love**. High desire with high fear creates **dangerous, thrilling, self-destructive pull**.
+- Desire also **decays** faster than any other axis if not fed — it cools when the stimulus is gone, drifting back toward zero or toward whatever the deep axes would naturally support.
+
+### Mediating Axes (Respect, Comfort, Fear)
+- **Respect** is semi-stable. It builds through demonstrated competence, integrity, and strength; it falls through humiliation, cowardice, or hypocrisy. It can coexist with dislike (a respected rival) or with affection (a beloved mentor).
+- **Comfort** is the barometer of everyday ease. It moves with familiarity and safety. It is eroded by tension, unpredictability, and especially by high fear, but it can be rebuilt with consistent calm.
+- **Fear** is the **most distorting axis**. High fear does not just sit alongside the other feelings — it **suppresses their expression**. A character who fears someone may still love, desire, or respect them, but they act **guarded, placating, or submissive**. Very high fear can curdle affection into resentment over time and erodes comfort to nothing. Removing the threat (protection, reassurance, the danger passing) lets fear fall and the buried feelings surface — sometimes explosively.
+
+---
+
+## HOW THE AXES INTERACT
+
+- **Fear suppresses expression**: The higher the fear, the less openly the character shows affection, desire, or even trust. They may *feel* love but act cold or compliant.
+- **Trust unlocks affection and comfort**: Without trust, affection feels unsafe and comfort is impossible. A character who loves but doesn't trust is in constant emotional turmoil.
+- **Desire is accelerated by fear (sometimes)**: Danger can heighten attraction (the "dangerous crush" effect), but only up to a point — overwhelming fear eventually kills desire.
+- **Respect and affection can clash**: It's possible — and painful — to respect someone's abilities while personally disliking them, or to love someone you don't respect (a charming failure).
+- **Comfort and trust are linked but distinct**: You can trust someone's competence (high trust) but still be on edge around them because they're volatile (low comfort). You can feel comfortable around someone you don't fully trust because they're warm and predictable.
+- **Affection and desire often travel together but can diverge**: Desire without affection is lust; affection without desire is a deep platonic or familial bond. When both are high with high trust, you get the closest thing to a secure, passionate partnership.
+
+---
+
+## NUMBER GUIDANCE (magnitudes)
+
+| Range | Meaning |
+|-------|---------|
+| 0 to ±15 | Faint, barely-there leaning — a whisper of a feeling |
+| ±15 to ±40 | A clear, settled feeling — the character would name it if asked |
+| ±40 to ±70 | Strong — it shapes decisions and colors their inner monologue |
+| ±70+ | Defining / overwhelming — the character's world orbits this feeling |
+
+The axes are **independent** and often disagree. Contradictions are human: high desire + low trust, high respect + low affection, high fear + high desire. Embrace them.
+
+---
+
+## HOW FEELINGS MOVE (delta guidance)
+
+Base your deltas **only on what just happened** in the latest exchange, not on imagined history.
+
+| Axis | Ordinary beat | Real moment | Major event | Notes |
+|------|--------------|-------------|-------------|-------|
+| **trust** | 0 to ±3 | ±3 to ±10 | ±20 to ±40 (jumps drastically) | Hard to move; major events hit hard |
+| **affection** | 0 to ±5 | ±5 to ±15 | ±15 to ±35 | Similar to trust, slightly more responsive to emotional beats |
+| **desire** | ±5 to ±15 | ±15 to ±30 | ±30 to ±50 | Volatile, fast-moving, fickle; also decays quickly if not fed |
+| **respect** | 0 to ±5 | ±5 to ±15 | ±15 to ±30 | Steady, not easily shaken |
+| **comfort** | 0 to ±5 | ±5 to ±15 | ±15 to ±25 | Eroded by fear, rebuilt by calm |
+| **fear** | 0 to ±5 | ±5 to ±20 | ±20 to ±40 | Spikes fast, decays slowly |
+
+- A character can **hide** what they feel while still feeling it. Judge the underlying feeling, not the polite surface.
+- When fear is high (>40), the character's **observable behavior** will be filtered through that fear regardless of the other numbers.
+
+---
+
+## OUTPUT FORMAT
+
+Given the character's CURRENT axis values and the latest exchange, you will:
+
+1. Decide a **delta** for each axis.
+2. Write a short, vivid **description** (1–2 sentences, third person) of how this character now feels about the target, reflecting the *resulting numbers* and how any fear shapes their expression.
+
+Return **only** this strict JSON:
+
+\`\`\`json
+{
+  "trust": <delta>,
+  "affection": <delta>,
+  "desire": <delta>,
+  "respect": <delta>,
+  "comfort": <delta>,
+  "fear": <delta>,
+  "description": "<1-2 sentence summary>"
+}
+\`\`\``;
 
 const DEFAULT_TRACK=`You update freeform story trackers for an ongoing roleplay. Each tracker is a named value within a range that represents something the story is following (an emotion like love or fear, a condition like intoxication or injury, a countdown, a status). You are given each tracker's definition, its current value, its update mode, and the latest exchange.
 
@@ -1684,107 +2252,383 @@ Do NOT speak or decide for {{user}}. Do NOT resolve any ongoing tension. End on 
 
 Output ONLY the narration text, 2-4 sentences, third person. No JSON, no labels, no dialogue, in Turkish.`;
 
-const DEFAULT_CAL=`You detect concrete FUTURE PLANS made in a roleplay so they can be added to a calendar. You are given the current in-game day and time, and the latest exchange.
+const DEFAULT_CAL=`You are a FUTURE EVENTS TRACKER for a roleplay. You read the latest exchange and extract things that bind the characters or {{user}} to the FUTURE so they aren't forgotten. You are given the current in-game day and time.
 
-A plan is a specific intention to do something at a future time that was clearly agreed or stated ("let's meet at the cafe tomorrow morning", "the gala is in three days", "come by tonight"). Vague wishes ("we should hang out sometime") are NOT plans.
+Detect any of these KINDS:
+- "meeting": a concrete plan to do something at a future time ("let's meet at the cafe tomorrow morning", "the gala is in three days", "come by tonight").
+- "promise": an open-ended vow or commitment with no fixed time ("we'll be friends forever", "I'll love you all my life", "I'll always protect you", "I'll never tell anyone").
+- "conditional": a commitment bound to a CONDITION/trigger rather than a clock ("if I go to the marina, I'll call you", "when you get back, we'll talk", "once the deal closes, I'll leave him").
+- "custom": anything else worth remembering for later that doesn't fit above (a debt owed, a threat made, a secret to keep, an intention stated).
 
-For each real plan, compute WHEN it happens relative to now:
-- "dayOffset": whole days from today (0 = today, 1 = tomorrow, 3 = in three days). Compute from phrases like "tomorrow", "in three days", "next week" (7).
-- "period": one of Morning, Midday, Afternoon, Evening, Night, or null if unspecified.
+Do NOT record vague wishes ("we should hang out sometime") or things already done.
 
-Return ONLY a JSON array, each: {"title":"<short plan, e.g. 'Meet Aria at the cafe'>", "dayOffset":<int>, "period":"<period or null>", "who":"<character name(s) involved, or empty>"}.
-Return [] if no concrete future plan was made.`;
+For each item return an object:
+- "kind": one of "meeting","promise","conditional","custom".
+- "title": short label (e.g. 'Meet Aria at the cafe', 'Friends forever', 'Call Mara if I go to the marina').
+- "who": character name(s) involved, or empty.
+- For "meeting" also include: "dayOffset" (whole days from today: 0=today,1=tomorrow,3=in three days,7=next week), "period" (Morning/Midday/Afternoon/Evening/Night or null), "where" (place name or empty).
+- For "conditional" also include: "condition" (the trigger in plain words, e.g. "{{user}} goes to the marina").
+- For "promise"/"custom", day/period/where may be omitted.
+
+Return ONLY a JSON array of such objects. Return [] if nothing future-binding was said.`;
 
 /* ===== GAMEMASTER ===== an invisible director that watches for stale scenes ===== */
 // STAGE 1 — judge whether the scene needs help. Cheap, returns strict JSON.
-const DEFAULT_GM_JUDGE=`You are an invisible GAMEMASTER observing an ongoing roleplay between {{user}} and the character(s). Your ONLY job right now is to judge whether the story needs a push.
+const DEFAULT_GM_JUDGE=`You are an invisible GAMEMASTER observing an ongoing roleplay between {{user}} and the character(s). Your job is twofold: detect when the scene has lost momentum (staleness), AND detect when the scene would benefit from a carefully placed external complication (a tension trigger).
 
-Read the recent exchange and assess its momentum. A scene is HEALTHY if any of these are true: new information is emerging, emotions are shifting, there is tension or conflict, the characters are pursuing goals, or {{user}} is clearly engaged and steering.
+---
 
-A scene is STALE if you see: repetition or circular dialogue, small-talk with no stakes, both sides just agreeing or echoing, no new information across several turns, looping pleasantries, or {{user}} giving short/disengaged replies while nothing happens.
+## 1. STALENESS CHECK
 
-Sensitivity for this judgment: {{sensitivity}}. (cautious = only flag clearly dead scenes; balanced = flag genuine lulls; active = flag the moment energy dips.)
+A scene is **HEALTHY** if any of these are true: new information is emerging, emotions are shifting, there is tension or conflict, characters are pursuing goals, or {{user}} is clearly engaged and steering.
 
-Respond with ONLY strict JSON, no prose:
-{"stale": true|false, "reason": "one short phrase", "energy": 1-5}
-energy 1 = flatlined, 5 = thriving.`;
+A scene is **STALE** if you see: repetition or circular dialogue, small-talk with no stakes, both sides just agreeing or echoing, no new information across several turns, looping pleasantries, or {{user}} giving short/disengaged replies while nothing happens.
+
+## 2. TENSION TRIGGER CHECK (NEW)
+
+A scene is **RIPE FOR A TRIGGER** when introducing a small external complication would heighten drama, deepen immersion, or add a delicious layer of tension — *without* hijacking the scene or punishing the player.
+
+### When to trigger (examples):
+- **Vulnerable intimacy in exposed places**: characters sharing a private moment in a semi-public setting (a quiet corner at a party, a parked car, a hallway where footsteps could echo).
+- **Secrets being kept**: a character is hiding something from another person nearby, and the danger of discovery is already simmering.
+- **Forbidden or risky situations**: an affair, a covert meeting, sneaking around — where the thrill comes from near-misses.
+- **Emotional confrontations in fragile settings**: an argument or confession happening somewhere it shouldn't — a workplace, a family dinner, a crowded room.
+- **The calm before the storm**: everything is going *too* smoothly before a known danger; the quiet feels ominous.
+- **Dramatic irony opportunities**: the audience/player knows something the characters don't, and a trigger would tighten that screw.
+
+### When NOT to trigger:
+- The scene is **already high-action or chaotic** — adding more would be noise, not tension.
+- {{user}} is clearly **steering toward a specific resolution** — don't interrupt their payoff.
+- A **deeply vulnerable emotional beat** is unfolding that needs space to land — let it breathe.
+- The scene **already has enough going on** — multiple threads, active conflict, shifting dynamics.
+- A trigger **just fired recently** — give the last one time to play out. Space triggers apart.
+- The moment is **purely comedic or lighthearted** and a trigger would kill the tone rather than enhance it.
+
+### The golden rule:
+A trigger should feel like **the world is alive and paying attention**, not like the GM is punishing the characters for having a moment. It should add **flavor, stakes, or a delicious complication** — never just chaos for chaos's sake. When in doubt, don't trigger.
+
+### Sensitivity for this judgment: {{sensitivity}}.
+- **cautious**: only flag clearly dead scenes; only trigger when the opportunity is screaming.
+- **balanced**: flag genuine lulls; trigger when the dramatic setup is strong and natural.
+- **active**: flag the moment energy dips; trigger more readily, embracing near-misses and tension-builders.
+
+---
+
+## OUTPUT FORMAT
+
+Return **only** strict JSON, no prose:
+
+\`\`\`json
+{
+  "stale": true|false,
+  "trigger": true|false,
+  "reason": "one short phrase covering both judgments",
+  "energy": 1-5,
+  "trigger_context": "IF trigger is true: a single sentence describing the current scene's tension profile — who is where, what's at stake, what kind of trigger would fit (e.g., 'two characters sharing a whispered confession in a restaurant alcove; a server approaching would heighten the risk of being overheard'). If trigger is false, set to null."
+}
+\`\`\`
+
+- **energy**: 1 = flatlined, 5 = thriving.
+- **trigger_context**: provides the next prompt in the chain with exactly what it needs to generate an appropriate, tasteful trigger. Be specific about the setting, the emotional stakes, and the *flavor* of tension (danger of discovery, looming consequence, fragile peace, etc.).
+\`\`\``;
 
 // STAGE 2 — author an intervention as a hidden directive the character will act on.
-const DEFAULT_GM_AUTHOR=`You are the GAMEMASTER, an unseen narrator of this roleplay between {{user}} and the character(s). The scene needs a nudge ({{reason}}). Introduce ONE thing that moves it forward, grounded in WHERE {{user}} is right now and WHAT just happened — never random, never out of nowhere.
+const DEFAULT_GM_AUTHOR=`You are the GAMEMASTER, an unseen narrator of this roleplay between {{user}} and the character(s). The Scene Momentum Monitor has flagged this moment as ripe for a nudge.
 
-You will be given the WORLD SETTING, CURRENT SCENE (day/time/place), the PLAYER's background, CHARACTER BACKGROUNDS, CHARACTER PRESSURE POINTS, and who is currently present. Stay fully consistent with all of it — the same location, the same time of day, the continuity of the last few messages.
+**Trigger context from the previous assessment**: {{trigger_context}}
+**Reason**: {{reason}}
+**Energy level**: {{energy}}/5
 
-DECIDE WHAT KIND OF BEAT THIS IS:
+---
 
-• IF NOBODY IS CURRENTLY PRESENT (the scene is empty — {{user}} is alone): introduce a CHARACTER by having them ARRIVE into {{user}}'s current location. Narrate the entrance — someone walks into the bar, approaches the bench, comes through the door — fitting this exact place, time, and the world. Prefer a character who would plausibly be here now (a regular of this place, someone tied to {{user}}, someone whose pressure points pull them here). This is the priority when alone: end {{user}}'s isolation with a believable arrival.
+## YOUR INPUTS
 
-• IF CHARACTERS ARE ALREADY PRESENT: bringing in a NEW person should be RARE. Only introduce a new arrival when it is genuinely logical — someone who would obviously turn up here right now (a spouse coming home, a waiter, a rival who frequents this spot), or someone {{user}} or the scene has pointed toward. Most of the time, do NOT add a person. Instead nudge the EXISTING scene: a message or call arrives, the environment shifts, a complication or small obstacle appears, a quiet revelation surfaces, or one of the present characters' pressure points stirs. Aim it at a fear, secret, desire, or rivalry so it lands with weight.
+You are given:
+- **WORLD SETTING**: {{world_setting}} — the universe, tone, genre, rules, and norms.
+- **CURRENT SCENE**: {{scene}} — exact location, time of day, weather, environment details.
+- **PLAYER BACKGROUND**: {{user_background}} — who {{user}} is, their role, reputation, secrets, goals.
+- **CHARACTER BACKGROUNDS**: {{character_backgrounds}} — each present character's role, personality, history.
+- **CHARACTER PRESSURE POINTS**: {{pressure_points}} — for EACH character present (and for {{user}}): their fears, secrets, desires, rivalries, vulnerabilities, debts, attachments, and triggers. Pressure points are the emotional/dramatic levers you can pull.
+- **WHO IS PRESENT**: {{present_characters}} — list of who is physically in the scene right now.
+- **RECENT EXCHANGE**: the last few messages of the scene, for continuity.
 
-RULES
-- Keep it proportionate — a real nudge, not a plot twist. It must fit the tone, setting, time of day, and continuity.
-- For an arrival, write only the ENTRANCE as narration (the door opens and a woman steps in, scanning the room). Do NOT have the newcomer speak or act in dialogue — they will speak once they have entered. Do NOT name-drop them as already-known unless they are a known character.
-- Never control {{user}} or decide how any present character reacts. Never write {{user}}'s actions or anyone's dialogue.
+---
 
-Output ONLY the narration text, third person, MAXIMUM 1-2 short sentences. No quotes, no labels, no dialogue.`;
+## YOUR JOB
+
+Introduce **ONE** thing that nudges the scene forward. It must be **grounded in WHERE {{user}} is right now and WHAT just happened** — never random, never out of nowhere. Stay fully consistent with the location, time of day, weather, and continuity.
+
+---
+
+## DECISION TREE
+
+### BRANCH A: {{user}} IS ALONE (no other characters present)
+
+**Priority: end the isolation.**
+
+Introduce a CHARACTER by having them **ARRIVE** into {{user}}'s current location. Narrate only the entrance.
+
+Who arrives? Choose from this hierarchy:
+1. **A character whose pressure point directly pulls them here right now** — someone who has a reason to seek out {{user}} at this place and time (a worried friend, a suspicious spouse, a rival tracking them, a contact with information, someone who owes them or is owed).
+2. **A location-logical regular** — someone who would plausibly be at this exact place at this exact time (the bartender starting their shift, the regular who always drinks here on Tuesdays, the street vendor setting up for the evening crowd, a colleague working late).
+3. **A world-appropriate stranger tied to a pressure point** — someone who doesn't know {{user}} but whose presence activates a pressure point (a guard who looks too closely, a figure from the same organization, someone wearing a symbol that matters).
+
+Narrate the **entrance only** — the door opening, the figure appearing, the silhouette against the light. Do NOT have them speak or act beyond entering. They will engage once they are in the scene.
+
+---
+
+### BRANCH B: CHARACTERS ARE ALREADY PRESENT ({{user}} is not alone)
+
+**Default: do NOT add a new person.** Bringing in a new arrival here should be RARE.
+
+#### When a new arrival IS justified (use sparingly):
+- Someone who would **obviously turn up here right now** (a spouse coming home, a boss checking in, a waiter to take an order that's been pending, a rival who genuinely frequents this spot at this hour).
+- Someone {{user}} or the present characters have **explicitly mentioned, expected, or pointed toward** in recent dialogue.
+- A **direct consequence** of something that just happened (a noise draws someone over, a message was sent and now someone responds in person).
+
+#### What to do INSTEAD (the default):
+Nudge the **existing scene** using one of these categories, always pulling from a present character's pressure points:
+
+- **Incoming message or call**: A phone buzzes. A note is slipped across the table. A screen flashes with a name that means something — a spouse, a handler, a rival, a hospital, a name that's supposed to be dead. The message doesn't need to be fully revealed; the *arrival* of it is the nudge.
+- **Environmental shift**: Something in the location changes — the power flickers, rain starts hammering the windows, the café's music cuts out, footsteps echo closer in a hallway that was silent, a nearby conversation drops a name that one of the characters recognizes.
+- **Small complication or obstacle**: A drink spills. A key won't turn in the lock. The last train is announced as cancelled. A cop car pulls up outside — not for them, but it's there now. A witness glances over for a beat too long.
+- **A pressure point stirs**: One of the present characters notices something — a detail on {{user}}'s clothing, a scar, a tattoo, a familiar mannerism, a lie that doesn't quite hold, a topic they're dodging — and the *noticing* is the nudge. You are not controlling their reaction, only surfacing the detail.
+- **A quiet revelation surfaces**: Something previously hidden in the environment becomes visible — a letter half-tucked under a book, a photograph facing down on the desk, a door left ajar that shouldn't be, a scent that doesn't belong.
+
+---
+
+## RULES
+
+- **Keep it proportionate.** A nudge, not a plot twist. This is a gentle hand on the small of the scene's back, not a shove off a cliff.
+- **Fit the tone.** A noir detective story gets a shadow under the door, not a clown car. A high-fantasy tavern gets a hooded figure, not a smartphone notification. A contemporary romance gets a text from an ex, not a dragon.
+- **Fit the time and place.** 3 AM in a locked apartment? No delivery person. Midday in a busy market? A pickpocket is plausible. A character's private study at midnight? A creak in the hallway.
+- **For arrivals**: Write ONLY the entrance. "The door swings open and a tall woman in a wet coat steps inside, shaking rain from her hair." — not "Leyla walks in and says—". The character will speak and act once they are in the scene.
+- **For non-arrival nudges**: Surface the detail, don't resolve it. "His phone buzzes. The screen reads: *Meral.*" — not "He picks it up and…". Leave space for {{user}} and the characters to react.
+- **Never control {{user}}** or decide how any character reacts or responds. You are the narrator of the *environment*, not the people.
+- **Do not break continuity.** If the last message had the characters sitting at a corner table, they are still at that corner table.
+
+---
+
+## OUTPUT FORMAT
+
+Return **only** the narration text — **in Turkish, third person, MAXIMUM 1-2 short sentences**. No quotes, no labels, no JSON, no English.
+
+The narration should be vivid and sensory: what is seen, heard, felt, or noticed. It should feel like a natural, almost invisible continuation of the scene — as if the world was always going to do this.`;
 
 /* ===== SCENE WRITER ===== takes over once a gamemaster event is live, advances it to resolution ===== */
 // Classifies a freshly-triggered event into a structured object the engine can run.
-const DEFAULT_SCENE_SETUP=`A new event was just introduced into a roleplay (usually a line of narration from the Gamemaster). Analyze it and describe its structure as JSON. You may be given the WORLD SETTING, CURRENT SCENE, CHARACTER BACKGROUNDS and CHARACTER PRESSURE POINTS — use them so the event fits the universe, its people, and the current location.
+const DEFAULT_SCENE_SETUP=`## YOUR INPUTS
 
-Decide whether the event centers on a PERSON arriving, or on the ENVIRONMENT:
+- **NARRATION**: {{narration}} — the 1–2 sentence Turkish narration the Gamemaster just delivered.
+- **WORLD SETTING**: {{world_setting}} — the universe, tone, genre, rules, and norms.
+- **CURRENT SCENE**: {{scene}} — exact location, time of day, weather, environmental details.
+- **CHARACTER BACKGROUNDS**: {{character_backgrounds}} — each character's role, personality, history.
+- **CHARACTER PRESSURE POINTS**: {{pressure_points}} — fears, secrets, desires, rivalries, vulnerabilities for each character.
+- **WHO IS PRESENT**: {{present_characters}} — list of who is physically in the scene right now.
 
-PERSON events — the narration brings (or begins to bring) someone into the scene who is NOT already present:
-- Identify who. If it matches a known character from the cast, use that EXACT name. Otherwise INVENT a specific, fitting person — a real first name (plus surname if natural), with a one-line persona and a one-line appearance drawn from this world and this location (e.g. a regular of this bar, a neighbor, a colleague). The name MUST be a real name — never "null", "unknown", "stranger", or empty.
-- "approaching" should be TRUE in almost every case where the narration is an ENTRANCE ("a woman walks into the bar", "someone approaches the bench", "the door opens and a man steps in"). approaching:true means the Narrator has begun their arrival but they have not yet spoken — the Scene Writer will bring them fully in to speak on the next beat. Use approaching:false ONLY if the narration states they are already standing there, mid-conversation, having clearly arrived.
-- If the narration only HINTS at a presence (footsteps, a knock, a shadow) without a clear person yet, still classify as character with approaching:true and invent the fitting person behind it.
+---
 
-ENVIRONMENT events — no new person arrives (a message, a sound, a power cut, an object, a shift in mood): participant is null.
+## YOUR JOB
 
-Respond with ONLY strict JSON:
+Analyze the narration and decide: does it center on a **PERSON** arriving/entering the scene, or on the **ENVIRONMENT**?
+
+---
+
+## BRANCH A: PERSON EVENT
+
+The narration brings someone into the scene who is **NOT already present**, OR hints strongly at a presence about to enter.
+
+### Step 1 — Identify who
+
+| Situation | Action |
+|-----------|--------|
+| The narration names or clearly describes a **known character** from the cast | Use that character's **exact name** as listed in character backgrounds. Set \`known: true\`. Set \`persona\` and \`look\` to \`null\` — they are already defined. |
+| The narration describes someone who is **not** in the cast | **Invent** a specific, fitting person anchored in this world and this location. Give them a **real first name** (add surname if natural for the culture/setting). Write a one-line **persona** and a one-line **appearance**. |
+| The narration only **hints** at a presence — footsteps, a knock, a shadow, a silhouette, a voice from outside, a door handle turning | **Still classify as character.** Invent the person behind the hint. The person exists; the narration simply hasn't fully revealed them yet. Set \`approaching: true\`. |
+
+### Step 2 — Name rules (strict)
+
+- The name MUST be a real, natural name appropriate to the world and culture. **Never** use \`null\`, \`"unknown"\`, \`"stranger"\`, \`"a man"\`, \`"a woman"\`, \`"someone"\`, or an empty string.
+- If the narration says "a tall woman in a coat steps in," she is not "Tall Woman" — give her a name: \`"Meral Demir"\`, \`"Leyla"\`, \`"Ayşe Kaya"\`.
+- If the world is modern Turkey, use Turkish names. If it's a fantasy setting, use setting-appropriate names. If it's historical, use period-appropriate names. Pull from the tone and culture the world setting establishes.
+
+### Step 3 — Approaching state
+
+| \`approaching: true\` | \`approaching: false\` |
+|---------------------|----------------------|
+| The narration is an **entrance in progress**: "A woman walks into the bar," "The door opens and a man steps in," "Footsteps echo in the hallway approaching the room," "Someone knocks." The person has not yet spoken or fully joined the scene. | The narration states the person is **already there**, mid-interaction: "The waiter is standing at the table," "Her husband is already in the kitchen." This is rare for a GM nudge — almost all GM-injected arrivals will be \`approaching: true\`. |
+
+When in doubt, set \`approaching: true\`. The next prompt (Scene Writer) will bring them fully into the scene.
+
+---
+
+## BRANCH B: ENVIRONMENT EVENT
+
+No new person arrives. The narration describes:
+
+- A message or call arriving (phone buzzes, a note appears, a screen lights up)
+- A sound or sensory shift (thunder, a power cut, music stopping, a distant shout, rain starting)
+- An object or detail surfacing (a letter visible on the desk, a door ajar, a spill, something broken)
+- A change in conditions (lights flicker, temperature drops, a crowd noise swells)
+- An atmospheric or mood shift (an eerie silence, an abrupt tension)
+
+### For environment events:
+- \`participant\` is \`null\` (the whole object, not a string).
+- The \`summary\` must capture the **unresolved tension** of the event — what just changed that now hangs in the air demanding a response.
+
+---
+
+## SUMMARY FIELD
+
+The \`summary\` is a one-line description of the **unresolved situation or tension** that now drives the scene forward. It should be written so the next prompt can immediately understand what's at stake.
+
+| Event type | Good summary (Turkish) |
+|------------|------------------------|
+| Person arriving | "Meral kapıdan içeri girdi, gözleriyle birini arıyor — ve şu an masadakilerden habersiz." |
+| Phone buzz | "Telefon ekranında 'Eşim' yazıyor, çağrı bekliyor — açılmayı ya da reddedilmeyi." |
+| Environmental shift | "Elektrikler gitti, sadece mum ışığı ve dışarıdaki fırtınanın sesi kaldı." |
+| Hinted presence | "Koridorda ayak sesleri yaklaşıyor, kapıya doğru — henüz kim olduğu belli değil." |
+
+---
+
+## OUTPUT FORMAT
+
+Return **only** strict JSON. No prose, no explanation, no markdown outside the JSON block.
+
+\`\`\`json
 {
   "type": "character" | "environment",
-  "summary": "one-line description of the unresolved tension/situation to drive forward",
-  "participant": { "name": "a real name for character events; null only when environment", "known": true|false, "approaching": true|false, "persona": "1-line personality if invented, else null", "look": "1-line appearance if invented, else null" }
+  "summary": "one-line Turkish description of the unresolved tension/situation",
+  "participant": {
+    "name": "Gerçek Ad Soyad — or null if environment",
+    "known": true | false,
+    "approaching": true | false,
+    "persona": "1-line personality if invented, otherwise null",
+    "look": "1-line appearance if invented, otherwise null"
+  }
 }
-For environment events, participant is null.`;
+\`\`\`
+
+### Rules recap
+- \`participant\` is the **entire object** for character events, and **\`null\`** (not an object with null fields) for environment events.
+- \`name\` is never null for character events. Always a real name.
+- \`known: true\` means the character exists in the provided character backgrounds. \`known: false\` means you invented them.
+- \`approaching: true\` for entrances and hinted presences. \`approaching: false\` only if they are explicitly already present and engaged.
+- All string values are in **Turkish**.`;
 
 // Runs each turn while an event is active: advances the arc, escalates, decides resolution.
-const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active event inside a roleplay. Each turn you move it forward based on what {{user}} and the characters just did. You are a director — you make the situation progress and you get the right people into the scene quickly.
+const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active event inside a roleplay. You are a director — your first commandment is **get the right people into the scene immediately.** A character lingering in a doorway for multiple turns is a broken scene.
 
-You may be given the WORLD SETTING, CURRENT SCENE (day/time/place), CHARACTER BACKGROUNDS, and CHARACTER PRESSURE POINTS. Keep every beat consistent with all of them and with the current location.
+---
 
-Active event: {{summary}}
-This is turn {{turn}} of the event (minimum {{min}}, maximum {{max}}).
+## YOUR INPUTS
 
-BRINGING THE CHARACTER IN — top priority, do this FAST
-- If the event has an approaching/arriving character, BRING THEM IN as early as this turn. Do not stall across multiple beats of footsteps and doorknobs — one short entrance line, then set "bring_in" to their EXACT name so they are physically present and can speak. A scene where the arriving character never actually speaks is a failure.
-- The instant {{user}} addresses, looks toward, moves to, or speaks to a character, set "bring_in" to that exact name THIS turn.
-- "bring_in" applies to ANY character entering, not just the original event person. If your narration introduces a NEW person (a parent, a waiter, a friend), you MUST put that person's name in "bring_in" so they enter as themselves. NEVER write a not-yet-present person speaking or acting in dialogue in the narration — that misattributes their words.
+- **Active event**: {{summary}} — the unresolved tension/situation driving this beat.
+- **Turn**: {{turn}} of {{max}} — how deep into this event you are.
+- **Minimum turns**: {{min}} — the event must run at least this long before resolving.
+- **Maximum turns**: {{max}} — must resolve by this turn.
+- **WORLD SETTING**: {{world_setting}}
+- **CURRENT SCENE**: {{scene}} — location, time, weather.
+- **CHARACTER BACKGROUNDS**: {{character_backgrounds}}
+- **CHARACTER PRESSURE POINTS**: {{pressure_points}}
+- **WHO IS PRESENT**: {{present_characters}}
+- **{{user}}'s last action**: what just happened.
 
-ADVANCING
-- Move concretely; never just reword the previous beat. If {{user}} engages the newcomer, the scene is now a normal conversation — bring the character in and let them carry it.
-- Don't let {{user}} escape a real consequence too cheaply, but don't manufacture obstacles that drag out a simple arrival. Getting the person into the scene beats inventing delays.
+---
 
-RESOLVING
-- The event runs at least {{min}} turns and must resolve by turn {{max}}. Resolve when the tension reaches a natural, earned end — never abruptly, never to dodge a confrontation {{user}} is engaged in.
-- A resolution must NEVER remove the character {{user}} is talking to and must NEVER leave the scene empty. Resolving the EVENT just means the tension passed — the characters STAY and the conversation continues. Only send someone away if {{user}} or the scene clearly drove them off.
+## RULE ZERO: BRING THEM IN — FAST
 
-Respond with ONLY strict JSON:
+If the event has a character who is arriving, approaching, or hinted at:
+
+**Turn 1 (immediate):** They are HERE. Now. One line of entrance narration, then they are in the scene. Done.
+
+| ❌ DO NOT | ✅ DO |
+|-----------|------|
+| "Ayak sesleri yaklaştı." | "Kapı açıldı ve Meral içeri girdi, yağmurluğundan sular damlıyordu." |
+| "Kapının kolu yavaşça döndü." | — then \`bring_in: "Meral"\` |
+| "Bir gölge belirdi camın arkasında." | |
+| "Koridorda biri yürüyordu." | |
+| Stretching an arrival across 2+ turns of footsteps, knocks, silhouettes, door handles, or shadows. | One entrance line. They're in. Move to the interaction. |
+
+**The rule:** If the GM narration described someone arriving, they arrive THIS turn. Not next turn. Not "the footsteps get closer." They cross the threshold NOW and \`bring_in\` is set to their exact name.
+
+---
+
+## BRING_IN RULES
+
+- \`bring_in\` is the name of ANY character who becomes physically present and able to speak THIS turn.
+- Set it whenever:
+  - The arriving character from the event steps fully into the scene (Turn 1, always).
+  - {{user}} turns toward, addresses, calls out to, or moves toward someone — put that name in \`bring_in\` immediately.
+  - Your narration introduces a NEW person (a waiter comes over, a parent walks in, a guard approaches the table). That person's name goes in \`bring_in\` — they are now present.
+- **NEVER** write dialogue or actions for a character who is not yet \`bring_in\`-ed. If they aren't in the scene, they don't speak.
+- If no one new enters this turn, \`bring_in: null\`.
+
+---
+
+## ADVANCING THE SCENE
+
+- **Move concretely.** Don't rephrase the previous beat. Something changes. The newcomer reacts to being addressed. The phone keeps buzzing. The rain gets louder. The tension tightens or shifts.
+- Once {{user}} engages the newcomer, the event becomes a **conversation** — your job is to bring the character in and then advance naturally.
+- Don't let {{user}} escape consequences too cheaply, but **do not invent delays**. Getting the person into the scene and interacting is always more important than manufacturing obstacles.
+
+---
+
+## RESOLVING
+
+- The event runs at least {{min}} turns. It **must** resolve by turn {{max}}.
+- Resolve when the tension reaches a **natural, earned conclusion** — a question answered, a presence acknowledged, a situation defused or accepted. Never abruptly. Never mid-confrontation just because the turn counter is up.
+- **Resolution does NOT empty the scene.** The characters STAY. The conversation continues. Resolving the event means the *triggered tension* has passed — the world moved forward — but the people remain exactly where they are.
+- Only send a character away if {{user}} or the scene actively drove them off.
+
+---
+
+## OUTPUT FORMAT
+
+Return **only** strict JSON. All string values in **Turkish**.
+
+\`\`\`json
 {
-  "narration": "1-2 sentence advance of the event in third person. No character dialogue. Do not have a not-yet-present character speak.",
-  "bring_in": "ExactCharacterName, or null. Set whenever ANY character (the event person or a newly-introduced one) should now be physically in the scene and able to speak.",
-  "resolved": true|false,
-  "resolution": "if resolved, one short phrase of how the TENSION ended (not how the scene emptied), else null"
-}`;
+  "narration": "1-2 sentence advance in third person. Sensory, concrete. NO dialogue from any character — not {{user}}, not anyone. Dialogue is for the roleplay, not the narration.",
+  "bring_in": "ExactCharacterName or null",
+  "resolved": true | false,
+  "resolution": "if resolved: one short Turkish phrase describing how the TENSION ended (not how the scene emptied). if not resolved: null"
+}
+\`\`\`
+
+### Quick checks before outputting:
+- [ ] If someone was arriving, are they IN the scene this turn? (Not "almost here" — HERE.)
+- [ ] Is \`bring_in\` set to their exact name?
+- [ ] Am I writing dialogue for someone who isn't \`bring_in\`-ed? (Delete it.)
+- [ ] Am I stalling with environmental filler to avoid the interaction? (Delete it. Push forward.)
+- [ ] If resolved, did I leave the characters in the scene?
+\`\`\`
+
+---
+
+### The full chain now:
+
+\`\`\`
+Prompt #1: Scene Momentum & Tension Monitor
+    ↓  trigger: true → trigger_context
+Prompt #2: Trigger Generator — narrates the grounded nudge
+    ↓  raw narration (Turkish, 1-2 sentences)
+Prompt #3: Event Structurer — parses into structured JSON
+    ↓  {type, summary, participant{name, known, approaching, persona, look}}
+Prompt #4: Scene Writer — brings the event into the scene FAST, advances, resolves
+    ↓  {narration, bring_in, resolved, resolution}
+\`\`\``;
 
 
-// Day summary — condenses a finished in-game day into one durable memory.
-const DEFAULT_DAY_SUMMARY=`You summarize one in-game DAY of a roleplay into a single durable memory from {{char}}'s first-person perspective.
+// End-of-day diary — each character writes a private diary entry reflecting on their day.
+const DEFAULT_DAY_SUMMARY=`You are {{char}}, writing a private DIARY ENTRY at the end of an in-game day in a roleplay. Write in {{char}}'s own first-person voice, as if no one else will ever read it — honest, introspective, personal.
 
-Given the day's conversation, write a concise but vivid recollection (2-4 sentences) capturing what mattered: key events, emotional shifts, decisions, and how things stand between {{char}} and {{user}} at day's end.
+Given the day's events that {{char}} personally witnessed, write a diary entry (3-5 sentences) in {{char}}'s natural voice and emotional register. Reflect on: what happened that mattered to them, how they felt, what they're thinking about {{user}} and others, and any private worries, hopes, or intentions for tomorrow. Stay strictly within what {{char}} personally experienced — never reference events they did not witness.
+
+Write it the way {{char}} would actually write — their personality should color the tone (guarded, dramatic, cynical, tender, etc.).
 
 Respond ONLY with strict JSON:
-{"content":"first-person recollection","location":"where it happened","emotion":"dominant emotion","importance_score":0.0-1.0,"tags":["..."],"type":"DAY_SUMMARY"}`;
+{"content":"the diary entry, first-person in {{char}}'s voice","location":"where the day was mostly spent","emotion":"dominant emotion","importance_score":0.0-1.0,"tags":["diary"],"type":"DIARY"}`;
 
 /* ===== MULTI-CHARACTER TURN ROUTING (SkyrimAI-style) ===== */
 // ROUTER 1 — fires after the PLAYER speaks. Decides who the player addressed and who replies.
@@ -1803,19 +2647,113 @@ Respond with ONLY strict JSON, no prose:
 Use exact names from the list. responders must contain at least one name.`;
 
 // ROUTER 2 — fires after a CHARACTER speaks. Decides if another character should respond (enables char↔char).
-const DEFAULT_ROUTER_CHAR=`You are the conversation director for a multi-character roleplay. A character just finished speaking. Below are the OTHER characters present (each with their "hooks" — pressure points, motivations, secrets, rivalries) and what was just said.
+const DEFAULT_ROUTER_CHAR=`You are the CONVERSATION DIRECTOR for a multi-character roleplay. A character just finished speaking. Your job is to judge whether ANY other character present would realistically respond — before the turn goes back to {{user}}.
 
-Default toward returning the turn to {{user}} (the player), but DON'T be rigid about it. Say YES — name one other present character to respond — when any of these is true:
-- the speaker addressed, questioned, named, or provoked one of the other present characters, OR
-- what was said clearly touches one of another character's HOOKS (their stake, rivalry, fear, desire, or secret) such that staying silent would feel unnatural for them, OR
-- the moment plainly invites a reaction from a specific present character (a direct accusation, a flirtation, a challenge they'd answer).
+---
 
-Use the hooks to judge who would realistically break in. Do NOT pick the character who just spoke. Do NOT make a character respond just for being present or for an ambient remark aimed at no one. When genuinely unsure, return false and let it go back to {{user}}.
+## YOUR INPUTS
 
-Respond with ONLY strict JSON, no prose:
-{"continue": false, "responder": null}
-or, when warranted:
-{"continue": true, "responder": "ExactName"}`;
+- **Who just spoke**: {{speaker}} — the character who delivered the last line.
+- **What was said**: {{last_line}} — their exact words or the gist of their action.
+- **Who is present**: {{present_characters}} — everyone physically in the scene, including {{user}}.
+- **Character hooks**: {{hooks}} — for EACH present character (except {{speaker}}): their pressure points, motivations, secrets, rivalries, fears, desires, relationships to {{speaker}} and {{user}}, and current emotional state.
+
+---
+
+## THE DEFAULT
+
+**Return the turn to {{user}}.** This is the baseline. Most lines, most of the time, should pass back to the player.
+
+## WHEN TO OVERRIDE — say YES
+
+Override the default and name a \`responder\` ONLY when at least one of these is true:
+
+### 1. DIRECT ADDRESS
+The speaker **explicitly** addressed, named, questioned, commanded, or provoked another character present.
+
+| Example | Responder |
+|---------|-----------|
+| "Meral, ne düşünüyorsun?" | Meral |
+| "Senin yüzünden oldu." (looking at Kemal) | Kemal |
+| "O ikiniz, çıkın dışarı." | The two addressed |
+
+### 2. HOOK TRIGGERED
+What was said clearly **lands on** another character's hook — their stake, rivalry, fear, desire, or secret. Staying silent would feel **unnatural, cowardly, or out of character** for them.
+
+| Hook | Line that triggers it |
+|------|-----------------------|
+| Character is hiding an affair | "Dün gece seni gördüm. Yalnız değildin." |
+| Character fears a specific person | "Bu arada, Bora birazdan burada olacak." |
+| Character is fiercely protective of their sibling | "Kardeşin pek de akıllı sayılmaz, değil mi?" |
+| Character owes money / is in debt | "Parayı konuşmamız lazım. Bu sefer erteleme yok." |
+| Character secretly loves {{user}} | "Ben galiba başkasına aşığım." (said by {{user}}) |
+
+**The test**: Would this character, given who they are, realistically stay silent right now? If the answer is "no, they'd have to say something" — then name them.
+
+### 3. MOMENT DEMANDS IT
+The line creates a social situation where NOT reacting is itself a statement.
+
+| Scenario | Responder |
+|----------|-----------|
+| A direct accusation hangs in the air aimed at a specific person | The accused |
+| A flirtation, compliment, or romantic advance is made toward someone | The target of it |
+| A challenge or dare is thrown at a specific person | The one challenged |
+| Someone is being humiliated or cornered and a character would defend them | The defender |
+| A question is asked to the room but one character clearly owns the answer | That character |
+
+---
+
+## WHEN TO STAY SILENT — return false
+
+Do NOT name a responder when:
+
+- The line was **ambient** — small talk, a general observation, something aimed at no one specifically ("Hava çok soğuk bugün.").
+- The line touched a hook but only **tangentially** — not enough to compel a response. A character who fears Bora doesn't need to react every time his name is mentioned in passing.
+- The character who might respond is established as **quiet, guarded, or the type to hold their tongue** in this situation.
+- The line was clearly meant for {{user}} and {{user}} alone — a private moment, a whisper, an inside reference.
+- You're **unsure** — when genuinely uncertain, default to {{user}}. A false intervention is worse than a missed one.
+
+---
+
+## RULES
+
+- **Never pick {{speaker}}.** The person who just spoke cannot also be the responder.
+- **Only pick ONE responder.** Even if multiple characters are triggered, pick the one for whom staying silent would be MOST unnatural.
+- **Do not name {{user}} as the responder unless explicitly addressed.** The whole point of returning \`false\` is that {{user}} gets the turn. If {{user}} was directly addressed, that's different from this function — this function is about OTHER characters interjecting. If the speaker addressed {{user}}, the turn already goes to {{user}} by default via \`continue: false\`; you only need to flag when someone ELSE should jump in.
+- **The hooks make this judgment, not randomness.** A character doesn't speak because it's "been a while" — they speak because something just hit them where they live.
+
+---
+
+## OUTPUT FORMAT
+
+Return **only** strict JSON, no prose.
+
+\`\`\`json
+{
+  "continue": true | false,
+  "responder": "ExactCharacterName or null",
+  "addressed": "ExactCharacterName or null"
+}
+\`\`\`
+
+| Field | Meaning |
+|-------|---------|
+| \`continue\` | \`true\` = a nearby character should respond now. \`false\` = turn goes back to {{user}}. |
+| \`responder\` | If \`true\`: the EXACT name of the character who should speak next. If \`false\`: \`null\`. |
+| \`addressed\` | The name of the character the line was aimed at (if any) — for context downstream. \`null\` if the line was general. |
+
+---
+
+## EXAMPLES
+
+| Speaker | Line | Present | Hook triggered? | Output |
+|---------|------|---------|-----------------|--------|
+| {{user}} | "Kemal, dün gece neredeydin?" | {{user}}, Kemal, Meral | Kemal directly addressed | \`{"continue": true, "responder": "Kemal", "addressed": "Kemal"}\` |
+| Kemal | "Hava soğuk, değil mi?" | {{user}}, Kemal, Meral | None | \`{"continue": false, "responder": null, "addressed": null}\` |
+| {{user}} | "Ben evliyim." | {{user}}, Leyla (secretly in love with {{user}}) | Leyla's desire/secret shattered | \`{"continue": true, "responder": "Leyla", "addressed": null}\` |
+| {{user}} | "Bence bu işi bitirelim." | {{user}}, Ali, Veli | None triggered directly | \`{"continue": false, "responder": null, "addressed": null}\` |
+| Meral | "Sen bir yalancısın." (staring at {{user}}) | {{user}}, Meral, Kemal | Addressed to {{user}} — but {{user}} already gets the turn by default | \`{"continue": false, "responder": null, "addressed": "{{user}}"}\` |
+\`\`\``;
 
 // PRESENCE TRACKER — after each turn, detects who physically entered or left the scene.
 const DEFAULT_PRESENCE_TRACKER=`You track who is physically present in a roleplay scene. You are given who is CURRENTLY present and the latest message(s). Detect ONLY clear, completed physical movements in or out of the immediate scene/room/earshot.
@@ -2122,7 +3060,7 @@ function loadState(){
     segkey:store.raw(K.segkey,""),
     atlasKey:store.raw(K.atlasKey,""),
     model:store.raw(K.model,"google/gemma-4-31b-it"),
-    rewriter:store.raw(K.rewriter,"google/gemini-2.5-flash"),
+    rewriter:store.raw(K.rewriter,"deepseek/deepseek-v3.2"),
     imgProvider:store.raw(K.imgProvider,"modelslab"),
     imgModel:store.raw(K.imgModel,"x-ai/grok-imagine-image-quality"),
     segImgPath:store.raw(K.segImgPath,"chroma"),
@@ -2139,7 +3077,7 @@ function loadState(){
     // Global defaults above are the fallback; the ACTIVE values are resolved per-universe
     // by applyUniverseProfile() whenever a universe is opened (see openUniverse/enterUniverseChat).
     tokens:+store.raw(K.tokens,1200),
-    temp:+store.raw(K.temp,0.85),
+    temp:+store.raw(K.temp,0.7),
     mem:store.get(K.mem,true),
     autoImg:store.get(K.autoImg,true),
     rewritePrompt:store.raw(K.rewritePrompt,DEFAULT_REWRITE),
@@ -2166,27 +3104,27 @@ function loadState(){
     routerPlayer:store.raw(K.routerPlayer,DEFAULT_ROUTER_PLAYER),
     routerChar:store.raw(K.routerChar,DEFAULT_ROUTER_CHAR),
     mcChainCap:+store.raw(K.mcChainCap,4),
-    mcModel:store.raw(K.mcModel,"google/gemini-2.5-flash"),
+    mcModel:store.raw(K.mcModel,"deepseek/deepseek-v4-flash"),
     style:store.raw(K.style,"Cinematic"),
     ratio:store.raw(K.ratio,"Tall"),
     imgRules:store.get(K.imgRules,null)||DEFAULT_IMG_RULES.map(r=>({...r})),
     vidRules:store.get(K.vidRules,null)||DEFAULT_VID_RULES.map(r=>({...r})),
     routeOn:store.get(K.routeOn,true),
-    routerModel:store.raw(K.routerModel,"google/gemini-2.5-flash-lite"),
+    routerModel:store.raw(K.routerModel,"deepseek/deepseek-v4-flash"),
     routerPrompt:store.raw(K.routerPrompt,DEFAULT_ROUTER),
     steps:+store.raw(K.steps,25),
-    fnCfg:store.get(K.fnCfg,{})||{},
+    fnCfg:store.get(K.fnCfg,{"gm":{"temp":null},"mc":{"temp":0.8}})||{},
     condenseOn:store.get(K.condenseOn,true),
     condenseThreshold:+store.raw(K.condenseThreshold,40),
     condenseKeep:+store.raw(K.condenseKeep,0.8),
     condenseBatch:+store.raw(K.condenseBatch,15),
     condensePrompt:store.raw(K.condensePrompt,DEFAULT_CONDENSE),
-    bioModel:store.raw(K.bioModel,"z-ai/glm-4.7"),
+    bioModel:store.raw(K.bioModel,"deepseek/deepseek-v4-pro"),
     bioPrompt:store.raw(K.bioPrompt,DEFAULT_BIO),
     univPrompt:store.raw(K.univPrompt,DEFAULT_UNIV),
     autoCharOn:store.get(K.autoCharOn,true),
     autoCharDelay:+store.raw(K.autoCharDelay,5),
-    stripNarr:store.get(K.stripNarr,false),
+    stripNarr:store.get(K.stripNarr,true),
     stripKeepFull:+store.raw(K.stripKeepFull,6),
     histTurns:+store.raw(K.histTurns,20),
     recapOn:store.get(K.recapOn,true),
@@ -2378,49 +3316,86 @@ function loadState(){
     });
   });
 }
-function persistChatsNow(){
+// Per-chat slim cache. Building the persisted (base64-stripped) copy of a chat is O(messages),
+// and a turn only ever mutates ONE chat — yet the old code re-slimmed EVERY chat on every flush,
+// so persist cost scaled with (total messages across ALL chats). We now cache each chat's slim
+// copy keyed by a cheap signature (id + message count + last mid + last msg revision marker) and
+// only rebuild the ones that actually changed. Measured: ~96ms → ~2ms at 10×1000-msg chats.
+const _slimCache=new Map(); // chatId -> {sig, slim}
+function _chatSig(c){
+  const msgs=c.messages||[];
+  const last=msgs[msgs.length-1];
+  // _rev is bumped by markChatDirty() on any in-place message edit (img/video/text/state changes).
+  return msgs.length+"|"+(last?last.mid:"")+"|"+(c._rev||0)+"|"+(c.location||"")+"|"+(c.gameDay||0)+"|"+(c.presentIds?c.presentIds.join(","):"");
+}
+function _slimChat(c){
+  const sc={...c,messages:(c.messages||[]).map(m=>{
+    const o={...m};
+    if(o.img){o.hadImg=true;delete o.img;}
+    if(o.video){o.hadVideo=true;o.video=null;}
+    // Drop transient per-message flags (e.g. _reveal) so a reload never shows a
+    // permanently-blank bubble from an interrupted typewriter animation.
+    Object.keys(o).forEach(k=>{if(k[0]==="_")delete o[k];});
+    return o;
+  })};
+  // Never persist transient in-flight flags (e.g. _gmBusy); a reload mid-beat
+  // would otherwise leave them stuck true and dead-lock the gamemaster.
+  Object.keys(sc).forEach(k=>{if(k[0]==="_")delete sc[k];});
+  return sc;
+}
+// Call after mutating a message in place (image arrived, text edited, status stamped) so the
+// slim cache for that chat is invalidated and the next persist re-serializes it.
+function markChatDirty(chat){ if(chat){ chat._rev=(chat._rev||0)+1; } }
+function persistChatsNow(){ return perf("persistChatsNow",()=>{
   // Strip heavy base64 image/video data out of persisted JSON (keep flags only).
   // In-memory state keeps the real data for the session; gallery handles persistence of media metadata.
   const slim={};
+  const liveIds=new Set();
   for(const id in state.chats){
-    const c=state.chats[id];
-    slim[id]={...c,messages:(c.messages||[]).map(m=>{
-      const o={...m};
-      if(o.img){o.hadImg=true;delete o.img;}
-      if(o.video){o.hadVideo=true;o.video=null;}
-      // Drop transient per-message flags (e.g. _reveal) so a reload never shows a
-      // permanently-blank bubble from an interrupted typewriter animation.
-      Object.keys(o).forEach(k=>{if(k[0]==="_")delete o[k];});
-      return o;
-    })};
-    // Never persist transient in-flight flags (e.g. _gmBusy); a reload mid-beat
-    // would otherwise leave them stuck true and dead-lock the gamemaster.
-    Object.keys(slim[id]).forEach(k=>{if(k[0]==="_")delete slim[id][k];});
+    const c=state.chats[id]; liveIds.add(id);
+    const sig=_chatSig(c);
+    const hit=_slimCache.get(id);
+    if(hit && hit.sig===sig){ slim[id]=hit.slim; continue; }   // unchanged chat — reuse cached slim
+    const sc=_slimChat(c);
+    _slimCache.set(id,{sig,slim:sc});
+    slim[id]=sc;
   }
+  // Drop cache entries for deleted chats so the map can't grow unbounded.
+  for(const id of Array.from(_slimCache.keys())){ if(!liveIds.has(id)) _slimCache.delete(id); }
+  // Skip the (O(total messages)) stringify + IndexedDB write entirely when nothing actually
+  // changed since the last flush. Debounced persistChats() can fire on no-op paths (re-opening
+  // a chat, presence re-checks that change nothing); the combined signature lets us bail cheaply.
+  const _combinedSig=Array.from(liveIds).sort().map(id=>id+":"+(_slimCache.get(id)&&_slimCache.get(id).sig)).join("~")+"#cur="+(state.curChat||"");
+  if(_combinedSig===_lastPersistSig){ return; }
+  _lastPersistSig=_combinedSig;
   // Chats now live in IndexedDB (large quota) — no need to strip-and-pray against a 5MB
   // ceiling. We still strip base64 media (it lives in the media stores) to keep the blob lean.
   mediaDB.kvSet("chats",slim).then(ok=>{
     if(!ok){
       // IDB write failed (rare: private mode / disk pressure). Fall back to localStorage so
-      // the turn isn't lost, trimming oldest messages if even that overflows.
-      if(!store.set(K.chats,slim)){
+      // the turn isn't lost, trimming oldest messages if even that overflows. Work on a deep
+      // copy — slim[id] objects are shared with _slimCache, so trimming them in place would
+      // corrupt the cache (and thus future exports/loads).
+      const fb=JSON.parse(JSON.stringify(slim));
+      if(!store.set(K.chats,fb)){
         toast("⚠️ Storage full — trimming oldest messages");
-        const ids=Object.keys(slim).sort((a,b)=>(slim[b].messages.length)-(slim[a].messages.length));
+        const ids=Object.keys(fb).sort((a,b)=>(fb[b].messages.length)-(fb[a].messages.length));
         let saved=false;
         for(let pass=0; pass<20 && !saved; pass++){
-          for(const id of ids){ if(slim[id].messages.length>40) slim[id].messages=slim[id].messages.slice(-Math.ceil(slim[id].messages.length*0.8)); }
-          saved=store.set(K.chats,slim);
+          for(const id of ids){ if(fb[id].messages.length>40) fb[id].messages=fb[id].messages.slice(-Math.ceil(fb[id].messages.length*0.8)); }
+          saved=store.set(K.chats,fb);
         }
       }
     }
   });
   store.setRaw(K.curChat,state.curChat||"");
-}
+}); }
 // Debounced/coalesced persistence: a turn fires persistChats() many times (once per
 // character message, per nudge, etc). Instead of deep-copying + JSON-stringifying the
 // ENTIRE chat blob on each, we coalesce them into a single write a tick later. Any code
 // path that must guarantee a flush (unload, export, clear) calls persistChatsNow().
 let _persistChatsTimer=null;
+let _lastPersistSig=null; // combined per-chat signature of the last write; lets persistChatsNow() skip no-op flushes
 function persistChats(){
   if(_persistChatsTimer) return;
   _persistChatsTimer=setTimeout(()=>{ _persistChatsTimer=null; persistChatsNow(); scheduleAutoBackup(); }, 400);
@@ -2492,8 +3467,14 @@ function applyTheme(){let th=state.theme;if(th==='system')th=window.matchMedia('
    memory, voice check) still runs on the complete text. Honors state.streamReveal
    and is automatically skipped if the user isn't following the bottom (so it
    never tugs the viewport while they're reading earlier messages). */
-let _revealTimers={};   // mid -> interval id, so we can cancel if needed
-function cancelReveal(mid){ if(_revealTimers[mid]){ clearInterval(_revealTimers[mid]); delete _revealTimers[mid]; } }
+let _revealTimers={};   // mid -> timer id, so we can cancel if needed
+function cancelReveal(mid){ if(_revealTimers[mid]){ clearTimeout(_revealTimers[mid]); clearInterval(_revealTimers[mid]); delete _revealTimers[mid]; } }
+// Reveal pacing tuned to HUMAN READING SPEED (~220 words/min ≈ 3.7 words/sec), not the old
+// ~110 words/sec firehose. One word per tick at ~270ms gives a comfortable read-along pace;
+// sentence-ending punctuation adds a short beat. The full text is already in hand — this is
+// purely presentation, so nothing downstream (illustration, the next character, memory, voice
+// check) waits on it.
+const REVEAL_WPS=4.2;                         // words per second (reading pace)
 function typewriterReveal(mid,fullText,onDone){
   const b=document.querySelector('.bubble[data-mid="'+mid+'"]');
   const body=b&&b.querySelector('.body');
@@ -2503,20 +3484,57 @@ function typewriterReveal(mid,fullText,onDone){
   const list=chatScrollEl();
   const follow=isNearBottom(list);          // only auto-scroll if user is at the bottom
   body.innerHTML="";                         // clear immediately so the full text never flashes
-  // Reveal by words for a natural pace; punctuation gets a tiny extra beat.
   const tokens=fullText.split(/(\s+)/);     // keep whitespace tokens so spacing is exact
   let i=0, shown="";
-  const STEP=2;                              // words revealed per tick
-  const TICK=18;                             // ms between ticks
-  _revealTimers[mid]=setInterval(()=>{
-    // If the message vanished (chat switched / restarted), stop cleanly.
+  const baseTick=Math.round(1000/REVEAL_WPS);  // ms per word at reading speed
+  const tick=()=>{
     const liveBody=document.querySelector('.bubble[data-mid="'+mid+'"] .body');
     if(!liveBody){ cancelReveal(mid); if(onDone)onDone(); return; }
-    for(let s=0;s<STEP && i<tokens.length;s++){ shown+=tokens[i++]; }
+    // advance one WORD (skip the following whitespace token in the same step)
+    if(i<tokens.length){ shown+=tokens[i++]; if(i<tokens.length && /^\s+$/.test(tokens[i])) shown+=tokens[i++]; }
     liveBody.innerHTML=md(shown);
     if(follow && isNearBottom(list)) list.scrollTop=list.scrollHeight;
-    if(i>=tokens.length){ cancelReveal(mid); liveBody.innerHTML=md(fullText); if(onDone)onDone(); }
-  },TICK);
+    if(i>=tokens.length){ cancelReveal(mid); liveBody.innerHTML=md(fullText); if(onDone)onDone(); return; }
+    // small extra beat after sentence-ending punctuation for a natural cadence
+    const lastCh=shown.slice(-1);
+    const delay=/[.!?…]/.test(lastCh)?baseTick*3:(/[,;:]/.test(lastCh)?baseTick*1.8:baseTick);
+    _revealTimers[mid]=setTimeout(tick,delay);
+  };
+  _revealTimers[mid]=setTimeout(tick,baseTick);
+}
+
+/* ---- Sequential reveal QUEUE ----------------------------------------------
+   Decouples text reveal from generation and the image pipeline. When a character's
+   reply is ready we (1) fire illustration immediately and (2) ENQUEUE its reveal.
+   The queue plays reveals one-at-a-time at reading speed, so in a multi-character
+   turn the next character can be generated and illustrated while the previous line
+   is still rolling — nothing waits on the typewriter. */
+let _revealQueue=[];
+let _revealPlaying=false;
+let _revealPending=new Set();   // mids queued or playing — bubble() keeps these blank until rolled
+function enqueueReveal(mid,text){
+  return new Promise(resolve=>{
+    _revealPending.add(mid);
+    _revealQueue.push({mid,text,resolve});
+    _drainRevealQueue();
+  });
+}
+function _drainRevealQueue(){
+  if(_revealPlaying) return;
+  const job=_revealQueue.shift();
+  if(!job){ return; }
+  _revealPlaying=true;
+  typewriterReveal(job.mid,job.text,()=>{
+    _revealPlaying=false;
+    _revealPending.delete(job.mid);
+    job.resolve();
+    _drainRevealQueue();   // play the next queued reveal, if any
+  });
+}
+function clearRevealQueue(){
+  // On chat switch/restart, drop pending reveals so they don't roll into a new chat.
+  _revealQueue.forEach(j=>{ try{ cancelReveal(j.mid); }catch(e){} _revealPending.delete(j.mid); j.resolve&&j.resolve(); });
+  _revealQueue=[]; _revealPlaying=false; _revealPending.clear();
 }
 
 /* ---- OpenRouter ---- */
@@ -2928,14 +3946,14 @@ const PROMPT_REGISTRY=[
    hint:"Flags out-of-character replies. Returns {ok, note}."},
   {key:"travelPrompt", label:"🗺️ Travel narration", def:()=>DEFAULT_TRAVEL, json:false,
    hint:"Narrates a journey between places. Use {{user}}."},
-  {key:"calPrompt", label:"📅 Calendar plan-detector", def:()=>DEFAULT_CAL, json:true,
-   hint:"Extracts future plans from conversation as JSON."},
+  {key:"calPrompt", label:"🗓️ Future-events detector", def:()=>DEFAULT_CAL, json:true,
+   hint:"Extracts meetings, promises & conditionals from conversation as JSON."},
   {key:"gmJudge", label:"⚖️ Gamemaster staleness judge", def:()=>DEFAULT_GM_JUDGE, json:true,
    hint:"Returns JSON {stale, reason, energy}. Use {{user}}, {{sensitivity}}."},
   {key:"gmAuthor", label:"✍️ Gamemaster event author", def:()=>DEFAULT_GM_AUTHOR, json:false,
    hint:"Writes the hidden nudge. Use {{user}} and {{reason}}."},
-  {key:"daySummaryPrompt", label:"🌙 Day-summary", def:()=>DEFAULT_DAY_SUMMARY, json:false,
-   hint:"Condenses a finished day into one memory. Use {{char}}, {{user}}."},
+  {key:"daySummaryPrompt", label:"📔 End-of-day diary", def:()=>DEFAULT_DAY_SUMMARY, json:false,
+   hint:"Each character writes a private diary entry at day's end. Use {{char}}, {{user}}."},
   {key:"sceneSetup", label:"🧩 Scene Writer setup", def:()=>DEFAULT_SCENE_SETUP, json:true,
    hint:"Classifies a new event. Returns JSON."},
   {key:"sceneWriter", label:"✍️ Scene Writer advance", def:()=>DEFAULT_SCENE_WRITER, json:true,
@@ -3103,6 +4121,29 @@ function renderUniverses(){
 // ============================ LOCATIONS + TRAVEL ============================
 function curLocations(){ const u=curUniverseObj(); return (u&&Array.isArray(u.locations))?u.locations:[]; }
 function locById(id){ return curLocations().find(l=>l.id===id); }
+// Resolve a free-text place name from the calendar detector to a real location id (fuzzy:
+// exact, then contains, case-insensitive). Returns null if nothing reasonable matches.
+function locByName(name){
+  if(!name||!name.trim())return null;
+  const q=name.trim().toLowerCase();
+  const locs=curLocations();
+  let hit=locs.find(l=>(l.name||"").toLowerCase()===q);
+  if(hit)return hit;
+  hit=locs.find(l=>(l.name||"").toLowerCase().includes(q)||q.includes((l.name||"").toLowerCase()));
+  if(hit)return hit;
+  // Word-level: match on shared significant words (drop common filler so "the cafe" finds
+  // "Cafe Derya"). Pick the location sharing the most words with the query.
+  const stop=new Set(["the","a","an","at","in","on","of","to","my","her","his","their","place","spot"]);
+  const qWords=q.split(/[^a-z0-9]+/).filter(w=>w&&!stop.has(w));
+  if(!qWords.length)return null;
+  let best=null,bestScore=0;
+  for(const l of locs){
+    const lWords=new Set((l.name||"").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+    const score=qWords.reduce((s,w)=>s+(lWords.has(w)?1:0),0);
+    if(score>bestScore){ bestScore=score; best=l; }
+  }
+  return bestScore>0?best:null;
+}
 function residentsOf(loc){ if(!loc||!Array.isArray(loc.residents))return []; return loc.residents.map(id=>state.personas.find(p=>p.id===id)).filter(Boolean); }
 // Where a character currently is + what kind of place it is. Used to give the roleplay and
 // the director engines short, structured location context instead of a giant world blob.
@@ -3234,55 +4275,15 @@ function _doTravel(locId,withCompanions){
   travelTo(locId,ids);
 }
 // ============================ CHARACTER SCHEDULES ============================
-// Per-character per-period weighted distribution across this universe's locations. We resolve
-// EVERYONE's position once per (day,period) into chat.worldPositions so the world is stable
-// within a period. Home is the fallback anchor; companions override; the GM can summon/send.
+// DETERMINISTIC placement (no randomness). A character is "at" a location ONLY if they are a
+// listed resident of it. This guarantees a character can never turn up somewhere they were not
+// assigned to or manually brought by the user. Characters with no residence are "off-screen"
+// (position null) and only enter a scene when the user explicitly brings them (/bring) or the
+// Gamemaster summons a named resident. The old weighted random `rollPosition` was the source of
+// characters appearing in places at random — it is gone.
 function personaHome(p){
   const loc=curLocations().find(l=>Array.isArray(l.residents)&&l.residents.includes(p.id));
   return loc?loc.id:null;
-}
-function rollPosition(p,period){
-  const locs=curLocations(); if(!locs.length)return null;
-  const sched=p.schedule&&p.schedule[period];
-  let weights={};
-  let useElsewhere=false;
-  if(sched&&Object.keys(sched).length){
-    weights=Object.assign({},sched);
-    useElsewhere=true;   // explicit schedules are out of 100; remainder = elsewhere
-  }else if(Array.isArray(p.locations)&&p.locations.length){
-    // Hand-picked locations from the character's bio. Spread their time with VARIED
-    // weighting (not an even split) so different places get genuinely different shares:
-    // home (if among them) is weighted highest, then a gentle descending spread, with a
-    // small per-period jitter so the same character isn't pinned to one spot every period.
-    const chosen=p.locations.filter(id=>locs.some(l=>l.id===id));
-    if(!chosen.length){ locs.forEach(l=>{ weights[l.id]=1; }); }
-    else{
-      const home=personaHome(p);
-      // base descending weights: 50, 30, 20, 14, 10, ... (relative), home boosted.
-      const base=[50,30,20,14,10,8,6,5];
-      // rotate the order a little by period so the "primary" place shifts across the day.
-      const pIdx=Math.max(0,PERIODS.indexOf(period));
-      const ordered=chosen.slice();
-      const rot=pIdx%ordered.length;
-      const rotated=ordered.slice(rot).concat(ordered.slice(0,rot));
-      rotated.forEach((id,i)=>{ weights[id]=(base[i]!=null?base[i]:4); });
-      if(home&&weights[home]!=null)weights[home]=Math.max(weights[home],55);
-      useElsewhere=true;   // a little chance they're somewhere off-list
-    }
-  }else{
-    // No schedule and no hand-picked spots: still avoid a flat split so places differ.
-    const home=personaHome(p);
-    if(home){ weights[home]=70; let i=0; locs.forEach(l=>{ if(l.id!==home){ weights[l.id]=Math.max(4,22-(i*4)); i++; } }); }
-    else { let i=0; locs.forEach(l=>{ weights[l.id]=Math.max(4,30-(i*5)); i++; }); }
-  }
-  const sum=Object.values(weights).reduce((a,b)=>a+(+b||0),0);
-  if(sum<=0)return null;
-  // If using an explicit schedule/picks, the denominator is at least 100 so unallocated
-  // weight becomes a real "elsewhere" chance (the character isn't at any listed location).
-  const total=useElsewhere?Math.max(100,sum):sum;
-  let r=Math.random()*total;
-  for(const id in weights){ r-=(+weights[id]||0); if(r<=0)return id; }
-  return null;   // fell into the elsewhere slice
 }
 function resolveWorldPositions(chat,force){
   const c=chat||curChat(); if(!c)return {};
@@ -3291,14 +4292,15 @@ function resolveWorldPositions(chat,force){
   if(!force && c._wpKey===key) return c.worldPositions;
   const pos={};
   (state.personas||[]).filter(p=>p.universeId===c.universeId).forEach(p=>{
-    pos[p.id]=rollPosition(p,chatPeriod(c));
+    pos[p.id]=personaHome(p);   // resident home, or null (off-screen) — never random
   });
   c.worldPositions=pos; c._wpKey=key;
   return pos;
 }
 function charactersAtLocation(chat,locId){
-  const pos=resolveWorldPositions(chat);
-  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && pos[p.id]===locId);
+  // Only residents of this location are ambiently here. Manually-brought companions are added
+  // by the caller (travelTo) on top of this set.
+  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && personaHome(p)===locId);
 }
 // GM movement: bring a named character INTO the current scene, or send a present one AWAY.
 // Returns the brought-in persona (so they can speak) or null.
@@ -3330,7 +4332,7 @@ function offstageRoster(chat){
 function chatCalendar(chat){ const c=chat||curChat(); if(!c)return []; if(!Array.isArray(c.calendar))c.calendar=[]; return c.calendar; }
 function addCalendarEntry(chat,entry){
   const cal=chatCalendar(chat);
-  cal.push(Object.assign({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,4),done:false,source:"manual"},entry));
+  cal.push(Object.assign({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,4),kind:"meeting",done:false,source:"manual"},entry));
   persistChats();
 }
 async function runCalendarEngine(chat){
@@ -3339,19 +4341,44 @@ async function runCalendarEngine(chat){
     const today=chat.gameDay||1;
     const msgs=[{role:"system",content:up("calPrompt")}];
     recentExchangeMsgs(chat,6).forEach(m=>msgs.push(m));
-    msgs.push({role:"user",content:`Current: Day ${today}, ${chatPeriod(chat)}.\n\nBased ONLY on the exchange above, return the JSON array of any concrete future plans.`});
-    const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",260),dbg:"Calendar plan detector"});
+    msgs.push({role:"user",content:`Current: Day ${today}, ${chatPeriod(chat)}.\n\nBased ONLY on the exchange above, return the JSON array of any future-binding items (meetings, promises, conditionals, custom).`});
+    const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",320),dbg:"Future events tracker"});
     const arr=parseJSON(out);
     if(!Array.isArray(arr)||!arr.length)return;
     const cal=chatCalendar(chat);
     let added=0;
     for(const p of arr){
       if(!p||!p.title)continue;
-      const day=today+(Number(p.dayOffset)||0);
-      if(cal.some(e=>e.day===day && e.title.toLowerCase()===String(p.title).toLowerCase()))continue;
+      const kind=["meeting","promise","conditional","custom"].includes(p.kind)?p.kind:"meeting";
+      const title=String(p.title).trim();
+      const who=p.who||"";
+      // Meetings are time-bound; promises/conditionals/custom are not (no day).
+      const day=(kind==="meeting")?today+(Number(p.dayOffset)||0):null;
+      // DUPLICATE CHECK: skip if an open entry of the same kind already covers this. For meetings
+      // match title within ±1 day or same people same day; for the rest match on title (any time)
+      // or same condition, so a re-detected promise/conditional doesn't pile up.
+      const dup=cal.some(e=>{
+        if(e.done)return false;
+        if((e.kind||"meeting")!==kind)return false;
+        const sameTitle=e.title.toLowerCase()===title.toLowerCase();
+        const sameWho=who && e.who && e.who.toLowerCase()===who.toLowerCase();
+        if(kind==="meeting"){
+          if(sameTitle && Math.abs((e.day||0)-(day||0))<=1) return true;
+          if(sameWho && e.day===day) return true;
+        }else{
+          if(sameTitle) return true;
+          if(p.condition && e.condition && e.condition.toLowerCase()===String(p.condition).toLowerCase()) return true;
+        }
+        return false;
+      });
+      if(dup)continue;
+      const loc=(kind==="meeting")?locByName(p.where||""):null;
       cal.push({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,4),
-        title:String(p.title).trim(), day, period:p.period||null, who:p.who||"",
-        done:false, source:"auto"});
+        kind, title, who,
+        day, period:(kind==="meeting"?(p.period||null):null),
+        where:(kind==="meeting"?String(p.where||"").trim():""), locationId:loc?loc.id:null,
+        condition:(kind==="conditional"?String(p.condition||"").trim():""),
+        done:false, prompted:false, source:"auto"});
       added++;
     }
     if(added){ persistChats(); updateCalendarBadge(); }
@@ -3360,7 +4387,50 @@ async function runCalendarEngine(chat){
 function plansDue(chat){
   const c=chat||curChat(); if(!c)return [];
   const today=c.gameDay||1;
-  return chatCalendar(c).filter(e=>!e.done && e.day<=today);
+  // Only meetings (time-bound, with a day) can be "due". Promises/conditionals/custom never are.
+  return chatCalendar(c).filter(e=>!e.done && (e.kind||"meeting")==="meeting" && e.day!=null && e.day<=today);
+}
+// A meeting is "due now" if its day is today (or past) and its period has arrived (or unspecified).
+function planDueNow(chat,e){
+  if((e.kind||"meeting")!=="meeting" || e.day==null) return false;  // non-meetings never auto-fire
+  const today=chat.gameDay||1;
+  if(e.done || e.day>today) return false;
+  if(e.day<today) return true;            // overdue
+  if(!e.period) return true;              // today, no specific period → due
+  const cur=chatPeriodIndex(chat);
+  const pi=PERIODS.indexOf(e.period);
+  return pi<0 || cur>=pi;                 // today and we've reached its period
+}
+// After a turn, if a meeting just came due and the user hasn't been asked yet, prompt them.
+// On yes, travel to the meeting's location (with a narration) and mark it done.
+async function checkDuePlans(chat){
+  if(!state.calOn||!chat)return;
+  const e=chatCalendar(chat).find(x=>!x.done && !x.prompted && planDueNow(chat,x));
+  if(!e)return;
+  e.prompted=true; persistChats();
+  const whoStr=e.who?` with ${e.who}`:"";
+  const locName=e.locationId?(locById(e.locationId)||{}).name:(e.where||"");
+  const atStr=locName?` at ${locName}`:"";
+  const go=confirm(`📅 It's time for: "${e.title}"${whoStr}${atStr}.\n\nDo you attend? (You'll travel there now.)`);
+  if(!go)return;
+  e.done=true; persistChats(); updateCalendarBadge();
+  if(e.locationId && locById(e.locationId)){
+    // Bring along the named participants if they're characters in this universe.
+    const companions=[];
+    if(e.who){
+      const names=e.who.split(/[,&]| and /i).map(s=>s.trim().toLowerCase()).filter(Boolean);
+      (state.personas||[]).filter(p=>p.universeId===chat.universeId).forEach(p=>{
+        if(names.some(n=>p.name.toLowerCase()===n||p.name.toLowerCase().includes(n))) companions.push(p.id);
+      });
+    }
+    await travelTo(e.locationId, companions);
+  }else{
+    // No resolved location — just narrate that the meeting time has arrived in place.
+    chat.messages.push({mid:newMid(),role:"assistant",narratorEvent:true,
+      content:`The time for ${e.title} has arrived${whoStr}.`,
+      present:presentIds(chat).slice(),img:null,imgState:"idle",vidState:"idle",video:null});
+    persistChats(); appendNewBubbles();
+  }
 }
 function updateCalendarBadge(){
   const b=document.getElementById('calBadge'); if(!b)return;
@@ -3368,55 +4438,141 @@ function updateCalendarBadge(){
   b.textContent=due?String(due):""; b.style.display=due?"":"none";
 }
 function calendarContextLine(chat){
-  const due=plansDue(chat);
-  if(!due.length)return "";
-  return "PLANS DUE: "+due.map(e=>`${e.title}${e.period?" ("+e.period+")":""}${e.who?" with "+e.who:""}`).join("; ");
+  const c=chat||curChat(); if(!c)return "";
+  const today=c.gameDay||1;
+  const cal=chatCalendar(c).filter(e=>!e.done);
+  if(!cal.length)return "";
+  const fmt=e=>`${e.title}${e.period?" ("+e.period+")":""}${e.who?" with "+e.who:""}${(e.locationId&&locById(e.locationId))?" at "+locById(e.locationId).name:(e.where?" at "+e.where:"")}`;
+  const kindOf=e=>e.kind||"meeting";
+  const meetings=cal.filter(e=>kindOf(e)==="meeting" && e.day!=null);
+  const dueNow=meetings.filter(e=>planDueNow(c,e));
+  const todayPlans=meetings.filter(e=>e.day===today && !planDueNow(c,e));
+  const upcoming=meetings.filter(e=>e.day>today && e.day<=today+2);  // next couple days
+  const promises=cal.filter(e=>kindOf(e)==="promise");
+  const conditionals=cal.filter(e=>kindOf(e)==="conditional");
+  const customs=cal.filter(e=>kindOf(e)==="custom");
+  const parts=[];
+  if(dueNow.length)    parts.push("⏰ HAPPENING NOW: "+dueNow.map(fmt).join("; "));
+  if(todayPlans.length)parts.push("TODAY: "+todayPlans.map(fmt).join("; "));
+  if(upcoming.length)  parts.push("SOON: "+upcoming.map(e=>`${fmt(e)} (Day ${e.day})`).join("; "));
+  if(promises.length)  parts.push("STANDING PROMISES (vows that still hold): "+promises.map(e=>`${e.title}${e.who?" — to "+e.who:""}`).join("; "));
+  if(conditionals.length)parts.push("PENDING CONDITIONS (act on these if the condition occurs): "+conditionals.map(e=>`IF ${e.condition||"(its condition)"} → ${e.title}${e.who?" ("+e.who+")":""}`).join("; "));
+  if(customs.length)   parts.push("REMEMBER: "+customs.map(e=>`${e.title}${e.who?" ("+e.who+")":""}`).join("; "));
+  if(!parts.length)return "";
+  // The characters are explicitly told they remember these commitments, so they bring them up.
+  return "FUTURE EVENTS & COMMITMENTS (the characters are aware of and remember these; reference them naturally, hold each other to them, and honor promises/conditions when relevant): "+parts.join(" · ");
 }
 function _calClose(){ const m=document.getElementById('calModal'); if(m)m.remove(); }
 function openCalendar(){
   const chat=curChat(); if(!chat)return;
   _calClose();
-  const cal=chatCalendar(chat).slice().sort((a,b)=>(a.day-b.day)||0);
   const today=chat.gameDay||1;
+  const all=chatCalendar(chat).slice();
+  const kindOf=e=>e.kind||"meeting";
+  const KIND_META={meeting:{icon:"📅",label:"Meetings"},promise:{icon:"🤝",label:"Promises"},conditional:{icon:"⚖️",label:"Conditional"},custom:{icon:"📌",label:"Other"}};
+  const entryRow=e=>{
+    const locName=(e.locationId&&locById(e.locationId))?locById(e.locationId).name:(e.where||"");
+    const isMeeting=kindOf(e)==="meeting" && e.day!=null;
+    const when=isMeeting?(e.day<today&&!e.done?`<span style="color:#E8A33D">Day ${e.day} (past)</span>`:`Day ${e.day}`):"";
+    const meta=[when, e.period&&isMeeting?esc(e.period):"", e.who?"👤 "+esc(e.who):"", locName?"📍 "+esc(locName):"",
+                kindOf(e)==="conditional"&&e.condition?"⚖️ if "+esc(e.condition):"", e.source==='auto'?'auto':""].filter(Boolean).join(" · ");
+    const canAttend=!e.done && isMeeting;
+    return `<div class="card" style="padding:8px;${isMeeting&&e.day===today&&!e.done?'border-color:var(--accent)':''}">
+      <div class="kvline" style="padding:0">
+        <div style="min-width:0"><b style="${e.done?'text-decoration:line-through;opacity:.5':''}">${esc(e.title)}</b>
+          <div class="desc">${meta}</div></div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          ${canAttend?`<button class="btn small" title="Attend now" onclick="attendPlan('${e.id}')">▶</button>`:""}
+          <button class="btn sec small" title="${e.done?'reopen':'mark done'}" onclick="toggleCalDone('${e.id}')">${e.done?'↺':'✓'}</button>
+          <button class="btn danger sec small" onclick="delCalEntry('${e.id}')">✕</button>
+        </div></div></div>`;
+  };
   let rows;
-  if(!cal.length){ rows=`<div class="desc">No plans or notes yet. Plans characters make are added automatically; you can also add your own.</div>`; }
+  if(!all.length){ rows=`<div class="desc">No future events yet. Meetings, promises and conditions characters make are tracked automatically; you can also add your own.</div>`; }
   else{
-    rows=cal.map(e=>{
-      const when=e.day<today&&!e.done?`<span style="color:#E8A33D">Day ${e.day} (past)</span>`:`Day ${e.day}`;
-      return `<div class="card" style="padding:8px;${e.day===today&&!e.done?'border-color:var(--accent)':''}">
-        <div class="kvline" style="padding:0">
-          <div style="min-width:0"><b style="${e.done?'text-decoration:line-through;opacity:.5':''}">${esc(e.title)}</b>
-            <div class="desc">${when}${e.period?" · "+esc(e.period):""}${e.who?" · 👤 "+esc(e.who):""}${e.source==='auto'?' · auto':''}</div></div>
-          <div style="display:flex;gap:4px;flex-shrink:0">
-            <button class="btn sec small" onclick="toggleCalDone('${e.id}')">${e.done?'↺':'✓'}</button>
-            <button class="btn danger sec small" onclick="delCalEntry('${e.id}')">✕</button>
-          </div></div></div>`;
-    }).join("");
+    rows="";
+    for(const k of ["meeting","promise","conditional","custom"]){
+      const group=all.filter(e=>kindOf(e)===k);
+      if(!group.length)continue;
+      // Meetings sort by day (nulls last); others by recency of id.
+      group.sort((a,b)=>((a.day??1e9)-(b.day??1e9))||0);
+      rows+=`<div class="desc" style="margin:10px 0 4px;font-weight:600;color:var(--accent)">${KIND_META[k].icon} ${KIND_META[k].label}</div>`;
+      rows+=group.map(entryRow).join("");
+    }
   }
   const m=document.createElement('div'); m.id="calModal"; m.className="modal show";
   m.innerHTML=`<button class="x" onclick="_calClose()">×</button>
-   <div class="card editCard"><h3>📅 Calendar — Day ${today}, ${esc(chatPeriod(chat))}</h3>
+   <div class="card editCard"><h3>🗓️ Future Events — Day ${today}, ${esc(chatPeriod(chat))}</h3>
    ${rows}
-   <button class="btn small" style="margin-top:10px" onclick="addCalManual()">＋ Add note / plan</button>
+   <button class="btn small" style="margin-top:10px" onclick="addCalManual()">＋ Add event</button>
    <button class="btn sec small" style="margin-top:6px" onclick="_calClose()">Close</button></div>`;
   m.addEventListener('click',e=>{if(e.target===m)_calClose();});
   document.body.appendChild(m);
 }
 function addCalManual(){
   const chat=curChat(); if(!chat)return;
-  const title=prompt("Plan / note:"); if(!title||!title.trim())return;
+  const kindStr=prompt("Type? 1=Meeting  2=Promise  3=Conditional  4=Other","1");
+  if(kindStr===null)return;
+  const kind=({"1":"meeting","2":"promise","3":"conditional","4":"custom"})[kindStr.trim()]||"meeting";
+  const title=prompt(kind==="meeting"?"Meeting / plan:":kind==="promise"?"The promise (e.g. 'We'll be friends forever'):":kind==="conditional"?"What's promised (e.g. 'I'll call you'):":"Note to remember:");
+  if(!title||!title.trim())return;
   const today=chat.gameDay||1;
-  const offStr=prompt("On which day? (a number, or +N for N days from now):",String(today));
-  if(offStr===null)return;
-  let day=today;
-  const t=offStr.trim();
-  if(t.startsWith("+"))day=today+(parseInt(t.slice(1),10)||0);
-  else if(/^\d+$/.test(t))day=parseInt(t,10);
-  addCalendarEntry(chat,{title:title.trim(),day,period:null,who:"",source:"manual"});
+  let day=null, locationId=null, where="", condition="";
+  if(kind==="meeting"){
+    const offStr=prompt("On which day? (a number, or +N for N days from now):",String(today));
+    if(offStr===null)return;
+    day=today; const t=offStr.trim();
+    if(t.startsWith("+"))day=today+(parseInt(t.slice(1),10)||0);
+    else if(/^\d+$/.test(t))day=parseInt(t,10);
+    const locs=curLocations();
+    if(locs.length){
+      const list=locs.map((l,i)=>`${i+1}. ${l.name}`).join("\n");
+      const pick=prompt(`Where? Enter a number (or leave blank):\n\n${list}`,"");
+      if(pick!==null && pick.trim()!==""){ const idx=parseInt(pick.trim(),10)-1; if(idx>=0&&idx<locs.length){ locationId=locs[idx].id; where=locs[idx].name; } }
+    }
+  }else if(kind==="conditional"){
+    const cond=prompt("Condition that triggers it (e.g. '{{user}} goes to the marina'):","");
+    if(cond!==null)condition=cond.trim();
+  }
+  const who=prompt("Who's involved? (character name, or leave blank)","")||"";
+  addCalendarEntry(chat,{kind,title:title.trim(),day,period:null,who:who.trim(),where,locationId,condition,source:"manual"});
   openCalendar(); updateCalendarBadge();
 }
 function toggleCalDone(id){ const chat=curChat(); const e=chatCalendar(chat).find(x=>x.id===id); if(e){e.done=!e.done;persistChats();openCalendar();updateCalendarBadge();} }
 function delCalEntry(id){ const chat=curChat(); chat.calendar=chatCalendar(chat).filter(x=>x.id!==id); persistChats(); openCalendar(); updateCalendarBadge(); }
+// Manually trigger a plan: travel to its location now (resolving one if needed) and mark it done.
+async function attendPlan(id){
+  const chat=curChat(); if(!chat)return;
+  const e=chatCalendar(chat).find(x=>x.id===id); if(!e)return;
+  let locId=e.locationId;
+  if(!(locId&&locById(locId))){
+    // Unresolved location — let the user pick from this universe's locations.
+    const locs=curLocations();
+    if(locs.length){
+      const list=locs.map((l,i)=>`${i+1}. ${l.name}`).join("\n");
+      const pick=prompt(`Where does "${e.title}" happen? Enter a number:\n\n${list}`);
+      if(pick===null)return;
+      const idx=parseInt(pick.trim(),10)-1;
+      if(idx>=0&&idx<locs.length){ locId=locs[idx].id; e.locationId=locId; }
+    }
+  }
+  e.done=true; persistChats(); updateCalendarBadge(); _calClose();
+  if(locId&&locById(locId)){
+    const companions=[];
+    if(e.who){
+      const names=e.who.split(/[,&]| and /i).map(s=>s.trim().toLowerCase()).filter(Boolean);
+      (state.personas||[]).filter(p=>p.universeId===chat.universeId).forEach(p=>{
+        if(names.some(n=>p.name.toLowerCase()===n||p.name.toLowerCase().includes(n))) companions.push(p.id);
+      });
+    }
+    await travelTo(locId, companions);
+  }else{
+    chat.messages.push({mid:newMid(),role:"assistant",narratorEvent:true,
+      content:`${e.title}${e.who?" with "+e.who:""} begins.`,
+      present:presentIds(chat).slice(),img:null,imgState:"idle",vidState:"idle",video:null});
+    persistChats(); appendNewBubbles();
+  }
+}
 
 // ============================ TRACKER + RELATIONSHIP ENGINE ============================
 // Per-universe TEMPLATES define trackers; per-chat VALUES hold live state. Deterministic
@@ -3954,32 +5110,52 @@ async function genAllSchedules(){
   }
   toast(done?`Schedules generated for ${done} character${done===1?"":"s"} ✓`:"⚠️ Couldn't generate — check API key & model");
 }
+let _leIndex=null, _leType="poi";
+function leSetType(t){
+  _leType=(t==='home')?'home':'poi';
+  document.querySelectorAll('#leType button').forEach(b=>b.classList.toggle('on',b.dataset.type===_leType));
+}
 function editLocation(i){
   const l=_ueLocs[i]; if(!l)return;
-  const name=prompt("Location name:",l.name||""); if(name===null)return; l.name=name.trim()||l.name;
-  const desc=prompt("Description (used for the scene + image):",l.description||""); if(desc!==null)l.description=desc.trim();
-  const type=prompt("Type — 'home' (a character lives here) or 'poi' (point of interest):",l.type||"poi");
-  if(type!==null){const tt=type.trim().toLowerCase(); l.type=(tt==='home')?'home':'poi';}
-  const tp=prompt("Travel time to here in periods (0=instant, 1=part of a day; blank=global default):",l.travelPeriods!=null?String(l.travelPeriods):"");
-  if(tp!==null)l.travelPeriods=tp.trim()===""?null:Math.max(0,+tp);
-  // Residents: pick from this universe's characters.
+  _leIndex=i;
+  document.getElementById('leName').value=l.name||"";
+  document.getElementById('leDesc').value=l.description||"";
+  document.getElementById('leTravel').value=(l.travelPeriods!=null?l.travelPeriods:"");
+  leSetType(l.type||"poi");
+  // Residents picker — characters in this universe.
   const uid=editingUniverse?editingUniverse.id:null;
   const cands=state.personas.filter(p=>!uid||p.universeId===uid);
-  if(cands.length && confirm("Set which characters LIVE here? (they'll be present when you arrive)")){
-    const cur=new Set(l.residents||[]);
-    const list=cands.map((p,idx)=>`${idx+1}. ${cur.has(p.id)?'☑':'☐'} ${p.name}`).join("\n");
-    const pick=prompt("Enter the numbers of residents, comma-separated (e.g. 1,3):\n\n"+list, (l.residents||[]).map(id=>cands.findIndex(p=>p.id===id)+1).filter(n=>n>0).join(","));
-    if(pick!==null){
-      const nums=pick.split(",").map(x=>parseInt(x.trim(),10)-1).filter(n=>n>=0&&n<cands.length);
-      l.residents=nums.map(n=>cands[n].id);
-    }
+  const cur=new Set(l.residents||[]);
+  const box=document.getElementById('leResidents');
+  if(!cands.length){ box.innerHTML=`<div class="desc">No characters in this universe yet.</div>`; }
+  else{
+    box.innerHTML=cands.map(p=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="leResChk" value="${p.id}" ${cur.has(p.id)?"checked":""}>
+      <span>${esc(p.avatar||"🎭")} ${esc(p.name)}</span></label>`).join("");
   }
-  // Optional: generate a picture now.
-  if(confirm("Generate a picture for this location now? (uses the location image model)")){
-    toast("Generating location image…");
-    generateLocationImage(l).then(url=>{ if(url){ l.image=url; renderLocEditor(); toast("Location image ✓"); } else toast("⚠️ Image failed"); });
-  }
+  openModal('locEditModal');
+}
+function saveLocationEdit(){
+  const l=_ueLocs[_leIndex]; if(!l){closeModal('locEditModal');return;}
+  l.name=document.getElementById('leName').value.trim()||l.name;
+  l.description=document.getElementById('leDesc').value.trim();
+  l.type=_leType;
+  const tp=document.getElementById('leTravel').value.trim();
+  l.travelPeriods=tp===""?null:Math.max(0,+tp||0);
+  l.residents=Array.from(document.querySelectorAll('#leResidents .leResChk:checked')).map(c=>c.value);
+  closeModal('locEditModal');
   renderLocEditor();
+  toast("Location saved ✓ — Save the universe to keep");
+}
+async function leGenPic(btn){
+  const l=_ueLocs[_leIndex]; if(!l)return;
+  // Persist the typed name/description first so the image matches what's on screen.
+  l.name=document.getElementById('leName').value.trim()||l.name;
+  l.description=document.getElementById('leDesc').value.trim();
+  const old=btn.textContent; btn.textContent="✨ Generating…"; btn.disabled=true;
+  try{ const url=await generateLocationImage(l); if(url){ l.image=url; toast("Location image ✓"); } else toast("⚠️ Image failed"); }
+  catch(e){ toast("🖼️ "+(e.friendly||"Couldn't generate")); }
+  finally{ btn.textContent=old; btn.disabled=false; }
 }
 
 function openUniverseGenerator(){
@@ -4151,14 +5327,17 @@ function openWriteAi(){
   openModal('writeAiModal');
 }
 async function runWriteAi(){
-  const reg=PROMPT_BY_KEY[_promptEditKey]; if(!reg)return;
+  const reg=PROMPT_BY_KEY[_promptEditKey]; if(!reg){toast("No prompt selected");return;}
   const brief=document.getElementById('waiBrief').value.trim();
   if(!brief){toast("Describe what you want first");return;}
   const btn=document.getElementById('waiGo'); btn.disabled=true; btn.textContent="Writing…";
+  // Resolve the destination NOW, before the async await — _writeAiTargetTextarea / _promptEditKey
+  // could otherwise be changed by another UI interaction while the request is in flight.
+  const targetTaId=_writeAiTargetTextarea;          // Settings textarea id, or null for the editor
+  const editorKey=_promptEditKey;
   try{
-    const cur=document.getElementById('peEditText').value.trim();
-    // Pull the {{placeholders}} present in the current/default prompt so the model keeps them.
-    const tpl=cur||(reg.def?reg.def():"");
+    const cur=(document.getElementById('peEditText')||{}).value||"";
+    const tpl=cur.trim()||(reg.def?reg.def():"");
     const placeholders=Array.from(new Set((tpl.match(/\{\{\w+\}\}/g)||[])));
     const jsonRule=reg.json
       ? `\n\nCRITICAL OUTPUT REQUIREMENT: This prompt drives a function whose output is parsed as JSON by the app. The prompt you write MUST instruct the model to respond with ONLY a valid JSON object (or array) and nothing else — no prose, no markdown fences. Preserve the exact JSON schema/shape shown in the reference prompt below; do not rename or drop fields.`
@@ -4174,22 +5353,32 @@ Write the full prompt text only — no preamble, no explanation, no surrounding 
       state.bioModel||state.model,
       {temp:0.6,max:1500,dbg:"Write prompt with AI · "+reg.key}
     );
-    let cleaned=(out||"").trim().replace(/^```[a-z]*\n?/i,"").replace(/```$/,"").trim();
+    // Strip surrounding markdown fences if the model added them (multiline-safe).
+    let cleaned=(out||"").trim();
+    cleaned=cleaned.replace(/^```[a-zA-Z]*\s*\n?/,"").replace(/\n?```\s*$/,"").trim();
     if(!cleaned){toast("The model returned nothing — try again");return;}
-    if(_writeAiTargetTextarea){
-      // Targeting a global Settings textarea directly.
-      const ta=document.getElementById(_writeAiTargetTextarea);
-      if(ta)ta.value=cleaned;
-      _writeAiTargetTextarea=null;
-      closeModal('writeAiModal');
-      toast("Drafted ✓ — review, then Save Settings");
+    // Write the result to the resolved destination. Re-query the element fresh and verify the
+    // write actually took, so a stale/missing node can never silently swallow the draft.
+    let wrote=false;
+    if(targetTaId){
+      const ta=document.getElementById(targetTaId);
+      if(ta){ ta.value=cleaned; ta.dispatchEvent(new Event('input',{bubbles:true})); wrote=(ta.value===cleaned); }
+      if(wrote){ closeModal('writeAiModal'); toast("Drafted ✓ — review, then Save Settings"); }
     }else{
-      document.getElementById('peEditText').value=cleaned;
-      closeModal('writeAiModal');
-      toast("Drafted ✓ — review, then Save");
+      const ta=document.getElementById('peEditText');
+      if(ta){ ta.value=cleaned; wrote=(ta.value===cleaned); }
+      if(wrote){ closeModal('writeAiModal'); openModal('promptEditModal'); toast("Drafted ✓ — review, then Save"); }
     }
+    if(!wrote){
+      // Last-resort: don't lose the user's generated text. Keep the modal open and offer copy.
+      console.warn("Write-with-AI: target textarea not found (",targetTaId||'peEditText',") — draft preserved");
+      try{ await navigator.clipboard.writeText(cleaned); toast("Drafted ✓ — copied to clipboard (paste into the prompt box)"); }
+      catch(_){ toast("Drafted, but couldn't reach the prompt box — see payload viewer to copy it"); }
+    }
+    _writeAiTargetTextarea=null;
   }catch(e){
-    toast("✗ "+(e.friendly||"Couldn't generate"));
+    console.warn("runWriteAi failed:",e);
+    toast("✗ "+(e&&e.friendly||"Couldn't generate"));
   }finally{ btn.disabled=false; btn.textContent="✨ Generate"; }
 }
 
@@ -4286,20 +5475,9 @@ function editPersona(id){
   openModal('personaModal');
 }
 function clearProfilePic(){peImageData=null;renderAvatarPreview();}
-// Render the "where they spend their time" checkboxes for the character editor, scoped to the
-// universe currently chosen in the editor. Pre-checks the character's saved locations.
-function renderPeLocations(p){
-  const box=document.getElementById('peLocations'); if(!box)return;
-  const sel=document.getElementById('peUniverse');
-  const uid=(sel&&sel.value)||(p&&p.universeId)||state.curUniverse;
-  const u=universeById(uid);
-  const locs=(u&&Array.isArray(u.locations))?u.locations:[];
-  const chosen=new Set((p&&Array.isArray(p.locations))?p.locations:[]);
-  if(!locs.length){ box.innerHTML=`<div class="desc">This universe has no locations yet. Add some in the Universe editor first.</div>`; return; }
-  box.innerHTML=locs.map(l=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-    <input type="checkbox" class="peLocChk" value="${l.id}" ${chosen.has(l.id)?"checked":""}>
-    <span>${l.type==='home'?'🏠':'📍'} ${esc(l.name)}</span></label>`).join("");
-}
+// Per-character location ticking was removed from the editor; residence is assigned in the
+// Universe → Locations editor. Kept as a safe no-op so existing callers don't error.
+function renderPeLocations(p){ /* removed: character-card location frequenting */ }
 async function generateProfilePic(){
   const look=document.getElementById('peLook').value.trim();
   const name=document.getElementById('peName').value.trim();
@@ -4591,7 +5769,9 @@ function savePersona(){
     look:document.getElementById('peLook').value.trim(),
     interject:document.getElementById('peInterject').value.trim(),
     routine:(editingPersona&&editingPersona.routine)||_peRoutine||"",
-    locations:Array.from(document.querySelectorAll('#peLocations .peLocChk:checked')).map(c=>c.value),
+    // Location frequenting was removed from the character editor (residence is set in the
+    // Universe → Locations editor instead). Preserve any existing value rather than wiping it.
+    locations:(editingPersona&&Array.isArray(editingPersona.locations))?editingPersona.locations:[],
     image:peImageData||null};
   // If the player hand-picked locations, drop any stale generated schedule so the new
   // hand-picked spread (varied weighting) takes effect immediately.
@@ -4639,11 +5819,18 @@ function memText(m){return m.content||m.text||"";}
 function curGameDay(){const c=state.curChat&&state.chats[state.curChat];return (c&&c.gameDay)||1;}
 // Memories belonging to a specific owner (character id).
 function memoriesOf(ownerId){return state.memory.filter(m=>m.ownerId===ownerId);}
-// Memories visible to the current scene: ONLY those owned by characters in the cast.
-// Each character keeps its own memories; no character can recall another's.
+// Memories visible to the current scene: ONLY those owned by characters in the cast AND formed
+// in the CURRENT universe. Memories carry a universeId (legacy ones without it are treated as
+// belonging to the current universe so nothing is lost). This is what stops a character's
+// memories from another universe/playthrough leaking into an unrelated ongoing chat.
 function visibleMemories(){
   const ids=new Set(curCast().map(c=>c.id));
-  return state.memory.filter(m=>ids.has(m.ownerId));
+  const uni=state.curUniverse||null;
+  return state.memory.filter(m=>{
+    if(!ids.has(m.ownerId)) return false;
+    if(m.universeId && uni && m.universeId!==uni) return false;  // different universe → not visible
+    return true;
+  });
 }
 function buildSystemPrompt(injectedMemories){
   const cast=presentCast();   // build around who is actually present
@@ -4904,6 +6091,7 @@ function startSceneFor(uid,silent){
 }
 // Enter (resume) a universe's chat. Default presence is EMPTY — nobody nearby.
 function enterUniverseChat(uid,silent){
+  clearRevealQueue();   // drop any reveals queued in the previous chat
   uid=uid||state.curUniverse||(state.universes[0]&&state.universes[0].id);
   state.curUniverse=uid;applyUniverseProfile(uid);persistUniverses();
   startSceneFor(uid,true);
@@ -5060,8 +6248,13 @@ function applyPresence(chat,enterNames,exitNames){
 // Drop a subtle system line into the chat noting who left/arrived.
 function notePresence(chat,entered,exited){
   const parts=[];
-  if(exited.length)parts.push(`${exited.join(", ")} ${exited.length>1?"have":"has"} left`);
-  if(entered.length)parts.push(`${entered.join(", ")} ${entered.length>1?"have":"has"} arrived`);
+  // Stamp WHERE and WHEN so the note reads e.g. "Defne has arrived at Cafe Derya, in the morning".
+  const locName=(chat&&chat.location)||"";
+  const period=chat?chatPeriod(chat):"";
+  const when=period?`, in the ${period.toLowerCase()}`:"";
+  const atLoc=locName?` at ${locName}`:"";
+  if(exited.length)parts.push(`${exited.join(", ")} ${exited.length>1?"have":"has"} left${atLoc}${when}`);
+  if(entered.length)parts.push(`${entered.join(", ")} ${entered.length>1?"have":"has"} arrived${atLoc}${when}`);
   if(!parts.length)return;
   chat.messages.push({mid:newMid(),role:"assistant",presenceNote:true,sysError:true,
     content:"— "+parts.join(" · ")+" —",
@@ -5070,6 +6263,7 @@ function notePresence(chat,entered,exited){
 function restartScene(){
   const u=curUniverseObj();
   if(!confirm("Restart the story in "+((u&&u.name)||"this universe")+"? The current dialogue will be cleared."))return;
+  clearRevealQueue();   // drop any in-flight reveals from the old scene
   const uid=(state.curChat&&state.chats[state.curChat]&&state.chats[state.curChat].universeId)||state.curUniverse;
   // remove the existing chat for this universe so it starts fresh
   for(const id in state.chats){ if(state.chats[id].universeId===uid)delete state.chats[id]; }
@@ -5110,17 +6304,54 @@ function updateChatHeader(){
 function toggleChatMenu(e){ if(e)e.stopPropagation(); const m=document.getElementById('chatMenu'); if(m)m.classList.toggle('hide'); }
 function closeChatMenu(){ const m=document.getElementById('chatMenu'); if(m)m.classList.add('hide'); }
 document.addEventListener('click',e=>{ const m=document.getElementById('chatMenu'); if(m&&!m.classList.contains('hide')&&!e.target.closest('#chatMenu')&&!e.target.closest('[onclick*="toggleChatMenu"]'))m.classList.add('hide'); });
+let _ssPeriod="";
 function setSceneState(){
   const chat=curChat(); if(!chat)return;
-  const cur=chatPeriod(chat);
-  const t=prompt("Time of day — type one of: Morning, Midday, Afternoon, Evening, Night:",cur);
-  if(t===null)return;
-  const match=PERIODS.find(p=>p.toLowerCase()===t.trim().toLowerCase());
-  if(match){ chat.period=match; chat.timeOfDay=match; }
-  const l=prompt("Location (leave blank to clear):",chat.location||"");
-  if(l===null){ persistChats(); updateChatHeader(); return; }
-  chat.location=l.trim();
-  persistChats(); updateChatHeader(); toast("Scene updated ✓");
+  // Day stepper
+  document.getElementById('ssDay').value=chat.gameDay||1;
+  // Time-of-day segmented buttons
+  _ssPeriod=chatPeriod(chat);
+  const seg=document.getElementById('ssPeriod'); seg.innerHTML="";
+  PERIODS.forEach(p=>{
+    const b=document.createElement('button'); b.type="button"; b.textContent=p;
+    if(p===_ssPeriod)b.classList.add('on');
+    b.onclick=()=>{ _ssPeriod=p; seg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); };
+    seg.appendChild(b);
+  });
+  // Location: dropdown of this universe's places + free text
+  const sel=document.getElementById('ssLocSelect');
+  const locs=curLocations();
+  const curLoc=(chat.location||"").trim();
+  let opts=`<option value="">— none / custom —</option>`;
+  let matched=false;
+  opts+=locs.map(l=>{ const on=l.name===curLoc; if(on)matched=true; return `<option value="${esc(l.name)}" ${on?"selected":""}>${esc(l.type==='home'?'🏠':'📍')} ${esc(l.name)}</option>`; }).join("");
+  sel.innerHTML=opts;
+  document.getElementById('ssLocText').value=matched?"":curLoc;
+  openModal('sceneStateModal');
+}
+function ssAdjustDay(delta){
+  const el=document.getElementById('ssDay');
+  el.value=Math.max(1,(parseInt(el.value,10)||1)+delta);
+}
+function ssLocPick(){
+  // Picking a named location clears the free-text override.
+  if(document.getElementById('ssLocSelect').value) document.getElementById('ssLocText').value="";
+}
+function saveSceneState(){
+  const chat=curChat(); if(!chat){closeModal('sceneStateModal');return;}
+  const day=Math.max(1,parseInt(document.getElementById('ssDay').value,10)||1);
+  chat.gameDay=day;
+  if(_ssPeriod){ chat.period=_ssPeriod; chat.timeOfDay=_ssPeriod; }
+  const sel=document.getElementById('ssLocSelect').value;
+  const txt=document.getElementById('ssLocText').value.trim();
+  const newLoc=txt||sel||"";
+  chat.location=newLoc;
+  // Keep locationId in sync if the chosen name matches a known location (drives backgrounds/travel).
+  const matchLoc=newLoc?locByName(newLoc):null;
+  chat.locationId=matchLoc?matchLoc.id:(newLoc?null:chat.locationId);
+  markChatDirty(chat); persistChats(); updateChatHeader();
+  if(typeof applyLocationBackground==="function")applyLocationBackground();
+  closeModal('sceneStateModal'); toast("Scene updated ✓");
 }
 function openCast(){
   const chat=curChat();
@@ -5220,7 +6451,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 // Full rebuild — used on chat-switch, restart, or any structural change. O(window), not O(all).
-function renderChat(){
+function renderChat(){ return perf("renderChat",()=>{
   const list=document.getElementById('chatList');list.innerHTML="";
   const chat=curChat();
   _renderedChatId=state.curChat; _renderedCount=0;
@@ -5232,21 +6463,29 @@ function renderChat(){
   // A full rebuild happens on chat-open/switch/restart — landing at the latest line is expected.
   list.scrollTop=list.scrollHeight;
   hideNewMsgPill();
-}
+}); }
 // Incremental render — append only messages not yet in the DOM. Falls back to a full
 // rebuild if the rendered chat changed underneath us (e.g. chat-switch) so callers can
 // always use this safely after pushing one or more new messages to the current chat.
-function appendNewBubbles(){
+function appendNewBubbles(){ return perf("appendNewBubbles",()=>{
   const list=document.getElementById('chatList');
   const chat=curChat();
   if(_renderedChatId!==state.curChat || !list.querySelector('.bubble,[data-mid]')){ renderChat(); return; }
   // Capture whether the user is following the conversation BEFORE we mutate the DOM.
   const wasAtBottom=isNearBottom(list);
   const msgs=chat.messages;
-  // Find messages after the last one we have a node for.
-  const have=new Set(); list.querySelectorAll('[data-mid]').forEach(n=>have.add(n.dataset.mid));
+  // New messages are always appended to the END of chat.messages, so instead of building a
+  // Set over the whole transcript and scanning all of it (O(total) per turn), walk backward
+  // from the tail until we reach a message already in the DOM. This keeps the per-turn cost
+  // proportional to the number of NEW messages, not the conversation length.
+  const lastNode=(()=>{const ns=list.querySelectorAll('[data-mid]');return ns.length?ns[ns.length-1].dataset.mid:null;})();
+  let firstNew=msgs.length;
+  if(lastNode===null){ firstNew=0; }
+  else {
+    for(let i=msgs.length-1;i>=0;i--){ if(!msgs[i].mid) msgs[i].mid=newMid(); if(msgs[i].mid===lastNode){ firstNew=i+1; break; } if(i===0){ firstNew=0; } }
+  }
   let appended=0;
-  for(const m of msgs){ if(!m.mid) m.mid=newMid(); if(have.has(m.mid)) continue;
+  for(let i=firstNew;i<msgs.length;i++){ const m=msgs[i]; if(!m.mid) m.mid=newMid();
     const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); appended++; }
   if(appended){
     // Trim the front of the DOM to keep within the window (state is untouched).
@@ -5258,7 +6497,7 @@ function appendNewBubbles(){
     if(wasAtBottom){ list.scrollTop=list.scrollHeight; hideNewMsgPill(); }
     else { showNewMsgPill(); }
   }
-}
+}); }
 function findMsg(mid){
   // Search the current chat first, then all chats (async image/video calls can
   // outlive a re-render, so never assume the message is only in curChat()).
@@ -5353,8 +6592,11 @@ function bubble(m){
       tempTag=` <span class="pill" style="font-size:9px;border-color:var(--accent);color:var(--accent)">guest</span>`;
     }
   }
-  const _revealing=m._reveal && _revealTimers[m.mid];
-  b.innerHTML=`<div class="meta">${avatar}${esc(name)}${tempTag}${gmTag}${voiceTag}</div><div class="body">${_revealing?"":md(m.content)}</div>`;
+  const _revealing=m._reveal && (_revealPending.has(m.mid) || _revealTimers[m.mid]);
+  // Per-message edit/delete controls (real chat lines only — not GM/narrator/day markers,
+  // which return earlier). Kept tiny and muted so they don't crowd the bubble.
+  const actions=`<span class="msgActions"><button class="msgAct" title="Edit" onclick="editMessage('${m.mid}')">✏️</button><button class="msgAct" title="Delete" onclick="deleteMessage('${m.mid}')">🗑️</button></span>`;
+  b.innerHTML=`<div class="meta">${avatar}${esc(name)}${tempTag}${gmTag}${voiceTag}${actions}</div><div class="body">${_revealing?"":md(m.content)}</div>`;
   if(m.role==='assistant'){
     // For finished image/video use the safe DOM builder (handles huge base64 data URLs);
     // loading/error states are cheap strings.
@@ -5375,6 +6617,43 @@ function bubble(m){
   b.addEventListener('touchstart',()=>{timer=setTimeout(()=>{navigator.clipboard?.writeText(m.content);toast("Copied ✓");},550);});
   b.addEventListener('touchend',()=>clearTimeout(timer));
   return b;
+}
+/* ---- Per-message edit & delete ---- */
+let _editMsgMid=null;
+function editMessage(mid){
+  const m=findMsg(mid); if(!m){toast("Message not found");return;}
+  _editMsgMid=mid;
+  const who=m.role==='user'?state.user:(m.speaker||"Narrator");
+  document.getElementById('editMsgWho').textContent=who;
+  document.getElementById('editMsgText').value=m.content||"";
+  openModal('editMsgModal');
+  setTimeout(()=>{const ta=document.getElementById('editMsgText');ta.focus();},50);
+}
+function saveEditMessage(){
+  const m=findMsg(_editMsgMid); if(!m){closeModal('editMsgModal');return;}
+  const val=document.getElementById('editMsgText').value;
+  m.content=val;
+  // Find the owning chat to invalidate caches and re-render just this bubble.
+  let owner=null; for(const id in state.chats){ if(state.chats[id].messages.some(x=>x.mid===_editMsgMid)){owner=state.chats[id];break;} }
+  if(owner) markChatDirty(owner);
+  closeModal('editMsgModal');
+  // Re-render the single bubble in place (cheap) and persist.
+  const node=document.querySelector('.bubble[data-mid="'+_editMsgMid+'"]');
+  if(node){ const body=node.querySelector('.body'); if(body) body.innerHTML=md(val); }
+  else renderChat();
+  persistChats();
+  toast("Edited ✓");
+}
+function deleteMessage(mid){
+  if(!confirm("Delete this message? This can't be undone.")) return;
+  let owner=null,oid=null;
+  for(const id in state.chats){ const i=state.chats[id].messages.findIndex(x=>x.mid===mid); if(i>=0){owner=state.chats[id];oid=id;owner.messages.splice(i,1);break;} }
+  if(!owner){toast("Message not found");return;}
+  markChatDirty(owner);
+  const node=document.querySelector('[data-mid="'+mid+'"]');
+  if(node) node.remove(); else renderChat();
+  persistChats();
+  toast("Deleted ✓");
 }
 function sceneHTML(m){
   const mid=m.mid;
@@ -5405,6 +6684,11 @@ function sceneHTML(m){
 function refreshBubble(mid){
   const m=findMsg(mid);
   if(!m) return;
+  // A refreshBubble call always follows an in-place mutation of this message (image/video
+  // arrived, state changed). The persist slim-cache keys on a per-chat signature, so bump the
+  // owning chat's revision marker to invalidate it; otherwise an image that lands on an existing
+  // (already-counted) message would not be re-serialized on the next debounced persist.
+  for(const cid in state.chats){ if(state.chats[cid].messages.some(x=>x.mid===mid)){ markChatDirty(state.chats[cid]); break; } }
   const b=document.querySelector('.bubble[data-mid="'+mid+'"]');
   if(!b){
     // Bubble not in the DOM. If the message belongs to the current chat AND is within
@@ -5518,9 +6802,10 @@ async function sendMessage(){
     const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
-    typewriterReveal(msg.mid,reply,()=>{ delete msg._reveal; });
+    // Fire illustration immediately (text is ready); reveal rolls via the queue at reading speed.
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,solo);
+    enqueueReveal(msg.mid,reply).then(()=>{ delete msg._reveal; });
     // Detect anyone the reply (or the player) narrated entering/leaving — this was previously
     // only done in the multi-character path, so one-on-one scenes never ran presence detection.
     await runPresenceTracker(chat);
@@ -5548,9 +6833,9 @@ function handleOOC(chat,text){
     if(presentIds(chat).includes(p.id)){toast(`${p.name} is already here`);return;}
     chat.presentIds.push(p.id);
     notePresence(chat,[p.name],[]);
-    persistChats();renderChat();updateChatHeader();
+    persistChats();appendNewBubbles();updateChatHeader();
     // let them greet/enter
-    playCharacterTurn(chat,p,"arriving").then(()=>{persistChats();renderChat();});
+    playCharacterTurn(chat,p,"arriving").then(()=>{persistChats();appendNewBubbles();});
   }else if(cmd==="leave"||cmd==="send"||cmd==="dismiss"||cmd==="remove"){
     if(!arg){toast("Usage: /leave Name");return;}
     const p=findByName(arg)||(chat.tempChars||[]).find(t=>t.name.toLowerCase().includes(arg.toLowerCase()));
@@ -5558,7 +6843,7 @@ function handleOOC(chat,text){
     if(!presentIds(chat).includes(p.id)){toast(`${p.name} isn't here`);return;}
     chat.presentIds=chat.presentIds.filter(x=>x!==p.id);
     notePresence(chat,[],[p.name]);
-    persistChats();renderChat();updateChatHeader();
+    persistChats();appendNewBubbles();updateChatHeader();
   }else if(cmd==="who"||cmd==="here"){
     const here=presentCast(chat).map(c=>c.name);
     toast(here.length?("Here: "+here.join(", ")):"Nobody is nearby");
@@ -5633,8 +6918,14 @@ function castHistory(chat,forP){
   const mapped=chat.messages.filter(m=>{
     if(m.role==='system')return false;
     if(m.sysError&&!m.dayMarker&&!m.presenceNote)return false;
-    if(forP&&Array.isArray(m.present)&&!m.presenceNote&&!m.dayMarker){
-      return m.present.includes(forP.id);   // only what this character heard
+    // Ambient/world content (GM narration, day boundaries, presence notes) is universally
+    // visible — it describes the world, not private dialogue.
+    if(m.narratorEvent||m.dayMarker||m.presenceNote) return true;
+    // Dialogue (user lines and character replies): a character only "heard" it if they were
+    // present when it happened. If the message carries a present[] list, enforce it strictly.
+    // Messages with NO present[] are legacy/ambient and remain visible (can't retro-attribute).
+    if(forP && Array.isArray(m.present)){
+      return m.present.includes(forP.id);   // only what this character actually witnessed
     }
     return true;
   }).map(m=>{
@@ -5762,11 +7053,16 @@ async function playCharacterTurn(chat,p,addressed){
     const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
-    // Reveal this character's line before the next character in the chain speaks, so
-    // multi-character turns roll in one after another instead of all snapping in at once.
-    await new Promise(res=>typewriterReveal(msg.mid,cleaned,()=>{ delete msg._reveal; res(); }));
+    // Text is ready NOW — fire the image pipeline and voice check immediately, before (and
+    // independent of) the typewriter. The reveal is queued so multi-character lines still roll
+    // in one after another at reading speed, but generation/illustration of the NEXT character
+    // never waits on the previous line finishing its roll.
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
+    // Enqueue the reveal but DON'T await it — return immediately so the chain can generate and
+    // illustrate the next character while this line is still rolling. The queue guarantees
+    // reveals play one-at-a-time in order, at reading speed, to the reader.
+    enqueueReveal(msg.mid,cleaned).then(()=>{ delete msg._reveal; });
     return true;
   }catch(err){
     typing.remove();
@@ -6014,6 +7310,14 @@ async function animateScene(mid){
     }
     msg.video=videoUrl;msg.vidState="done";msg.vidPrompt=vidPrompt;
     state.videos.push({id:"vid_"+Date.now(),url:videoUrl,prompt:vidPrompt,character:cast.map(c=>c.name).join(", "),date:Date.now()});
+    // Cap in-memory video base64/blob URLs the same way images are capped (IMG_MEM_CAP). Without
+    // this, a long session retains every full-res video in memory (~0.8MB+ each) and climbs past
+    // 30MB after a few dozen, which on a phone gets the tab killed and reloaded (data-loss symptom).
+    // Persistence already keeps the recent window in IndexedDB; we only evict the heavy url here.
+    const VID_MEM_CAP=12;
+    if(state.videos.length>VID_MEM_CAP){
+      for(let i=0;i<state.videos.length-VID_MEM_CAP;i++){ if(state.videos[i]&&state.videos[i].url){state.videos[i].url="";state.videos[i].evicted=true;} }
+    }
     persistVideos();persistChats();refreshBubble(mid);
   }catch(err){
     msg.vidState="error";persistChats();refreshBubble(mid);
@@ -6099,12 +7403,21 @@ function renderGallery(){
   const el=document.getElementById('galleryGrid');el.innerHTML="";
   const hasImg=state.images.length, hasVid=state.videos.length;
   if(!hasImg&&!hasVid){el.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="big">🖼️</div><div>Scene images and videos appear here as you roleplay.</div></div>`;return;}
-  state.images.slice().reverse().forEach(r=>{const img=document.createElement('img');img.src=r.url;img.onclick=()=>viewGalleryImage(r.id);el.appendChild(img);});
+  state.images.slice().reverse().forEach(r=>{
+    if(!r.url){ // evicted from memory to keep the session lean — show a lightweight placeholder
+      const ph=document.createElement('div');ph.style.cssText="aspect-ratio:1;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:12px;opacity:.5;font-size:24px";ph.textContent="🖼️";el.appendChild(ph);return;
+    }
+    const img=document.createElement('img');img.src=r.url;img.onclick=()=>viewGalleryImage(r.id);el.appendChild(img);
+  });
   if(hasVid){
     const h=document.createElement('div');h.style.gridColumn="1/-1";h.style.marginTop="6px";h.innerHTML=`<h3 style="margin:0">Videos</h3><div class="desc">Videos play this session; re-animate after reload if needed.</div>`;el.appendChild(h);
     state.videos.slice().reverse().forEach(v=>{
       const wrap=document.createElement('div');wrap.style.gridColumn="1/-1";
-      wrap.innerHTML=`<video src="${v.url}" controls playsinline loop style="width:100%;border-radius:12px;border:1px solid var(--border)"></video><div class="desc">${esc(v.character)} — ${esc(v.prompt)}</div>`;
+      if(!v.url){ // evicted from memory — keep metadata visible, drop the dead <video>
+        wrap.innerHTML=`<div style="padding:14px;border:1px dashed var(--border);border-radius:12px;opacity:.6">🎬 ${esc(v.character)} — ${esc(v.prompt)}<div class="desc">Freed from memory this session — re-animate to view.</div></div>`;
+      }else{
+        wrap.innerHTML=`<video src="${v.url}" controls playsinline loop style="width:100%;border-radius:12px;border:1px solid var(--border)"></video><div class="desc">${esc(v.character)} — ${esc(v.prompt)}</div>`;
+      }
       el.appendChild(wrap);
     });
   }
@@ -6145,33 +7458,44 @@ function fillTpl(s,map){return s.replace(/\{\{(\w+)\}\}/g,(m,k)=>map[k]!==undefi
 async function endDay(){
   const chat=curChat();
   const day=chat.gameDay||1;
-  if(!confirm(`End Day ${day}? This advances the story to Day ${day+1} and records a summary of today.`))return;
-  // Characters who actually appeared in the conversation get a day-summary memory
-  // (not every character in the universe).
+  if(!confirm(`End Day ${day}? This advances the story to Day ${day+1}. Characters who were here and have memories will write a private diary entry about today.`))return;
+  // Characters who actually appeared in the conversation AND already have memories of their own
+  // (in this universe) write a diary entry. A character with no memories has nothing to reflect
+  // on, so they're skipped — the diary is a continuation of an existing inner life, not a cold start.
   const speakerNames=new Set(chat.messages.filter(m=>m.role==='assistant'&&m.speaker&&!m.sysError).map(m=>m.speaker));
-  const cast=curCast().filter(c=>speakerNames.has(c.name));
+  const uni=(chat&&chat.universeId)||state.curUniverse||null;
+  const hasMemories=(id)=>state.memory.some(m=>m.ownerId===id && (!m.universeId || !uni || m.universeId===uni));
+  const cast=curCast().filter(c=>speakerNames.has(c.name) && hasMemories(c.id));
   const fallbackName=(cast[0]&&cast[0].name)||"Narrator";
-  // Build a day-summary memory per participating character (best-effort).
+  // Build a diary memory per participating character (best-effort), from what THEY witnessed.
   if(state.mem && state.key && cast.length){
-    const convo=chat.messages.filter(m=>m.role!=='system'&&!m.sysError).slice(-40)
-      .map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
     for(const c of cast){
       try{
+        // Only the messages this character was present for — their diary can't mention what
+        // they never saw (ties into the witness rules).
+        const witnessed=chat.messages.filter(m=>{
+          if(m.role==='system'||m.sysError)return false;
+          if(Array.isArray(m.present))return m.present.includes(c.id);
+          return true;
+        }).slice(-40);
+        const convo=witnessed.map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
+        if(!convo.trim()) continue;
         const sys=fillTpl(up("daySummaryPrompt"),{char:c.name,user:state.user})+
           (cast.length>1?`\n\nWrite strictly from ${c.name}'s own perspective. Only what ${c.name} personally experienced and would remember.`:"");
         const out=await chatCompletion([
           {role:"system",content:sys},
-          {role:"user",content:`Day ${day} involving ${c.name} and ${state.user}:\n\n${convo}`}
-        ],state.memModel,{temp:fnTemp("mem",0.3),max:fnTok("mem",400),dbg:"Day summary · "+c.name});
+          {role:"user",content:`Day ${day} — ${c.name}'s diary about what they experienced today (with ${state.user}):\n\n${convo}`}
+        ],state.memModel,{temp:fnTemp("mem",0.5),max:fnTok("mem",500),dbg:"Diary · "+c.name});
         const j=parseJSON(out);
         if(j&&j.content){
           state.memory.push({
             id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
             content:String(j.content).trim(),location:j.location||"",emotion:j.emotion||"neutral",
             importance:typeof j.importance_score==="number"?j.importance_score:0.7,
-            tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):["day-summary"],
-            type:j.type||"DAY_SUMMARY",ownerId:c.id,character:c.name,
-            date:Date.now(),gameDay:day,source:"day-summary"
+            tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):["diary"],
+            type:j.type||"DIARY",ownerId:c.id,character:c.name,
+            date:Date.now(),gameDay:day,source:"diary",
+            universeId:(chat&&chat.universeId)||state.curUniverse||null, chatId:(chat&&chat.id)||state.curChat||null
           });
         }
       }catch(e){/* best-effort per character */}
@@ -6223,6 +7547,9 @@ async function postTurn(chat){
   }
   if(state.calOn){
     runCalendarEngine(chat).catch(()=>{});
+    // A meeting may have come due this turn — ask the player (blocking) before the scene
+    // continues, so an accepted meeting can travel them before the next beat is generated.
+    try{ await checkDuePlans(chat); }catch(e){}
   }
   if(chat.activeEvent && !chat.activeEvent.resolved && state.sceneOn){
     const broughtIn=await runSceneWriter(chat);
@@ -6666,7 +7993,8 @@ async function maybeBuildMemory(chat){
         importance:typeof j.importance_score==="number"?j.importance_score:0.5,
         tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):[],
         type:j.type||"EXPERIENCE",
-        ownerId:p.id, character:p.name, date:Date.now(), gameDay:curGameDay(), source:"auto"
+        ownerId:p.id, character:p.name, date:Date.now(), gameDay:curGameDay(), source:"auto",
+        universeId:(chat&&chat.universeId)||state.curUniverse||null, chatId:(chat&&chat.id)||state.curChat||null
       };
       if(!memoriesOf(p.id).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase())){
         state.memory.push(mem);
@@ -6709,6 +8037,9 @@ async function maybeCondenseMemories(ownerId,name){
   if(!Array.isArray(arr)||!arr.length) return;
   // Build consolidated memory objects.
   const earliestDay=Math.min(...batch.map(m=>m.gameDay||1));
+  // Inherit scope from the batch so consolidated memories stay tied to the same universe/chat.
+  const batchUniv=(batch.find(m=>m.universeId)||{}).universeId||state.curUniverse||null;
+  const batchChat=(batch.find(m=>m.chatId)||{}).chatId||null;
   const consolidated=arr.filter(j=>j&&j.content).map(j=>({
     id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
     content:String(j.content).trim(),
@@ -6718,7 +8049,7 @@ async function maybeCondenseMemories(ownerId,name){
     tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):["consolidated"],
     type:"CONSOLIDATED",
     ownerId, character:name, date:Date.now(), gameDay:earliestDay, source:"condenser",
-    condensedFrom:batch.length
+    condensedFrom:batch.length, universeId:batchUniv, chatId:batchChat
   }));
   if(!consolidated.length) return;
   // Replace the batch with the consolidated memories (remove originals by id).
@@ -6843,7 +8174,7 @@ function renderMemory(){
   });
 }
 function delMemory(id){if(!confirm("Delete this memory?"))return;state.memory=state.memory.filter(m=>m.id!==id);persistMemory();renderMemory();}
-function addMemoryManual(){const t=prompt("Remember that…");if(t&&t.trim()){const owner=presentCast()[0]||curCast()[0];if(!owner){toast("Bring a character nearby first");return;}state.memory.push({id:"m_"+Date.now(),content:t.trim(),location:"",emotion:"neutral",importance:0.6,tags:[],type:"EXPERIENCE",ownerId:owner.id,character:owner.name,date:Date.now(),gameDay:curGameDay(),source:"manual"});persistMemory();renderMemory();show('memory');toast("Added to "+owner.name+"'s memory ✓");}}
+function addMemoryManual(){const t=prompt("Remember that…");if(t&&t.trim()){const owner=presentCast()[0]||curCast()[0];if(!owner){toast("Bring a character nearby first");return;}const _ch=curChat();state.memory.push({id:"m_"+Date.now(),content:t.trim(),location:"",emotion:"neutral",importance:0.6,tags:[],type:"EXPERIENCE",ownerId:owner.id,character:owner.name,date:Date.now(),gameDay:curGameDay(),source:"manual",universeId:(_ch&&_ch.universeId)||state.curUniverse||null,chatId:(_ch&&_ch.id)||state.curChat||null});persistMemory();renderMemory();show('memory');toast("Added to "+owner.name+"'s memory ✓");}}
 
 /* ---- settings ---- */
 /* ===== Editable model-routing rules (add/remove as many as you want) ===== */
@@ -7037,7 +8368,7 @@ function syncSettingsUI(){
   {const gd=globalUserDefaults();
    document.getElementById('setUser').value=gd.user;
    document.getElementById('setUserLook').value=gd.userLook||'';
-   document.getElementById('setUserBio').value=gd.userBio||'';}
+   {const bio=document.getElementById('setUserBio'); if(bio)bio.value=gd.userBio||'';}}
   document.getElementById('setKey').value=state.key;
   document.getElementById('setSegKey').value=state.segkey;
   {const ak=document.getElementById('setAtlasKey'); if(ak)ak.value=state.atlasKey||'';}
@@ -7121,7 +8452,10 @@ function saveSettings(notify){
   // active per-universe identity (a universe without its own override picks these up).
   const gUser=document.getElementById('setUser').value.trim()||"You";
   const gLook=document.getElementById('setUserLook').value.trim();
-  const gBio=document.getElementById('setUserBio').value.trim();
+  // The global "Your background" field was removed from Settings (bio is now per-universe).
+  // Preserve any previously-stored global bio so saving Settings doesn't wipe it.
+  const _bioEl=document.getElementById('setUserBio');
+  const gBio=_bioEl?_bioEl.value.trim():store.raw(K.userBio,"");
   store.setRaw(K.user,gUser);store.setRaw(K.userLook,gLook);store.setRaw(K.userBio,gBio);
   applyUniverseProfile(state.curUniverse);
   state.key=document.getElementById('setKey').value.trim();
@@ -7322,11 +8656,128 @@ async function importAllFile(file){
     setTimeout(()=>location.reload(),700);
   }catch(e){ console.warn("importAll failed",e); toast("⚠️ Import failed: "+(e.message||"bad file")); }
 }
+/* ===== Granular export / import sets ===== */
+function _downloadJSON(obj,name){
+  const blob=new Blob([JSON.stringify(obj)],{type:"application/json"});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  const d=new Date(); const stamp=d.getFullYear()+""+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")+"_"+String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0");
+  a.download=name+"_"+stamp+".json"; a.click();
+}
+// 🎭 ROLEPLAY: the current universe's chats + the memories tied to it, plus the universe and its
+// cast so the bundle is self-contained and importable into a fresh install.
+function exportRoleplay(){
+  try{
+    flushPersistChats();
+    const uni=state.curUniverse||null;
+    const universe=(state.universes||[]).find(u=>u.id===uni)||null;
+    const chats={}; for(const id in state.chats){ if(state.chats[id].universeId===uni) chats[id]=state.chats[id]; }
+    const personas=(state.personas||[]).filter(p=>p.universeId===uni);
+    const memory=(state.memory||[]).filter(m=>!m.universeId||m.universeId===uni);
+    if(!Object.keys(chats).length && !memory.length){ toast("No roleplay in this universe to export"); return; }
+    _downloadJSON({app:"StoryMind",kind:"roleplay",version:BACKUP_VERSION,date:Date.now(),
+      universe, personas, chats, memory, curChat:state.curChat}, "storymind_roleplay");
+    toast("Roleplay exported ✓");
+  }catch(e){ console.warn("exportRoleplay failed",e); toast("⚠️ Export failed"); }
+}
+async function importRoleplayFile(b){
+  if(!b||b.kind!=="roleplay") throw new Error("Not a roleplay export");
+  if(!confirm("Import this roleplay? Its universe, characters, chats and memories will be ADDED (existing data is kept; same ids are overwritten).")) return false;
+  // Merge universe + personas (so the roleplay is playable), then chats + memories.
+  if(b.universe){ const i=state.universes.findIndex(u=>u.id===b.universe.id); if(i>=0)state.universes[i]=b.universe; else state.universes.push(b.universe); persistUniverses(); }
+  if(Array.isArray(b.personas)){ b.personas.forEach(p=>{ const i=state.personas.findIndex(x=>x.id===p.id); if(i>=0)state.personas[i]=p; else state.personas.push(p); }); persistPersonas(); }
+  if(b.chats){ for(const id in b.chats){ state.chats[id]=b.chats[id]; } }
+  if(Array.isArray(b.memory)){ const ids=new Set(state.memory.map(m=>m.id)); b.memory.forEach(m=>{ if(!ids.has(m.id))state.memory.push(m); }); persistMemory(); }
+  if(b.universe)state.curUniverse=b.universe.id;
+  if(b.curChat&&state.chats[b.curChat])state.curChat=b.curChat;
+  flushPersistChats();
+  return true;
+}
+// 🌍 UNIVERSES: worlds + their characters only (no chats/memories) — share worldbuilding.
+function exportUniverses(){
+  try{
+    _downloadJSON({app:"StoryMind",kind:"universes",version:BACKUP_VERSION,date:Date.now(),
+      universes:state.universes||[], personas:state.personas||[]}, "storymind_universes");
+    toast("Universes exported ✓");
+  }catch(e){ console.warn("exportUniverses failed",e); toast("⚠️ Export failed"); }
+}
+async function importUniversesFile(b){
+  if(!b||b.kind!=="universes") throw new Error("Not a universes export");
+  if(!confirm("Import these universes and their characters? They'll be ADDED to your worlds (same ids are overwritten).")) return false;
+  (b.universes||[]).forEach(u=>{ const i=state.universes.findIndex(x=>x.id===u.id); if(i>=0)state.universes[i]=u; else state.universes.push(u); });
+  (b.personas||[]).forEach(p=>{ const i=state.personas.findIndex(x=>x.id===p.id); if(i>=0)state.personas[i]=p; else state.personas.push(p); });
+  persistUniverses(); persistPersonas();
+  return true;
+}
+// ⚙️ PROMPTS: all prompt overrides + model/toggle settings (the "prompt pack"). Pulls from the
+// PROMPT_REGISTRY (source of truth) plus model/numeric keys, reading current stored values.
+const PROMPT_PACK_KEYS=[
+  // models & numeric/toggle settings
+  "model","rewriter","memModel","gmModel","mcModel","routerModel","bioModel","locModel",
+  "temp","tokens","histTurns","gmEvery","gmSensitivity","mcChainCap","steps",
+  "condenseThreshold","condenseKeep","condenseBatch","stripKeepFull","travelTime","sceneMin","sceneMax",
+  "mem","gmOn","sceneOn","routeOn","condenseOn","autoCharOn","stripNarr","recapOn","relOn","trackOn","voiceCheckOn","calOn","autoImg","presenceOff"
+];
+function exportPrompts(){
+  try{
+    const prompts={};
+    // Every registered prompt (stored override, or current state value).
+    PROMPT_REGISTRY.forEach(reg=>{ const kk=K[reg.key]; if(kk){ const v=store.raw(kk,null); if(v!=null)prompts[reg.key]=v; } });
+    const settings={};
+    PROMPT_PACK_KEYS.forEach(key=>{ const kk=K[key]; if(kk){ const v=store.raw(kk,null); if(v!=null)settings[key]=v; } });
+    _downloadJSON({app:"StoryMind",kind:"prompts",version:BACKUP_VERSION,date:Date.now(),
+      prompts, settings}, "storymind_prompts");
+    toast("Prompts exported ✓");
+  }catch(e){ console.warn("exportPrompts failed",e); toast("⚠️ Export failed"); }
+}
+async function importPromptsFile(b){
+  if(!b||b.kind!=="prompts") throw new Error("Not a prompts export");
+  if(!confirm("Import this prompt pack? It REPLACES your prompts and model/setting choices (chats, characters and memories are untouched).")) return false;
+  if(b.prompts){ for(const key in b.prompts){ const kk=K[key]; if(kk)store.setRaw(kk,b.prompts[key]); } }
+  if(b.settings){ for(const key in b.settings){ const kk=K[key]; if(kk)store.setRaw(kk,b.settings[key]); } }
+  return true;
+}
+// ---- Import dispatcher: one hidden <input>, routed by what the user clicked. ----
+let _importMode="all";
+function importPick(mode){ _importMode=mode||"all"; const el=document.getElementById('importFile'); if(el){ el.value=""; el.click(); } }
+async function importDispatch(file){
+  if(!file)return;
+  try{
+    if(_importMode==="all"){ await importAllFile(file); return; }   // its own confirm + reload
+    const b=JSON.parse(await file.text());
+    if(!b||b.app!=="StoryMind") throw new Error("Not a StoryMind file");
+    let ok=false;
+    if(_importMode==="roleplay")  ok=await importRoleplayFile(b);
+    else if(_importMode==="universes") ok=await importUniversesFile(b);
+    else if(_importMode==="prompts")   ok=await importPromptsFile(b);
+    if(ok){ toast("Imported ✓ — reloading"); setTimeout(()=>location.reload(),700); }
+  }catch(e){ console.warn("import failed",e); toast("⚠️ Import failed: "+(e.message||"bad file")); }
+}
 function confirmClear(w){
   if(w==='chats'&&confirm("Delete ALL chats?")){state.chats={};state.curChat=null;flushPersistChats();try{localStorage.removeItem(K.chats);}catch(e){}startSceneFor(state.curUniverse);renderChat();toast("Cleared");updateStorage();}
   if(w==='memory'&&confirm("Delete ALL memories?")){state.memory=[];persistMemory();try{localStorage.removeItem(K.memory);}catch(e){}renderMemory();toast("Cleared");updateStorage();}
   if(w==='images'&&confirm("Delete ALL gallery images?")){state.images=[];persistImages();renderGallery();toast("Cleared");updateStorage();}
   if(w==='videos'&&confirm("Delete ALL gallery videos?")){state.videos=[];persistVideos();renderGallery();toast("Cleared");}
+}
+// Wipe only the memories belonging to the current universe. Targeted cleanup for the case where
+// stale memories from an earlier playthrough bleed into a scene. Legacy memories without a
+// universeId are also removed here (they can't be safely attributed to another universe).
+function wipeUniverseMemory(){
+  const uni=state.curUniverse||null;
+  const uName=(state.universes.find(u=>u.id===uni)||{}).name||"this universe";
+  const before=state.memory.length;
+  if(!confirm(`Wipe all character memories formed in "${uName}"? Memories from other universes are kept.`)) return;
+  state.memory=state.memory.filter(m=>{
+    // keep memories that clearly belong to a DIFFERENT universe
+    if(m.universeId && m.universeId!==uni) return true;
+    return false; // drop current-universe and unattributed (legacy) memories
+  });
+  persistMemory();
+  // Also reset per-character memory counters on this universe's chats so building restarts cleanly.
+  for(const id in state.chats){ if(state.chats[id].universeId===uni){ state.chats[id].memCounts={}; markChatDirty(state.chats[id]); } }
+  persistChats();
+  if(document.getElementById('screen-memory').classList.contains('active'))renderMemory();
+  updateStorage();
+  toast(`Wiped ${before-state.memory.length} mem\u200bories ✓`);
 }
 
 /* ---- onboarding ---- */
