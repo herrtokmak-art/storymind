@@ -3474,7 +3474,7 @@ function cancelReveal(mid){ if(_revealTimers[mid]){ clearTimeout(_revealTimers[m
 // sentence-ending punctuation adds a short beat. The full text is already in hand — this is
 // purely presentation, so nothing downstream (illustration, the next character, memory, voice
 // check) waits on it.
-const REVEAL_WPS=4.2;                         // words per second (reading pace)
+const REVEAL_CPS=18;                          // characters per second (letter-by-letter, slightly slower than word reveal)
 function typewriterReveal(mid,fullText,onDone){
   const b=document.querySelector('.bubble[data-mid="'+mid+'"]');
   const body=b&&b.querySelector('.body');
@@ -3484,20 +3484,19 @@ function typewriterReveal(mid,fullText,onDone){
   const list=chatScrollEl();
   const follow=isNearBottom(list);          // only auto-scroll if user is at the bottom
   body.innerHTML="";                         // clear immediately so the full text never flashes
-  const tokens=fullText.split(/(\s+)/);     // keep whitespace tokens so spacing is exact
-  let i=0, shown="";
-  const baseTick=Math.round(1000/REVEAL_WPS);  // ms per word at reading speed
+  let i=0;                                    // character index into fullText
+  const baseTick=Math.round(1000/REVEAL_CPS); // ms per character
   const tick=()=>{
     const liveBody=document.querySelector('.bubble[data-mid="'+mid+'"] .body');
     if(!liveBody){ cancelReveal(mid); if(onDone)onDone(); return; }
-    // advance one WORD (skip the following whitespace token in the same step)
-    if(i<tokens.length){ shown+=tokens[i++]; if(i<tokens.length && /^\s+$/.test(tokens[i])) shown+=tokens[i++]; }
+    i++;                                       // reveal one more character
+    const shown=fullText.slice(0,i);
     liveBody.innerHTML=md(shown);
     if(follow && isNearBottom(list)) list.scrollTop=list.scrollHeight;
-    if(i>=tokens.length){ cancelReveal(mid); liveBody.innerHTML=md(fullText); if(onDone)onDone(); return; }
-    // small extra beat after sentence-ending punctuation for a natural cadence
-    const lastCh=shown.slice(-1);
-    const delay=/[.!?…]/.test(lastCh)?baseTick*3:(/[,;:]/.test(lastCh)?baseTick*1.8:baseTick);
+    if(i>=fullText.length){ cancelReveal(mid); liveBody.innerHTML=md(fullText); if(onDone)onDone(); return; }
+    // a longer beat after sentence-ending punctuation, a small one after clause punctuation
+    const lastCh=fullText.charAt(i-1);
+    const delay=/[.!?…]/.test(lastCh)?baseTick*9:(/[,;:]/.test(lastCh)?baseTick*5:baseTick);
     _revealTimers[mid]=setTimeout(tick,delay);
   };
   _revealTimers[mid]=setTimeout(tick,baseTick);
