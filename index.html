@@ -864,6 +864,31 @@
 </nav>
 
 <script>
+// ---- Global error surface. If anything throws during init, the app used to die silently:
+// the chat never rendered and the send button "did nothing" because `state` was never set
+// up. This banner makes such failures visible and keeps a record so the cause is clear.
+window.__bootError=null;
+window.addEventListener('error',function(ev){
+  try{
+    window.__bootError=(ev&&ev.error&&ev.error.stack)||(ev&&ev.message)||String(ev);
+    showBootError(window.__bootError);
+  }catch(_){}
+});
+window.addEventListener('unhandledrejection',function(ev){
+  try{
+    const r=ev&&ev.reason; window.__bootError=(r&&r.stack)||(r&&r.message)||String(r);
+    showBootError(window.__bootError);
+  }catch(_){}
+});
+function showBootError(msg){
+  if(document.getElementById('bootErrBar'))return;
+  const d=document.createElement('div');
+  d.id='bootErrBar';
+  d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#7a1020;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:10px 14px;max-height:40vh;overflow:auto;white-space:pre-wrap;';
+  d.textContent='⚠️ Startup error (tap to dismiss):\n'+msg;
+  d.onclick=()=>d.remove();
+  (document.body||document.documentElement).appendChild(d);
+}
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
@@ -2512,6 +2537,7 @@ function stripSpeakerPrefixes(text,selfName,castNames){
   out=out.replace(lineLabel,"$1");
   return out.trim();
 }
+let _midc=0;
 function newMid(){return "msg_"+Date.now().toString(36)+"_"+(_midc++);}
 function md(t){
   t=esc(t);
@@ -7416,23 +7442,29 @@ function finishOnboard(){
 
 /* ---- init ---- */
 async function init(){
-  await preloadCollections();   // hydrate growing collections from IndexedDB (with one-time LS migration)
-  loadState();applyTheme();
-  if(store.raw(K.onboarded,null)!=="1"){document.getElementById('onboard').classList.add('show');obGo(1);}
-  else{init2();}
+  try{ await preloadCollections(); }   // hydrate growing collections from IndexedDB
+  catch(e){ console.warn("preloadCollections failed",e); showBootError("preloadCollections: "+((e&&e.stack)||e)); }
+  try{ loadState(); }
+  catch(e){ console.error("loadState failed",e); showBootError("loadState: "+((e&&e.stack)||e)); }
+  try{ applyTheme(); }catch(e){ console.warn("applyTheme failed",e); }
+  try{
+    if(store.raw(K.onboarded,null)!=="1"){document.getElementById('onboard').classList.add('show');obGo(1);}
+    else{init2();}
+  }catch(e){ console.error("init2 failed",e); showBootError("init2: "+((e&&e.stack)||e)); }
 }
 function init2(){
-  syncSettingsUI();loadModels(false);
-  applyUniverseProfile(state.curUniverse);   // resolve per-universe player identity on load
-  // Pull full image/video history from IndexedDB (large quota). If legacy localStorage
-  // images were loaded by loadState, persistImages() below writes them into IDB once,
-  // then they live there going forward.
-  hydrateMedia().then(()=>{ if(state.images.length) persistImages(); });
-  if(!state.curChat||!state.chats[state.curChat]){startSceneFor(state.curUniverse,true);}
-  renderChat();updateChatHeader();
-  // illustrate opening greeting if not yet done
-  const chat=curChat();const last=chat.messages[chat.messages.length-1];
-  if(last&&last.role==='assistant'&&!last.img&&last.imgState!=='loading'&&state.autoImg){autoIllustrateLast();}
+  // syncSettingsUI touches dozens of DOM nodes; if any single one is missing it must not
+  // prevent the chat from rendering (which is what makes "send does nothing" happen).
+  try{ syncSettingsUI(); }catch(e){ console.error("syncSettingsUI failed",e); showBootError("syncSettingsUI: "+((e&&e.stack)||e)); }
+  try{ loadModels(false); }catch(e){ console.warn("loadModels failed",e); }
+  try{ applyUniverseProfile(state.curUniverse); }catch(e){ console.warn("applyUniverseProfile failed",e); }
+  try{ hydrateMedia().then(()=>{ if(state.images.length) persistImages(); }).catch(()=>{}); }catch(e){ console.warn("hydrateMedia failed",e); }
+  try{
+    if(!state.curChat||!state.chats[state.curChat]){startSceneFor(state.curUniverse,true);}
+    renderChat();updateChatHeader();
+    const chat=curChat();const last=chat.messages[chat.messages.length-1];
+    if(last&&last.role==='assistant'&&!last.img&&last.imgState!=='loading'&&state.autoImg){autoIllustrateLast();}
+  }catch(e){ console.error("chat render failed",e); showBootError("chat render: "+((e&&e.stack)||e)); }
 }
 
 /* listeners */
