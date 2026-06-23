@@ -4946,7 +4946,10 @@ async function runShortTermRel(chat){
   // Who actually spoke recently (don't read emotions for a silent bystander).
   const spokenNames=new Set(exchange.filter(m=>m.role==='assistant').map(m=>(m.name||"").toLowerCase()));
   const participated=p=>spokenNames.has(sanitizeName(p.name||"").toLowerCase());
-  const sys=up("relShortPrompt");
+  let sys=up("relShortPrompt");
+  // A returning user's stored short prompt may predate the agitation axis; fall back to the
+  // current default if it doesn't mention all four fast axes, so agitation is always scored.
+  if(!(/desire/i.test(sys)&&/comfort/i.test(sys)&&/fear/i.test(sys)&&/agitation/i.test(sys))){ sys=DEFAULT_REL_SHORT; }
   for(const fromP of present){
     if(!participated(fromP))continue;
     // Toward the player (the common case). Character→character short-term is left to the daily pass.
@@ -4998,7 +5001,7 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs){
   // Use the stored prompt only if it's the CURRENT multi-axis format (now including fear);
   // otherwise a returning user's older prompt would miss the fear axis — fall back to default.
   let sys=up("relPrompt");
-  if(!(/affection/i.test(sys)&&/description/i.test(sys)&&/fear/i.test(sys))){ sys=DEFAULT_REL; }
+  if(!(/affection/i.test(sys)&&/description/i.test(sys)&&/fear/i.test(sys)&&/familiarity/i.test(sys)&&/jealousy/i.test(sys)&&/agitation/i.test(sys))){ sys=DEFAULT_REL; }
   const curLine=`Evaluating: how ${fromP.name} feels about ${toName}.\n`+
     `Current axis values for ${fromP.name} → ${toName}:\n`+
     REL_DIMS.map(d=>`- ${d.key}: ${o[d.key]||0}`).join("\n")+
