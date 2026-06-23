@@ -864,31 +864,6 @@
 </nav>
 
 <script>
-// ---- Global error surface. If anything throws during init, the app used to die silently:
-// the chat never rendered and the send button "did nothing" because `state` was never set
-// up. This banner makes such failures visible and keeps a record so the cause is clear.
-window.__bootError=null;
-window.addEventListener('error',function(ev){
-  try{
-    window.__bootError=(ev&&ev.error&&ev.error.stack)||(ev&&ev.message)||String(ev);
-    showBootError(window.__bootError);
-  }catch(_){}
-});
-window.addEventListener('unhandledrejection',function(ev){
-  try{
-    const r=ev&&ev.reason; window.__bootError=(r&&r.stack)||(r&&r.message)||String(r);
-    showBootError(window.__bootError);
-  }catch(_){}
-});
-function showBootError(msg){
-  if(document.getElementById('bootErrBar'))return;
-  const d=document.createElement('div');
-  d.id='bootErrBar';
-  d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#7a1020;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:10px 14px;max-height:40vh;overflow:auto;white-space:pre-wrap;';
-  d.textContent='⚠️ Startup error (tap to dismiss):\n'+msg;
-  d.onclick=()=>d.remove();
-  (document.body||document.documentElement).appendChild(d);
-}
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
@@ -2495,48 +2470,7 @@ function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function esc(s){return(s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 // API `name` field: keep to safe chars (letters, digits, _ and -), no spaces.
-// API "name" field sanitizer. Previously this stripped every non-ASCII character, which
-// mangled Turkish/Unicode names (e.g. "Defne Karadağ" → "Defne_Karada"), feeding the model
-// a broken identity for the character. We now preserve Unicode letters/digits and only
-// replace genuinely unsafe characters (whitespace, quotes, punctuation that some providers
-// reject) with underscores. Uses \p{L}\p{N} (Unicode letters/numbers) so any alphabet works.
-function sanitizeName(s){
-  s=(s||"char").normalize("NFC");
-  let out;
-  try{
-    out=s.replace(/[^\p{L}\p{N}_-]/gu,"_");
-  }catch(e){
-    // Very old engines without Unicode property escapes: fall back to keeping ASCII word chars
-    // plus common Latin-1 accented letters, rather than deleting everything non-ASCII.
-    out=s.replace(/[^A-Za-z0-9_\-\u00C0-\u024F\u1E00-\u1EFF]/g,"_");
-  }
-  out=out.replace(/_+/g,"_").replace(/^_|_$/g,"");
-  return (out||"char").slice(0,60);
-}
-// Strip speaker-name prefixes the model may echo into its reply (e.g. "Defne Karadağ: ...").
-// The input history deliberately stamps each line with "Name:" for context, which trains
-// the model to reproduce it — and in group scenes to script OTHER characters too. We remove
-// those prefixes from the OUTPUT so they never display and, crucially, never feed back into
-// the next turn's history (which is what compounds the artificial, script-like tone).
-// `selfName` is the speaking character; `castNames` is the full present cast (optional).
-function stripSpeakerPrefixes(text,selfName,castNames){
-  if(!text)return text;
-  const names=[];
-  if(selfName)names.push(selfName);
-  (castNames||[]).forEach(n=>{ if(n&&names.indexOf(n)<0)names.push(n); });
-  if(!names.length)return text.trim();
-  const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-  const alt="(?:"+names.map(esc).join("|")+")";
-  let out=text;
-  // 1) Remove a leading "Name:" (possibly repeated, e.g. "Defne: Defne: ...").
-  const lead=new RegExp("^\\s*"+alt+"\\s*:\\s*","i");
-  let guard=0; while(lead.test(out)&&guard++<6){ out=out.replace(lead,""); }
-  // 2) Remove any "Name:" that appears at the start of a line mid-reply (group-scripting).
-  //    Only when it's clearly a speaker label (start of line, followed by a space/quote/asterisk).
-  const lineLabel=new RegExp("(^|\\n)\\s*"+alt+"\\s*:\\s*","gi");
-  out=out.replace(lineLabel,"$1");
-  return out.trim();
-}
+function sanitizeName(s){return((s||"char").replace(/[^a-zA-Z0-9_-]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"")||"char").slice(0,60);}
 let _midc=0;
 function newMid(){return "msg_"+Date.now().toString(36)+"_"+(_midc++);}
 function md(t){
@@ -4748,7 +4682,6 @@ function buildSystemPrompt(injectedMemories){
       if(c.style)cb+=`\nSpeaking style: ${c.style}`;
       if(c.look)cb+=`\nAppearance: ${c.look}`;
       const loc=charLocationLine(c);if(loc)cb+=`\n${loc}`;
-      if(c.style&&c.style.trim())cb+=`\n\nVOICE — ${c.name} speaks like this, every line: ${c.style.trim()}`;
       blocks.push(cb);
     });
     const scen=cast.map(c=>c.scenario).filter(Boolean)[0];
@@ -4762,7 +4695,6 @@ function buildSystemPrompt(injectedMemories){
       if(p.backstory)rb+=`\nBackstory: ${p.backstory}`;
       if(p.style)rb+=`\nSpeaking style: ${p.style}`;
       const loc=charLocationLine(p);if(loc)rb+=`\n${loc}`;
-      if(p.style&&p.style.trim())rb+=`\n\nVOICE — you speak like this, every line: ${p.style.trim()}`;
       blocks.push(rb);
       if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
     }
@@ -4838,7 +4770,6 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   if(p.style)rb+=`\nSpeaking style: ${p.style}`;
   if(p.look)rb+=`\nYour appearance: ${p.look}`;
   {const loc=charLocationLine(p,chat);if(loc)rb+=`\n${loc}`;}
-  if(p.style&&p.style.trim())rb+=`\n\nVOICE — you speak like this, every line: ${p.style.trim()}`;
   blocks.push(rb);
 
   if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
@@ -4924,12 +4855,12 @@ function buildTailGuidance(opts){
   g+=`. Advance the moment and leave room for ${targetName||state.user} to react.`;
   blocks.push(g);
 
-  // (2) HOW YOU FEEL TOWARD <target> — internal state to ACT FROM, not prose to echo.
+  // (2) HOW YOU FEEL TOWARD <target> — prose result only, no axis numbers.
   if(state.relOn && chat && targetId){
     const o=relObj(chat,opts.selfId,targetId);
     const desc=relDescription(o);
     if(desc && desc.trim() && !/^Roughly:/.test(desc.trim())){
-      blocks.push(`# YOUR PRIVATE STATE TOWARD ${(targetName||"THEM").toUpperCase()}\nThis is how you currently feel. Let it drive your word choice, what you withhold, and how warm or cold you are — but it is INTERNAL. Do not narrate it, name it, or describe it in flowery prose. Just behave it:\n${desc.trim()}`);
+      blocks.push(`# HOW YOU FEEL TOWARD ${(targetName||"THEM").toUpperCase()}\nThese are your private feelings — let them shape how you speak and act, but never state them outright:\n${desc.trim()}`);
     }
   }
 
@@ -4937,11 +4868,10 @@ function buildTailGuidance(opts){
   const rails=[
     `Speak and act ONLY as ${selfName}. Never voice ${state.user}, the narrator, or any other character.`,
     multi?`Write ONLY ${selfName}'s turn — a single response, never a script of several characters.`:`Write a single in-character response.`,
-    `Dialogue is the substance; narration is a thin connective layer. Most of your reply should be spoken lines. Cap stage direction at ONE short clause per beat (e.g. *she shrugs*), never a stacked paragraph of choreography describing every glance, breath, and micro-movement.`,
-    `Write the way THIS character actually talks — match the speaking style in their bio. Avoid ornate, literary, over-written prose. If the character is sharp or terse, be sharp and terse.`,
-    `One emotional beat is stronger than five. Keep it short — a few lines is usually enough. Don't resolve everything; leave things unsaid.`,
+    `Lead with dialogue and action. Keep narration thin — a light connective layer, not the substance. Avoid long stacked stage directions.`,
+    `One emotional beat is stronger than five. Don't resolve everything in one reply; leave things unsaid.`,
     `Do NOT end with a reflexive question aimed at ${targetName||state.user}. End on what you DO or leave a beat open instead.`,
-    `Stay consistent with your established voice, mood, and your private state above — don't reset between replies.`
+    `Stay consistent with your established voice, mood, and the relationship above — don't reset between replies.`
   ];
   blocks.push(`# FINAL GUARDRAILS\n`+rails.map(r=>`- ${r}`).join("\n"));
 
@@ -5585,12 +5515,11 @@ async function sendMessage(){
     }
     const reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply"});
     typing.remove();
-    const cleaned=stripSpeakerPrefixes(reply,solo.name,[solo.name]);
-    const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
+    const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
-    typewriterReveal(msg.mid,cleaned,()=>{ delete msg._reveal; });
-    if(state.autoImg) illustrate(msg.mid,cleaned);
+    typewriterReveal(msg.mid,reply,()=>{ delete msg._reveal; });
+    if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,solo);
     // Detect anyone the reply (or the player) narrated entering/leaving — this was previously
     // only done in the multi-character path, so one-on-one scenes never ran presence detection.
@@ -5701,27 +5630,16 @@ function compactHistory(mapped){
 }
 // Per-character API history: character `forP` only receives messages they WITNESSED.
 function castHistory(chat,forP){
-  const visible=chat.messages.filter(m=>{
+  const mapped=chat.messages.filter(m=>{
     if(m.role==='system')return false;
     if(m.sysError&&!m.dayMarker&&!m.presenceNote)return false;
     if(forP&&Array.isArray(m.present)&&!m.presenceNote&&!m.dayMarker){
       return m.present.includes(forP.id);   // only what this character heard
     }
     return true;
-  });
-  // Decide whether to stamp "Name:" onto each spoken line. The name lives in the separate
-  // m.speaker field and is ONLY used here for the roleplay model's attribution — no other
-  // engine (memory, summaries, routers) reads it from the content, so this choice is fully
-  // isolated. We stamp only when 2+ distinct characters speak in THIS character's witnessed
-  // history; in a one-on-one scene the prefix is pure noise that trains the model to echo
-  // "Name:" into its own replies (the main source of the scripted, artificial tone).
-  const speakers=new Set();
-  visible.forEach(m=>{ if(m.role==='assistant' && !m.narratorEvent && !m.presenceNote && !m.dayMarker && m.speaker) speakers.add(m.speaker); });
-  const stamp = speakers.size>=2;
-  const mapped=visible.map(m=>{
+  }).map(m=>{
     if(m.role==='assistant' && !m.narratorEvent && !m.presenceNote && !m.dayMarker){
-      const prefix=(stamp && m.speaker)?m.speaker+": ":"";
-      return {role:"assistant",name:sanitizeName(m.speaker||"char"),content:`${prefix}${m.content}`};
+      return {role:"assistant",name:sanitizeName(m.speaker||"char"),content:`${m.speaker?m.speaker+": ":""}${m.content}`};
     }
     return mapMsgToApi(m);
   });
@@ -5838,17 +5756,16 @@ async function playCharacterTurn(chat,p,addressed){
     }
     const reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply · "+p.name});
     typing.remove();
-    // Strip speaker-name prefixes (self, repeated, or other cast members the model scripted)
-    // so they neither display nor feed back into history and compound the artificial tone.
-    const castNames=(presentCast(chat)||[]).map(c=>c.name).concat((others||[]).map(c=>c.name));
-    const cleaned=stripSpeakerPrefixes(reply,p.name,castNames);
+    // strip a leading "Name:" prefix if the model added one (regex-safe)
+    const prefix=p.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    const cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
     const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
     // Reveal this character's line before the next character in the chain speaks, so
     // multi-character turns roll in one after another instead of all snapping in at once.
     await new Promise(res=>typewriterReveal(msg.mid,cleaned,()=>{ delete msg._reveal; res(); }));
-    if(state.autoImg) illustrate(msg.mid,cleaned);
+    if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
     return true;
   }catch(err){
@@ -7442,29 +7359,23 @@ function finishOnboard(){
 
 /* ---- init ---- */
 async function init(){
-  try{ await preloadCollections(); }   // hydrate growing collections from IndexedDB
-  catch(e){ console.warn("preloadCollections failed",e); showBootError("preloadCollections: "+((e&&e.stack)||e)); }
-  try{ loadState(); }
-  catch(e){ console.error("loadState failed",e); showBootError("loadState: "+((e&&e.stack)||e)); }
-  try{ applyTheme(); }catch(e){ console.warn("applyTheme failed",e); }
-  try{
-    if(store.raw(K.onboarded,null)!=="1"){document.getElementById('onboard').classList.add('show');obGo(1);}
-    else{init2();}
-  }catch(e){ console.error("init2 failed",e); showBootError("init2: "+((e&&e.stack)||e)); }
+  await preloadCollections();   // hydrate growing collections from IndexedDB (with one-time LS migration)
+  loadState();applyTheme();
+  if(store.raw(K.onboarded,null)!=="1"){document.getElementById('onboard').classList.add('show');obGo(1);}
+  else{init2();}
 }
 function init2(){
-  // syncSettingsUI touches dozens of DOM nodes; if any single one is missing it must not
-  // prevent the chat from rendering (which is what makes "send does nothing" happen).
-  try{ syncSettingsUI(); }catch(e){ console.error("syncSettingsUI failed",e); showBootError("syncSettingsUI: "+((e&&e.stack)||e)); }
-  try{ loadModels(false); }catch(e){ console.warn("loadModels failed",e); }
-  try{ applyUniverseProfile(state.curUniverse); }catch(e){ console.warn("applyUniverseProfile failed",e); }
-  try{ hydrateMedia().then(()=>{ if(state.images.length) persistImages(); }).catch(()=>{}); }catch(e){ console.warn("hydrateMedia failed",e); }
-  try{
-    if(!state.curChat||!state.chats[state.curChat]){startSceneFor(state.curUniverse,true);}
-    renderChat();updateChatHeader();
-    const chat=curChat();const last=chat.messages[chat.messages.length-1];
-    if(last&&last.role==='assistant'&&!last.img&&last.imgState!=='loading'&&state.autoImg){autoIllustrateLast();}
-  }catch(e){ console.error("chat render failed",e); showBootError("chat render: "+((e&&e.stack)||e)); }
+  syncSettingsUI();loadModels(false);
+  applyUniverseProfile(state.curUniverse);   // resolve per-universe player identity on load
+  // Pull full image/video history from IndexedDB (large quota). If legacy localStorage
+  // images were loaded by loadState, persistImages() below writes them into IDB once,
+  // then they live there going forward.
+  hydrateMedia().then(()=>{ if(state.images.length) persistImages(); });
+  if(!state.curChat||!state.chats[state.curChat]){startSceneFor(state.curUniverse,true);}
+  renderChat();updateChatHeader();
+  // illustrate opening greeting if not yet done
+  const chat=curChat();const last=chat.messages[chat.messages.length-1];
+  if(last&&last.role==='assistant'&&!last.img&&last.imgState!=='loading'&&state.autoImg){autoIllustrateLast();}
 }
 
 /* listeners */
