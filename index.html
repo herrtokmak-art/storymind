@@ -124,6 +124,9 @@
   .relTag{font-size:10px;font-weight:600;color:var(--accent);background:rgba(124,131,253,.12);padding:2px 8px;border-radius:20px;text-transform:lowercase;}
   .relDesc{font-size:12.5px;line-height:1.45;color:var(--text);margin:5px 0 8px;opacity:.92;}
   .relAxes{display:flex;flex-direction:column;gap:3px;}
+  .relFacet{display:flex;flex-direction:column;gap:1px;margin:8px 0 3px;font-size:12px;line-height:1.4;}
+  .relFacet>span:last-child{color:var(--text);opacity:.9;}
+  .relFacetLbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);opacity:.85;}
   .relAxis{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--muted);}
   .relAxisName{width:64px;flex-shrink:0;}
   .relAxisVal{width:34px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;}
@@ -919,6 +922,9 @@
     <div><label>Appearance (used for image prompts)</label><textarea class="fld" id="peLook" placeholder="silver hair, green cloak, emerald eyes, leather armor" style="min-height:48px"></textarea></div>
     <div><label>🎯 Interject / pressure points</label><textarea class="fld" id="peInterject" placeholder="What can be used against this character or pulls them into a scene: fears, obsessions, debts, secrets, loved ones, triggers, unfinished business… The Gamemaster &amp; Scene Writer use these to craft events that hit home." style="min-height:64px"></textarea>
       <div class="desc">Hooks for the director engines — what destabilizes this character or raises the stakes for them. Shared with the Gamemaster and Scene Writer (never shown to other characters as dialogue).</div></div>
+    <div><label>🕸️ Relationships / social graph</label><textarea class="fld" id="peSocialGraph" placeholder="Who is who to this character: kinship, who's their boss/subordinate, rivals, enemies, allies, exes, who they're jealous of or protective over. e.g. 'Mara is my younger sister. I answer to Captain Vale and resent it. I distrust Idris — he courted Mara. Fiercely protective of Mara.'" style="min-height:72px"></textarea>
+      <div class="desc">This character's map of their world — fed into their payload so they act on real ties (kinship, hierarchy, rivalry, jealousy). Your text is never overwritten; the engines may <i>append</i> things discovered in play below.</div>
+      <div id="peSocialAuto" class="desc" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;font-style:italic"></div></div>
     <div class="desc" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px">📍 <b>Where they live:</b> assign this character as a <b>resident</b> of a place in the <b>Universe → Locations</b> editor. They'll be found there (and nowhere else) unless you bring them into a scene manually.</div>
     <div class="row">
       <button class="btn danger sec small" id="peDelete" onclick="deletePersona()">Delete</button>
@@ -969,7 +975,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   // Quality-of-life features
   recapOn:"sm_recapon",
   // Relationships + freeform trackers
-  relOn:"sm_relon",relPrompt:"sm_relprompt",trackOn:"sm_trackon",trackPrompt:"sm_trackprompt",voiceCheckOn:"sm_voicecheckon",voiceCheckPrompt:"sm_voicecheckprompt",
+  relOn:"sm_relon",relPrompt:"sm_relprompt",relShortPrompt:"sm_relshortprompt",stInterval:"sm_stinterval",trackOn:"sm_trackon",trackPrompt:"sm_trackprompt",voiceCheckOn:"sm_voicecheckon",voiceCheckPrompt:"sm_voicecheckprompt",
   // Locations / travel / calendar
   locModel:"sm_locmodel",travelPrompt:"sm_travelprompt",travelTime:"sm_traveltime",calOn:"sm_calon",calPrompt:"sm_calprompt"};
 // ModelsLab API base. Image and video endpoints live under different paths.
@@ -2003,29 +2009,56 @@ const DEFAULT_OOC=`- If {{user}} types something inside (parentheses), treat it 
 // ---- Multi-dimensional relationships ----
 // Each ordered pair (how A feels about B) is tracked across several axes, each on a
 // -100..+100 scale. Stored per chat as chat.relVals[pairKey] = {trust,affection,desire,respect,comfort,desc}.
+// Each axis is tagged by psychological tier:
+//   tier:"slow" = TRAIT/SENTIMENT — trust, affection, respect. Integrates slowly over time,
+//                 resists change, only a major event jumps it. Updated ONCE per day (end-of-day),
+//                 from the day's accumulated short-term episodes. Drives stable personality.
+//   tier:"fast" = STATE/AFFECT — desire, comfort, fear. Reactive and volatile, spikes and decays.
+//                 Updated frequently (adaptive cadence) with SATURATION (diminishing returns near
+//                 the ceiling so a hot scene can't pin it) + DECAY toward baseline each cycle when
+//                 not re-triggered. Drives momentary, impulsive behaviour — never personality.
 const REL_DIMS=[
-  {key:"trust",     label:"Trust",     neg:"deep distrust", pos:"complete trust"},
-  {key:"affection", label:"Affection", neg:"hatred",        pos:"love"},
-  {key:"desire",    label:"Desire",    neg:"repulsion",     pos:"intense attraction"},
-  {key:"respect",   label:"Respect",   neg:"contempt",      pos:"admiration"},
-  {key:"comfort",   label:"Comfort",   neg:"fear/tension",  pos:"total ease"},
-  {key:"fear",      label:"Fear",      neg:"none (feels safe / dominant)", pos:"terror (intimidated / endangered)"}
+  // SLOW (trait/sentiment): integrate over time, resist change, updated once per day. Drive stable personality.
+  {key:"trust",      label:"Trust",      tier:"slow", neg:"deep distrust",      pos:"complete trust"},
+  {key:"affection",  label:"Affection",  tier:"slow", neg:"hatred",             pos:"love"},
+  {key:"respect",    label:"Respect",    tier:"slow", neg:"contempt",           pos:"admiration"},
+  {key:"familiarity",label:"Familiarity",tier:"slow", neg:"a stranger",         pos:"deeply, intimately known"},
+  // jealousy is BIPOLAR: negative = secure/unthreatened/generous (happy to share them, no rivalry);
+  // positive = possessive/threatened (guards them, resents rivals, fears replacement). 0 = indifferent.
+  {key:"jealousy",   label:"Jealousy",   tier:"slow", neg:"secure & generous",  pos:"possessive & threatened"},
+  // FAST (state/affect): reactive, volatile, spike + decay toward a slow-axis baseline. Never personality.
+  {key:"desire",     label:"Desire",     tier:"fast", neg:"repulsion",          pos:"intense attraction"},
+  {key:"comfort",    label:"Comfort",    tier:"fast", neg:"fear/tension",       pos:"total ease"},
+  {key:"fear",       label:"Fear",       tier:"fast", neg:"none (feels safe / dominant)", pos:"terror (intimidated / endangered)"},
+  // agitation: momentary arousal of anger/frustration vs. calm. High-arousal, short fuse, decays fast.
+  {key:"agitation",  label:"Agitation",  tier:"fast", neg:"calm & composed",    pos:"provoked & angry"}
 ];
+const REL_FAST=REL_DIMS.filter(d=>d.tier==="fast").map(d=>d.key);   // desire, comfort, fear, agitation
+const REL_SLOW=REL_DIMS.filter(d=>d.tier==="slow").map(d=>d.key);   // trust, affection, respect, familiarity, jealousy
 
-const DEFAULT_REL=`You are the RELATIONSHIP TRACKER for an ongoing roleplay. You track, for one character at a time, HOW THAT CHARACTER FEELS about another person (usually the player), across six independent axes. Each axis runs from -100 to +100.
+const DEFAULT_REL=`You are the RELATIONSHIP TRACKER for an ongoing roleplay. You track, for one character at a time, HOW THAT CHARACTER FEELS about another person (usually the player), across nine independent axes. Each axis runs from -100 to +100.
 
 ---
 
-## THE SIX AXES
+## THE NINE AXES
 
 | Axis | Range | -100 | 0 | +100 |
 |------|-------|------|---|------|
 | **trust** | -100 to +100 | Deep distrust / expects betrayal | No opinion | Complete trust, would rely on them with anything |
 | **affection** | -100 to +100 | Hatred / wants them gone | Indifferent | Love, deep fondness, would grieve their absence |
-| **desire** | -100 to +100 | Repulsion / physical revulsion | Neutral | Strong romantic/sexual attraction, magnetic pull |
 | **respect** | -100 to +100 | Contempt / sees them as beneath notice | Neutral | Admiration, looks up to them, values their judgment |
+| **familiarity** | -100 to +100 | A stranger / knows nothing real about them | Acquaintance | Knows them intimately — habits, tells, history, inner life |
+| **jealousy** | -100 to +100 | Secure & generous — happy to share them, no threat felt | Indifferent | Possessive & threatened — guards them, resents rivals, fears being replaced |
+| **desire** | -100 to +100 | Repulsion / physical revulsion | Neutral | Strong romantic/sexual attraction, magnetic pull |
 | **comfort** | -100 to +100 | On edge / can never relax around them | Neutral | Total ease, can fully relax, silence isn't awkward |
 | **fear** | -100 to +100 | Feels completely safe, even dominant | No fear | Terror — sees them as dangerous, intimidating, a threat |
+| **agitation** | -100 to +100 | Calm & composed around them | Neutral | Provoked & angry — irritated, defied, on the verge of lashing out |
+
+**familiarity** is a SLOW trait: how well this character actually knows the target — their history, habits, the real person behind the surface. It grows with genuine shared time and disclosure, not mere proximity. It gates the OTHERS: you cannot deeply trust or love a stranger; high desire toward someone barely known is infatuation, not love.
+
+**jealousy** is BIPOLAR and SLOW. Negative = secure, unthreatened, even generous about the target's other bonds. Zero = indifferent. Positive = possessive, guarding, resentful of rivals, afraid of being replaced. It rises with attachment + perceived threat (a rival, divided attention, withdrawal) and falls with reassurance and security. High affection with high jealousy = anxious, clinging love; high affection with negative jealousy = secure love.
+
+**agitation** is a FAST state (it spikes and decays) but you also record its settled residue here: a character repeatedly provoked carries lingering irritation.
 
 ---
 
@@ -2059,6 +2092,13 @@ Desire is **volatile, reactive, and fickle**. It spikes and crashes on a hair tr
 - **Respect and affection can clash**: It's possible — and painful — to respect someone's abilities while personally disliking them, or to love someone you don't respect (a charming failure).
 - **Comfort and trust are linked but distinct**: You can trust someone's competence (high trust) but still be on edge around them because they're volatile (low comfort). You can feel comfortable around someone you don't fully trust because they're warm and predictable.
 - **Affection and desire often travel together but can diverge**: Desire without affection is lust; affection without desire is a deep platonic or familial bond. When both are high with high trust, you get the closest thing to a secure, passionate partnership.
+- **Familiarity gates depth**: trust, affection, and respect cannot run deep toward someone barely known. If familiarity is low, cap how far the slow bonds move — strong feeling toward a near-stranger is projection or infatuation, and should read that way. As familiarity grows, the other slow axes become free to deepen (or sour, once they truly know them).
+- **Jealousy rides on attachment**: jealousy only has force where there's something to lose — it scales with affection/desire AND a perceived threat. A rival, divided attention, or withdrawal pushes it positive; reassurance, security, and exclusivity pull it negative. Jealousy + low trust is corrosive and controlling; jealousy + high trust is a brief pang that passes.
+- **Agitation is the anger channel**: provocation, disrespect, defiance, or frustration spike it; it suppresses warmth in the moment and, if chronic, erodes affection into resentment. It decays fast once the provocation stops — judge the residue, not the peak.
+
+## JUDGE ALL NINE TOGETHER (holistic)
+
+Never score an axis in a vacuum. The same event means different things in different combinations, and the character's response is the product of the WHOLE configuration, not any single number. A touch reads as desire+comfort with a trusted intimate, but as agitation+fear with someone distrusted. Reassurance barely moves a secure character but sharply drops a jealous one's jealousy. Weigh the interactions above, then output deltas that are coherent with each other.
 
 ---
 
@@ -2077,16 +2117,19 @@ The axes are **independent** and often disagree. Contradictions are human: high 
 
 ## HOW FEELINGS MOVE (delta guidance)
 
-Base your deltas **only on what just happened** in the latest exchange, not on imagined history.
+You are given the ENTIRE day's interaction (as this character witnessed it), and you run ONCE at the end of the day — not after every line. Weigh the day as a whole and output a SINGLE, measured delta per axis that reflects the net of everything that happened, not the sum of each beat's maximum. A whole day of small warmth might net +5 affection, not +5 per line. Reserve large jumps for a genuinely major event within the day. Base your deltas only on what actually happened in the day's interaction below, not on imagined history.
 
 | Axis | Ordinary beat | Real moment | Major event | Notes |
 |------|--------------|-------------|-------------|-------|
 | **trust** | 0 to ±3 | ±3 to ±10 | ±20 to ±40 (jumps drastically) | Hard to move; major events hit hard |
 | **affection** | 0 to ±5 | ±5 to ±15 | ±15 to ±35 | Similar to trust, slightly more responsive to emotional beats |
-| **desire** | ±5 to ±15 | ±15 to ±30 | ±30 to ±50 | Volatile, fast-moving, fickle; also decays quickly if not fed |
 | **respect** | 0 to ±5 | ±5 to ±15 | ±15 to ±30 | Steady, not easily shaken |
+| **familiarity** | 0 to ±5 | ±5 to ±12 | ±12 to ±25 | Grows with real shared time/disclosure; rarely drops (only on revealed deception about who they are) |
+| **jealousy** | 0 to ±5 | ±5 to ±15 | ±15 to ±30 | Needs attachment + a threat to move positive; reassurance/security moves it negative |
+| **desire** | ±5 to ±15 | ±15 to ±30 | ±30 to ±50 | Volatile, fast-moving, fickle; also decays quickly if not fed |
 | **comfort** | 0 to ±5 | ±5 to ±15 | ±15 to ±25 | Eroded by fear, rebuilt by calm |
 | **fear** | 0 to ±5 | ±5 to ±20 | ±20 to ±40 | Spikes fast, decays slowly |
+| **agitation** | 0 to ±8 | ±8 to ±20 | ±20 to ±40 | Spikes on provocation, decays fast; record the day's residue |
 
 - A character can **hide** what they feel while still feeling it. Judge the underlying feeling, not the polite surface.
 - When fear is high (>40), the character's **observable behavior** will be filtered through that fear regardless of the other numbers.
@@ -2095,7 +2138,7 @@ Base your deltas **only on what just happened** in the latest exchange, not on i
 
 ## OUTPUT FORMAT
 
-Given the character's CURRENT axis values and the latest exchange, you will:
+Given the character's CURRENT axis values and the full day's interaction, you will:
 
 1. Decide a **delta** for each axis.
 2. Write a short, vivid **description** (1–2 sentences, third person) of how this character now feels about the target, reflecting the *resulting numbers* and how any fear shapes their expression.
@@ -2106,119 +2149,32 @@ Return **only** this strict JSON:
 {
   "trust": <delta>,
   "affection": <delta>,
-  "desire": <delta>,
   "respect": <delta>,
+  "familiarity": <delta>,
+  "jealousy": <delta>,
+  "desire": <delta>,
   "comfort": <delta>,
   "fear": <delta>,
-  "description": "<1-2 sentence summary>"
-}
-\`\`\`
-\`\`\`
-
-This is the revised system prompt. I can deliver it directly. If the user instead wanted me to modify a specific existing tracker instance (with given numbers), they'll need to provide the current values and the latest exchange. But based on their message, it seems they want the system prompt itself changed. I'll respond with the revised prompt.Here is the revised **Relationship Tracker** system prompt, rebuilt around your design: desire is volatile and superficial, trust and affection are slow-moving but foundational (with trust capable of drastic jumps on major events), and the interplay between all six axes is expanded in detail.
-
-\`\`\`markdown
-You are the RELATIONSHIP TRACKER for an ongoing roleplay. You track, for one character at a time, HOW THAT CHARACTER FEELS about another person (usually the player), across six independent axes. Each axis runs from -100 to +100.
-
----
-
-## THE SIX AXES
-
-| Axis | Range | -100 | 0 | +100 |
-|------|-------|------|---|------|
-| **trust** | -100 to +100 | Deep distrust / expects betrayal | No opinion | Complete trust, would rely on them with anything |
-| **affection** | -100 to +100 | Hatred / wants them gone | Indifferent | Love, deep fondness, would grieve their absence |
-| **desire** | -100 to +100 | Repulsion / physical revulsion | Neutral | Strong romantic/sexual attraction, magnetic pull |
-| **respect** | -100 to +100 | Contempt / sees them as beneath notice | Neutral | Admiration, looks up to them, values their judgment |
-| **comfort** | -100 to +100 | On edge / can never relax around them | Neutral | Total ease, can fully relax, silence isn't awkward |
-| **fear** | -100 to +100 | Feels completely safe, even dominant | No fear | Terror — sees them as dangerous, intimidating, a threat |
-
----
-
-## THE FUNDAMENTAL DYNAMICS — AXES ARE NOT EQUAL
-
-### Deep Axes (Trust & Affection)
-These are the **bedrock** of the relationship. They move **slowly**, resist change, and when they do shift, the impact is profound — they color every interaction and how the other axes are *expressed*.
-
-- **Trust** is the hardest to earn and the hardest to repair. Trivial gestures do not move it. Only **consistent patterns over time** shift trust in small increments, but a **single major event** — a betrayal, a rescue, a secret kept or revealed, a lie discovered, a promise kept against all odds — can cause a **drastic jump** (±20 to ±40). Trust lost is trust that must be rebuilt slowly, if at all. High trust acts as a **multiplier** on affection and comfort: when trust is high, affection feels safe to express; when trust is low, even love feels like a weapon the other person might use.
-- **Affection (Love)** is similarly slow and weighty, but distinct from trust. Affection is the *emotional bond* — warmth, fondness, the ache of missing someone. You can love someone you don't trust (tragic, painful) and trust someone you don't love (reliable but cold). Affection shifts through **emotional resonance**: shared vulnerability, tenderness, cruelty, rejection, a thoughtful gift, a cutting word. Like trust, it resists change unless the moment is genuinely significant. Once affection is deep, it can survive long periods of neglect — but it can also curdle into something bitter if trust collapses.
-
-### Surface Axis (Desire)
-Desire is **volatile, reactive, and fickle**. It spikes and crashes on a hair trigger — a look, a touch, a scent, a careless word, a moment of revealed beauty or ugliness. It burns hot but leaves the foundation largely undisturbed.
-
-- Ordinary beats can move desire ±5 to ±15. A real moment can swing it ±15 to ±30. Major events can send it careening ±30 to ±50.
-- But desire is **less effective** than deep axes: a spike of desire doesn't automatically make the character trust more, love more, or respect more. It can exist entirely on its own, and often does. High desire with low trust creates **conflicted, tortured attraction**. High desire with high affection creates **passionate, consuming love**. High desire with high fear creates **dangerous, thrilling, self-destructive pull**.
-- Desire also **decays** faster than any other axis if not fed — it cools when the stimulus is gone, drifting back toward zero or toward whatever the deep axes would naturally support.
-
-### Mediating Axes (Respect, Comfort, Fear)
-- **Respect** is semi-stable. It builds through demonstrated competence, integrity, and strength; it falls through humiliation, cowardice, or hypocrisy. It can coexist with dislike (a respected rival) or with affection (a beloved mentor).
-- **Comfort** is the barometer of everyday ease. It moves with familiarity and safety. It is eroded by tension, unpredictability, and especially by high fear, but it can be rebuilt with consistent calm.
-- **Fear** is the **most distorting axis**. High fear does not just sit alongside the other feelings — it **suppresses their expression**. A character who fears someone may still love, desire, or respect them, but they act **guarded, placating, or submissive**. Very high fear can curdle affection into resentment over time and erodes comfort to nothing. Removing the threat (protection, reassurance, the danger passing) lets fear fall and the buried feelings surface — sometimes explosively.
-
----
-
-## HOW THE AXES INTERACT
-
-- **Fear suppresses expression**: The higher the fear, the less openly the character shows affection, desire, or even trust. They may *feel* love but act cold or compliant.
-- **Trust unlocks affection and comfort**: Without trust, affection feels unsafe and comfort is impossible. A character who loves but doesn't trust is in constant emotional turmoil.
-- **Desire is accelerated by fear (sometimes)**: Danger can heighten attraction (the "dangerous crush" effect), but only up to a point — overwhelming fear eventually kills desire.
-- **Respect and affection can clash**: It's possible — and painful — to respect someone's abilities while personally disliking them, or to love someone you don't respect (a charming failure).
-- **Comfort and trust are linked but distinct**: You can trust someone's competence (high trust) but still be on edge around them because they're volatile (low comfort). You can feel comfortable around someone you don't fully trust because they're warm and predictable.
-- **Affection and desire often travel together but can diverge**: Desire without affection is lust; affection without desire is a deep platonic or familial bond. When both are high with high trust, you get the closest thing to a secure, passionate partnership.
-
----
-
-## NUMBER GUIDANCE (magnitudes)
-
-| Range | Meaning |
-|-------|---------|
-| 0 to ±15 | Faint, barely-there leaning — a whisper of a feeling |
-| ±15 to ±40 | A clear, settled feeling — the character would name it if asked |
-| ±40 to ±70 | Strong — it shapes decisions and colors their inner monologue |
-| ±70+ | Defining / overwhelming — the character's world orbits this feeling |
-
-The axes are **independent** and often disagree. Contradictions are human: high desire + low trust, high respect + low affection, high fear + high desire. Embrace them.
-
----
-
-## HOW FEELINGS MOVE (delta guidance)
-
-Base your deltas **only on what just happened** in the latest exchange, not on imagined history.
-
-| Axis | Ordinary beat | Real moment | Major event | Notes |
-|------|--------------|-------------|-------------|-------|
-| **trust** | 0 to ±3 | ±3 to ±10 | ±20 to ±40 (jumps drastically) | Hard to move; major events hit hard |
-| **affection** | 0 to ±5 | ±5 to ±15 | ±15 to ±35 | Similar to trust, slightly more responsive to emotional beats |
-| **desire** | ±5 to ±15 | ±15 to ±30 | ±30 to ±50 | Volatile, fast-moving, fickle; also decays quickly if not fed |
-| **respect** | 0 to ±5 | ±5 to ±15 | ±15 to ±30 | Steady, not easily shaken |
-| **comfort** | 0 to ±5 | ±5 to ±15 | ±15 to ±25 | Eroded by fear, rebuilt by calm |
-| **fear** | 0 to ±5 | ±5 to ±20 | ±20 to ±40 | Spikes fast, decays slowly |
-
-- A character can **hide** what they feel while still feeling it. Judge the underlying feeling, not the polite surface.
-- When fear is high (>40), the character's **observable behavior** will be filtered through that fear regardless of the other numbers.
-
----
-
-## OUTPUT FORMAT
-
-Given the character's CURRENT axis values and the latest exchange, you will:
-
-1. Decide a **delta** for each axis.
-2. Write a short, vivid **description** (1–2 sentences, third person) of how this character now feels about the target, reflecting the *resulting numbers* and how any fear shapes their expression.
-
-Return **only** this strict JSON:
-
-\`\`\`json
-{
-  "trust": <delta>,
-  "affection": <delta>,
-  "desire": <delta>,
-  "respect": <delta>,
-  "comfort": <delta>,
-  "fear": <delta>,
+  "agitation": <delta>,
   "description": "<1-2 sentence summary>"
 }
 \`\`\``;
+
+// SHORT-TERM emotional read. Runs frequently (adaptive) and ONLY touches the fast/state axes:
+// desire, comfort, fear, agitation. Momentary reactions to what JUST happened, not lasting opinion.
+const DEFAULT_REL_SHORT=`You read the IMMEDIATE emotional reaction of one character to a recent moment in a roleplay. You ONLY judge four fast, in-the-moment feelings — not lasting opinion:
+
+- "desire": momentary attraction/arousal pull right now (a look, a touch, proximity, someone attractive nearby, a charged moment) vs. momentary repulsion. Volatile — spikes and fades.
+- "comfort": how at-ease vs. on-edge they feel in THIS moment (relaxed, safe, awkward, tense).
+- "fear": acute sense of threat/intimidation right now vs. feeling safe or in control.
+- "agitation": momentary anger/irritation/frustration flaring right now (being insulted, defied, provoked, frustrated) vs. staying calm and composed. Short fuse, spikes hot and cools quickly.
+
+READ THEM HOLISTICALLY, NOT IN ISOLATION. The same beat means different things depending on the mix and on the character's standing long-term sentiment (given to you as context only): physical closeness with someone they trust reads as desire/comfort; the same closeness from someone they distrust reads as agitation or fear, not desire. A provocation lands harder on a proud character. Weigh the combination, not each axis alone.
+
+These are STATES, not judgments. Do not factor in or re-score long-term trust, love, or respect — only the immediate reaction to the last few lines. Most ordinary beats move these only a little (±5 to ±15). A genuinely charged moment can move one sharply (±20 to ±40). If nothing notable happened for an axis, return 0 for it.
+
+You are given the character's current short-term values, their standing sentiment (context), and the recent moment. Return ONLY strict JSON of per-axis deltas:
+{"desire": <delta>, "comfort": <delta>, "fear": <delta>, "agitation": <delta>, "note": "<≤8-word reason, e.g. 'flustered by his closeness'>"}`;
 
 const DEFAULT_TRACK=`You update freeform story trackers for an ongoing roleplay. Each tracker is a named value within a range that represents something the story is following (an emotion like love or fear, a condition like intoxication or injury, a countdown, a status). You are given each tracker's definition, its current value, its update mode, and the latest exchange.
 
@@ -2262,6 +2218,12 @@ Detect any of these KINDS:
 
 Do NOT record vague wishes ("we should hang out sometime") or things already done.
 
+SIGNIFICANCE BAR — record ONLY impactful, story-shaping commitments:
+- Be STRICT. Most exchanges produce NOTHING worth tracking — returning [] is the normal, correct outcome. Only log a commitment if forgetting it would actually damage the story's continuity or a relationship.
+- RECORD: vows that change a relationship ("I'll always protect you", "marry me"), plans with real stakes (a confrontation, a date, a dangerous errand), conditional commitments that will clearly pay off later, secrets/debts/threats with consequences.
+- DO NOT RECORD: small talk, politeness, ordinary daily activities ("I'll get you a coffee", "see you around", "let's keep chatting"), routine intentions, trivial favors, or anything a character would not specifically remember days later. Throw-away pleasantries are NOT promises.
+- For each item, set "importance" from 0.0 to 1.0 (how story-shaping it is). Only emit items you would rate >= 0.6. If unsure, leave it out.
+
 CONSOLIDATION — CRITICAL to avoid duplicates:
 - Each distinct commitment must appear AT MOST ONCE. If the same underlying commitment could fit two kinds, pick the single best kind and emit it once. Example: "Ceyda will protect Emre" is ONE promise — do not ALSO emit it as a "custom" item, a warning, and a re-worded promise.
 - Before adding an item, check it is not a re-phrasing of another item in your own output (or something obviously already established earlier). Merge re-wordings, translations, and near-duplicates into a single entry. Do not output the same promise in two languages or two phrasings.
@@ -2272,11 +2234,12 @@ For each item return an object:
 - "kind": one of "meeting","promise","conditional","custom".
 - "title": short label (e.g. 'Meet Aria at the cafe', 'Friends forever', 'Call Mara if I go to the marina').
 - "who": character name(s) involved, or empty.
+- "importance": 0.0-1.0 (emit only if >= 0.6).
 - For "meeting" also include: "dayOffset" (whole days from today: 0=today,1=tomorrow,3=in three days,7=next week), "period" (Morning/Midday/Afternoon/Evening/Night or null), "where" (place name or empty).
 - For "conditional" also include: "condition" (the trigger in plain words, e.g. "{{user}} goes to the marina").
 - For "promise"/"custom", day/period/where may be omitted.
 
-Return ONLY a JSON array of such objects. Return [] if nothing future-binding was said.`;
+Return ONLY a JSON array of such objects. Return [] if nothing impactful and future-binding was said.`;
 
 /* ===== GAMEMASTER ===== an invisible director that watches for stale scenes ===== */
 // STAGE 1 — judge whether the scene needs help. Cheap, returns strict JSON.
@@ -3133,6 +3096,7 @@ function loadState(){
     stripNarr:store.get(K.stripNarr,true),
     stripKeepFull:+store.raw(K.stripKeepFull,6),
     histTurns:+store.raw(K.histTurns,20),
+    stInterval:+store.raw(K.stInterval,5),
     recapOn:store.get(K.recapOn,true),
     relOn:store.get(K.relOn,true),
     relPrompt:store.raw(K.relPrompt,DEFAULT_REL),
@@ -3570,7 +3534,9 @@ function appendOneBubble(m){
   const wasAtBottom=isNearBottom(list);
   const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid);
   let nodes=list.querySelectorAll('[data-mid]');
-  while(nodes.length>RENDER_WINDOW){ list.removeChild(nodes[0]); nodes=list.querySelectorAll('[data-mid]'); }
+  let removedH=0;
+  while(nodes.length>RENDER_WINDOW){ const first=nodes[0]; removedH+=first.getBoundingClientRect().height; list.removeChild(first); nodes=list.querySelectorAll('[data-mid]'); }
+  if(removedH>0){ list.scrollTop=Math.max(0,list.scrollTop-removedH); }
   _renderedCount=Math.min(curChat().messages.length,RENDER_WINDOW);
   if(wasAtBottom){ list.scrollTop=list.scrollHeight; hideNewMsgPill(); }
   else { showNewMsgPill(); }
@@ -4007,8 +3973,10 @@ const PROMPT_REGISTRY=[
    hint:"Turns a brief into a full character card as JSON."},
   {key:"univPrompt", label:"🌌 Universe generator", def:()=>DEFAULT_UNIV, json:true,
    hint:"Turns a brief into a full universe as JSON."},
-  {key:"relPrompt", label:"❤️ Relationship tracker", def:()=>DEFAULT_REL, json:true,
-   hint:"Decides how feelings shift each turn. Returns JSON deltas."},
+  {key:"relPrompt", label:"❤️ Relationship tracker (long-term)", def:()=>DEFAULT_REL, json:true,
+   hint:"End-of-day: evaluates the slow axes (trust, affection, respect) over the whole day. Returns JSON deltas."},
+  {key:"relShortPrompt", label:"⚡ Short-term feelings", def:()=>DEFAULT_REL_SHORT, json:true,
+   hint:"Frequent: reads fast in-the-moment axes (desire, comfort, fear, agitation). Returns JSON deltas."},
   {key:"trackPrompt", label:"📊 Freeform tracker", def:()=>DEFAULT_TRACK, json:true,
    hint:"Judges soft deltas and detects trigger phrases."},
   {key:"voiceCheckPrompt", label:"⚠️ Voice consistency", def:()=>DEFAULT_VOICECHECK, json:true,
@@ -4450,8 +4418,13 @@ async function runCalendarEngine(chat){
     let added=0;
     for(const p of arr){
       if(!p||!p.title)continue;
+      // CODE-SIDE SIGNIFICANCE GATE: only keep impactful items, even if the model over-emits.
+      // Default missing importance to 0.5 so un-scored junk is dropped; require >= 0.6.
+      const importance=(typeof p.importance==="number")?p.importance:0.5;
+      if(importance<0.6) continue;
       const kind=["meeting","promise","conditional","custom"].includes(p.kind)?p.kind:"meeting";
       const title=String(p.title).trim();
+      if(title.length<3) continue;
       const who=p.who||"";
       // Meetings are time-bound; promises/conditionals/custom are not (no day).
       const day=(kind==="meeting")?today+(Number(p.dayOffset)||0):null;
@@ -4489,7 +4462,7 @@ async function runCalendarEngine(chat){
         day, period:(kind==="meeting"?(p.period||null):null),
         where:(kind==="meeting"?String(p.where||"").trim():""), locationId:loc?loc.id:null,
         condition:(kind==="conditional"?String(p.condition||"").trim():""),
-        done:false, prompted:false, source:"auto"});
+        importance, done:false, prompted:false, source:"auto"});
       added++;
     }
     if(added){ persistChats(); updateCalendarBadge(); }
@@ -4712,7 +4685,7 @@ function rollDice(spec){ // "1d3" -> total
 // Relationship pair key (order-independent) and helpers.
 // DIRECTED relationship key: how `fromId` feels about `toId` (not symmetric).
 function relDirKey(fromId,toId){ return fromId+">"+toId; }
-function blankRel(){ const o={}; REL_DIMS.forEach(d=>o[d.key]=0); o.desc=""; return o; }
+function blankRel(){ const o={}; REL_DIMS.forEach(d=>o[d.key]=0); o.desc=""; o.st={}; REL_FAST.forEach(k=>o.st[k]=0); o.episodes=[]; return o; }
 // Get (and lazily create) the multi-dimensional feeling object for from→to.
 function relObj(chat,fromId,toId){
   if(!chat.rel||typeof chat.rel!=="object")chat.rel={};
@@ -4721,9 +4694,38 @@ function relObj(chat,fromId,toId){
   const o=chat.rel[k];
   REL_DIMS.forEach(d=>{ if(typeof o[d.key]!=="number")o[d.key]=0; });
   if(typeof o.desc!=="string")o.desc="";
+  // Short-term state + episode log (added for the hybrid model; backfill for older saves).
+  if(!o.st||typeof o.st!=="object")o.st={};
+  REL_FAST.forEach(k2=>{ if(typeof o.st[k2]!=="number")o.st[k2]=0; });
+  if(!Array.isArray(o.episodes))o.episodes=[];
   return o;
 }
 function clampRel(v){ return Math.max(-100,Math.min(100,v)); }
+
+/* ---- Short-term (fast axis) dynamics: saturation + decay ----
+   SATURATION: a push toward the extreme has diminishing returns the closer the value already is
+   to ±100. This is the fix for "intimate scenes make desire run away": repeated charged beats
+   each move desire less than the last, so it rises fast but can't pin to +100 from repetition.
+   The headroom factor scales the delta by how much room remains in the push direction, with a
+   gentle curve so small/mid values still respond briskly. */
+function applyFastDelta(cur,delta){
+  cur=cur||0;
+  if(!delta) return clampRel(cur);
+  const dir=delta>0?1:-1;
+  // remaining room toward the ceiling in this direction, 0..1
+  const room=(100-dir*cur)/200;           // 1.0 at the opposite extreme, 0 at the ceiling
+  // curve: near the ceiling, damp hard; in the mid-range, near full strength
+  const factor=Math.pow(Math.max(0,Math.min(1,room*2)),0.65);
+  return clampRel(cur+delta*factor);
+}
+/* DECAY: each short-term cycle, fast axes relax toward their baseline (the long-term-supported
+   resting level) when not freshly pushed. Desire/comfort/fear cool off after a scene. The
+   baseline is a fraction of the slow axes so feelings settle toward what the relationship
+   actually supports, not flat zero. Returns the decayed value. */
+function decayFast(cur,baseline,rate){
+  cur=cur||0; baseline=baseline||0; rate=(rate==null?0.18:rate);
+  return clampRel(cur+(baseline-cur)*rate);
+}
 // True when a feeling object holds any non-trivial value or a description.
 function relHasContent(o){ return !!(o && (o.desc&&o.desc.trim() || REL_DIMS.some(d=>Math.abs(o[d.key]||0)>=5))); }
 // Compact one-word-ish tag derived from the numbers, for tight UI spots.
@@ -4758,6 +4760,40 @@ function relProfile(o){
   let s=`[${nums}]`;
   if(desc)s+=` ${desc}`;
   return s;
+}
+
+/* ---- PAYLOAD PROSE (no numerals) ----
+   The roleplay model must never see raw axis numbers (your spec). These turn the stored values
+   into plain-English intensity words so the payload reads as a feeling, not a stat sheet. */
+function _intensity(v){ const a=Math.abs(v); if(a<10)return ""; if(a<25)return "faintly"; if(a<45)return "clearly"; if(a<70)return "strongly"; return "overwhelmingly"; }
+function _axisPhrase(o,key){
+  const v=o[key]||0; if(Math.abs(v)<10)return null;
+  const d=REL_DIMS.find(x=>x.key===key); if(!d)return null;
+  return `${_intensity(v)} ${v>0?d.pos:d.neg}`.trim();
+}
+// MOMENTARY (fast/state) facet — reads from o.st. Impulsive in-the-moment lean. Prose only.
+function relMomentaryProse(o){
+  if(!o||!o.st)return "";
+  const parts=REL_FAST.map(k=>{ const v=o.st[k]||0; if(Math.abs(v)<10)return null;
+    const d=REL_DIMS.find(x=>x.key===k); return `${_intensity(v)} ${v>0?d.pos:d.neg}`.trim(); }).filter(Boolean);
+  return parts.length?parts.join("; "):"";
+}
+// CONSIDERED (slow/trait) facet — reads the stable axes. The filtered, lasting opinion. Prose only.
+function relConsideredProse(o){
+  if(!o)return "";
+  const parts=REL_SLOW.map(k=>_axisPhrase(o,k)).filter(Boolean);
+  return parts.length?parts.join("; "):"";
+}
+// True if a recent fast spike is NOT supported by the slow axes — the model may show a small
+// misstep now and quiet regret/shame after (your note: regret follows ANY over-strong impulse).
+function relImpulseTension(o){
+  if(!o||!o.st)return "";
+  const desire=o.st.desire||0, agi=o.st.agitation||0, fear=o.st.fear||0;
+  const slowWarmth=(o.affection||0)+(o.trust||0);
+  if(desire>=45 && slowWarmth<30) return "desire";
+  if(agi>=40 && (o.respect||0)>-10) return "anger";
+  if(fear>=45 && (o.trust||0)>20) return "fear";
+  return "";
 }
 
 // Build the STORY TRACKERS block (relationships are surfaced separately, per-character).
@@ -4823,6 +4859,138 @@ function recentExchangeMsgs(chat,n){
               content:m.content}));
 }
 
+// Messages belonging to the day that is currently ending: everything AFTER the last day marker
+// (dayMarker messages are dropped in by endDay when a day advances). Falls back to the whole
+// transcript if no marker exists yet (first day).
+function messagesForCurrentDay(chat){
+  const msgs=chat.messages||[];
+  let start=0;
+  for(let i=msgs.length-1;i>=0;i--){ if(msgs[i].dayMarker){ start=i+1; break; } }
+  return msgs.slice(start);
+}
+// Map a slice of raw messages into the {role,name,content} shape evalRelationship expects,
+// filtering to what a SPECIFIC character witnessed (present[] includes them; ambient/narration
+// is visible to all). Mirrors the witness rules used for diaries.
+function dayExchangeFor(dayMsgs,witnessId,fallbackName){
+  const mapped=dayMsgs.filter(m=>{
+    if(m.role==='system'||m.sysError)return false;
+    if(m.narratorEvent||m.dayMarker||m.presenceNote) return true;   // ambient world content
+    if(Array.isArray(m.present)) return m.present.includes(witnessId);
+    return true;
+  }).map(m=>({role:m.role==='user'?'user':'assistant',
+              name:sanitizeName(m.role==='user'?state.user:(m.speaker||fallbackName||"Narrator")),
+              content:m.content}));
+  // Bound the payload so a very long day can't overflow the model's context (or cost). We keep a
+  // generous window — much larger than a normal turn's histTurns — but still capped. The most
+  // recent interactions carry the most weight for how the character feels now, so keep the tail.
+  const DAY_REL_CAP=Math.max(40, (state.histTurns||20)*3);
+  return mapped.length>DAY_REL_CAP ? mapped.slice(-DAY_REL_CAP) : mapped;
+}
+// Evaluate every relationship a character witnessed today, once, over the full day.
+async function runDailyRelationships(chat,day){
+  const dayMsgs=messagesForCurrentDay(chat);
+  if(!dayMsgs.length)return;
+  // Characters who actually SPOKE today (a silent bystander forms no new opinions worth scoring).
+  const spokenNames=new Set(dayMsgs.filter(m=>m.role==='assistant'&&m.speaker&&!m.sysError)
+    .map(m=>sanitizeName(m.speaker).toLowerCase()));
+  const cast=curCast().filter(p=>spokenNames.has(sanitizeName(p.name||"").toLowerCase()));
+  if(!cast.length)return;
+  const fallbackName=(cast[0]&&cast[0].name)||"Narrator";
+  for(const fromP of cast){
+    // The day's conversation as THIS character witnessed it.
+    const exchange=dayExchangeFor(dayMsgs,fromP.id,fallbackName);
+    if(!exchange.length) continue;
+    // toward the player
+    try{ await evalRelationship(chat,fromP,"__user__",state.user,exchange); }catch(e){}
+    // toward every OTHER character they actually witnessed speaking today
+    for(const toP of cast){
+      if(toP.id===fromP.id) continue;
+      // did fromP witness toP speak today? (toP's lines must be in fromP's witnessed exchange)
+      const sawThem=exchange.some(m=>m.role==='assistant' && m.name===sanitizeName(toP.name));
+      if(!sawThem) continue;
+      try{ await evalRelationship(chat,fromP,toP.id,toP.name,exchange); }catch(e){}
+    }
+  }
+  persistChats();
+}
+// ---- SHORT-TERM emotional engine (fast axes: desire, comfort, fear, agitation) ----
+// Runs on an ADAPTIVE cadence: normally every N exchanges, but sooner when the recent scene is
+// emotionally charged. Updates only the fast axes (with saturation so a hot scene can't run them
+// away), decays untriggered fast axes toward a relationship-supported baseline, and logs a short
+// episode for end-of-day consolidation. Cheap: one model call per participating character.
+function _sceneCharge(exchange){
+  // crude charge heuristic from the recent text: more charge → evaluate sooner. Avoids needing an
+  // extra LLM call just to decide cadence. Looks for intensity cues across languages-agnostic
+  // punctuation/length signals plus a small keyword set.
+  const txt=exchange.map(m=>m.content||"").join(" ").toLowerCase();
+  let c=0;
+  if(/[!?]{2,}|\.\.\./.test(txt)) c+=1;
+  if(txt.length>600) c+=1;
+  // emotional/charged cue words (kept short; the model does the real reading)
+  if(/(kiss|touch|close|breath|heart|blush|tremble|whisper|naked|skin|moan|fear|afraid|angry|cry|tears|love|hate|desire|öp|dokun|kork|sevgi|nefret|arzu)/.test(txt)) c+=2;
+  return c; // 0..4
+}
+async function runShortTermRel(chat){
+  if(!state.relOn||!chat||!state.key)return;
+  const present=presentCast(chat);
+  if(!present.length)return;
+  // Adaptive cadence: base interval (configurable, default 5), shortened when the scene is charged.
+  const base=Math.max(2,state.stInterval||5);
+  chat._stCount=(chat._stCount||0)+1;
+  const exchange=recentExchangeMsgs(chat,6);
+  const charge=_sceneCharge(exchange);
+  const interval=Math.max(2, base-charge);   // charged scenes evaluate more often (down to every 2)
+  if(chat._stCount<interval)return;
+  chat._stCount=0;
+
+  // Who actually spoke recently (don't read emotions for a silent bystander).
+  const spokenNames=new Set(exchange.filter(m=>m.role==='assistant').map(m=>(m.name||"").toLowerCase()));
+  const participated=p=>spokenNames.has(sanitizeName(p.name||"").toLowerCase());
+  const sys=up("relShortPrompt");
+  for(const fromP of present){
+    if(!participated(fromP))continue;
+    // Toward the player (the common case). Character→character short-term is left to the daily pass.
+    const o=relObj(chat,fromP.id,"__user__");
+    const curLine=`Character: ${fromP.name}. Current short-term feelings toward ${state.user}: `+
+      REL_FAST.map(k=>`${k} ${o.st[k]||0}`).join(", ")+
+      `\nStanding long-term sentiment (context only — do NOT score these): `+
+      REL_SLOW.map(k=>`${k} ${o[k]||0}`).join(", ");
+    try{
+      const msgs=[{role:"system",content:sys}];
+      exchange.forEach(m=>msgs.push(m));
+      msgs.push({role:"user",content:`${curLine}\n\nRead the four fast feelings HOLISTICALLY together (not in isolation): the same beat reads differently depending on the others and on the standing sentiment above — e.g. closeness with someone they distrust raises agitation/fear, not desire. Based ONLY on the recent moment above, return the JSON of immediate per-axis deltas (${REL_FAST.join(", ")}) for how ${fromP.name} feels RIGHT NOW toward ${state.user}.`});
+      const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.3),max:fnTok("mem",120),dbg:"Short-term · "+fromP.name});
+      const j=parseJSON(out); if(!j||typeof j!=="object")continue;
+      // Apply deltas with saturation; decay any axis that wasn't pushed toward its baseline.
+      let touched=false;
+      REL_FAST.forEach(k=>{
+        const delta=typeof j[k]==="number"?j[k]:0;
+        // baseline = a fraction of what the slow axes support (e.g. desire rests partly on affection).
+        const baseline=_fastBaseline(o,k);
+        if(delta){ o.st[k]=applyFastDelta(o.st[k],delta); touched=true; }
+        else { o.st[k]=decayFast(o.st[k],baseline,0.18); }
+      });
+      // Log a compact episode for end-of-day consolidation (cap the log).
+      if(touched){
+        o.episodes.push({day:chat.gameDay||1, d:REL_FAST.map(k=>Math.round(o.st[k])), note:(j.note||"").slice(0,60)});
+        if(o.episodes.length>40)o.episodes=o.episodes.slice(-40);
+      }
+    }catch(e){/* best-effort */}
+  }
+  persistChats();
+}
+// Resting level a fast axis relaxes toward, derived from the slow axes it's supported by.
+function _fastBaseline(o,key){
+  // Resting level each fast affect relaxes toward, derived holistically from the slow axes that
+  // support it. Familiarity raises comfort's floor (a well-known person is easier to be around);
+  // standing affection lends a little baseline desire; agitation rests at calm unless provoked,
+  // but chronic distrust/contempt leaves a faint simmer.
+  if(key==="desire")    return Math.round(((o.affection||0)*0.22)+((o.trust||0)*0.05));
+  if(key==="comfort")   return Math.round(((o.trust||0)*0.35)+((o.affection||0)*0.18)+((o.familiarity||0)*0.18)-((o.fear||0)*0.3));
+  if(key==="fear")      return 0;   // fear rests at none unless actively provoked
+  if(key==="agitation") return Math.round(Math.max(0,(-(o.trust||0))*0.08)+Math.max(0,(-(o.respect||0))*0.06)); // distrust/contempt → faint simmer
+  return 0;
+}
 // Evaluate, with ONE call, how character `fromP` now feels about target `toId`/`toName`,
 // across all relationship axes. Applies the deltas and stores the written description.
 async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs){
@@ -4837,52 +5005,40 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs){
     (o.desc?`\nCurrent description: ${o.desc}`:"");
   const msgs=[{role:"system",content:sys}];
   exchangeMsgs.forEach(m=>msgs.push(m));
-  msgs.push({role:"user",content:`${curLine}\n\nBased ONLY on the exchange above, return the JSON of per-axis deltas and a fresh description for how ${fromP.name} feels about ${toName} now.`});
-  const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",260),dbg:"Relationship · "+fromP.name+" → "+toName});
+  msgs.push({role:"user",content:`${curLine}\n\nThe exchange above is the FULL day's interaction as ${fromP.name} witnessed it. Weigh the day as a whole and judge ALL axes HOLISTICALLY (they constrain each other — a spike in one is read in light of the others, and familiarity gates how deep trust/affection/respect can go). Return the JSON of per-axis deltas (a single, measured update reflecting the whole day — not an overreaction to any one line) and a fresh description for how ${fromP.name} feels about ${toName} now. ALSO: if the day revealed a DURABLE relational FACT about ${toName} that ${fromP.name} would now treat as known (a kinship/role/history tie — e.g. "${toName} is X's brother", "${toName} is my new boss", "${toName} betrayed Y"), include it as "social_fact" (one short sentence, from ${fromP.name}'s point of view). Omit social_fact if nothing durable was revealed — do NOT restate feelings there.`});
+  const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",340),dbg:"Daily relationship · "+fromP.name+" → "+toName});
   const j=parseJSON(out); if(!j||typeof j!=="object")return;
   REL_DIMS.forEach(d=>{ if(typeof j[d.key]==="number")o[d.key]=clampRel((o[d.key]||0)+j[d.key]); });
   if(typeof j.description==="string"&&j.description.trim())o.desc=j.description.trim();
+  // Append a durable discovery to fromP's social graph — APPEND ONLY, never overwriting the
+  // author's own text, deduped, capped so it can't grow without bound.
+  if(typeof j.social_fact==="string" && j.social_fact.trim()){
+    const fact=j.social_fact.trim().replace(/\s+/g," ").slice(0,140);
+    const persona=state.personas.find(p=>p.id===fromP.id);
+    if(persona){
+      const existing=(persona.socialGraphAuto||"");
+      const authored=(persona.socialGraph||"");
+      const norm=s=>s.toLowerCase().replace(/[^a-z0-9 ]/g,"").trim();
+      const known=(existing+"\n"+authored).split("\n").map(norm).filter(Boolean);
+      if(!known.some(k=>k.includes(norm(fact))||norm(fact).includes(k))){
+        const lines=(existing?existing.split("\n"):[]); lines.push(fact);
+        persona.socialGraphAuto=lines.slice(-12).join("\n");   // cap discoveries
+        persistPersonas();
+      }
+    }
+  }
 }
 
 // After-turn engine: judges relationship shifts (one call per present character) + freeform
 // tracker deltas/triggers; code applies dice / clamps / stages and surfaces stage-crossings.
 async function runTrackerEngine(chat){
   if(!chat||!state.key)return;
-  if(!state.relOn && !state.trackOn)return;
+  if(!state.trackOn)return;   // relationships moved to end-of-day (runDailyRelationships); only freeform trackers run per-turn now
   const present=presentCast(chat);
   const exchange=recentExchangeMsgs(chat,6);
 
-  // Who ACTUALLY participated in the recent exchange (spoke a line). A character can be
-  // "present" (in the room) yet silent — like a bystander who never joined in. Evaluating
-  // relationships for a silent character invents feelings from dialogue that wasn't theirs
-  // (e.g. Defne forming an opinion of Ceyda based on the player's lines while Ceyda said
-  // nothing). So we only score characters who genuinely took part this exchange.
-  // NOTE: exchange names are sanitized (non-ASCII like the Turkish ğ becomes _), so compare
-  // using the SAME sanitizer on the persona name, or Turkish names would never match.
-  const spokenNames=new Set(exchange.filter(m=>m.role==='assistant').map(m=>(m.name||"").toLowerCase()));
-  const participated=p=>spokenNames.has(sanitizeName(p.name||"").toLowerCase());
-
-  // ---- Relationships (directed, multi-dimensional, one call per character) ----
-  if(state.relOn && present.length){
-    for(const fromP of present){
-      // Skip characters who didn't actually speak this exchange — nothing to judge for them.
-      if(!participated(fromP))continue;
-      // toward the player
-      try{ await evalRelationship(chat,fromP,"__user__",state.user,exchange); }catch(e){}
-      // toward other present characters — only if THAT character also took part, and only
-      // when the active cast is small (to bound cost).
-      if(present.length<=3){
-        for(const toP of present){
-          if(toP.id===fromP.id)continue;
-          if(!participated(toP))continue;   // don't score a silent bystander
-          try{ await evalRelationship(chat,fromP,toP.id,toP.name,exchange); }catch(e){}
-        }
-      }
-    }
-    persistChats();
-  }
-
-  // ---- Freeform trackers ----
+  // ---- Freeform trackers ---- (relationships are evaluated once per day at End Day, so the
+  // progression is stable and reflects the whole day rather than swinging after a few lines.)
   if(state.trackOn){
     const ts=curTrackers();
     if(ts.length){
@@ -4948,24 +5104,36 @@ function openStoryState(){
   let rel="";
   if(state.relOn){
     const cards=[];
-    const dim=(o)=>REL_DIMS.map(d=>{
-      const v=o[d.key]||0;
+    // Render one axis row. For fast axes, `cur` is the live short-term value (o.st), shown next
+    // to its slow-supported resting baseline so the volatility is visible.
+    const axisRow=(label,v)=>{
       const pct=Math.round((v+100)/2);  // -100..100 → 0..100
       const col=v>=0?"var(--accent)":"#c0556b";
-      return `<div class="relAxis"><span class="relAxisName">${d.label}</span>
+      return `<div class="relAxis"><span class="relAxisName">${label}</span>
         <span class="relBar"><span class="relBarFill" style="width:${pct}%;background:${col}"></span></span>
         <span class="relAxisVal">${v>0?"+":""}${v}</span></div>`;
-    }).join("");
-    const addCard=(fromName,toName,o)=>{
-      if(!relHasContent(o))return;
+    };
+    const dimSlow=(o)=>REL_DIMS.filter(d=>d.tier==="slow").map(d=>axisRow(d.label,o[d.key]||0)).join("");
+    const dimFast=(o)=>REL_FAST.map(k=>{const d=REL_DIMS.find(x=>x.key===k);return axisRow(d.label,(o.st&&o.st[k])||0);}).join("");
+    const addCard=(fromName,toName,o,persona)=>{
+      if(!relHasContent(o) && !(persona&&((persona.socialGraph||"").trim()||(persona.socialGraphAuto||"").trim())))return;
+      const considered=relConsideredProse(o), momentary=relMomentaryProse(o);
+      const sgA=(persona&&persona.socialGraph||"").trim(), sgB=(persona&&persona.socialGraphAuto||"").trim();
+      const sg=[sgA,sgB?("<i>"+esc(sgB).replace(/\n/g,"<br>")+"</i>"):""].filter(Boolean);
       cards.push(`<div class="relCard">
         <div class="relWho">${esc(fromName)} → ${esc(toName)} <span class="relTag">${esc(relTag(o))}</span></div>
         <div class="relDesc">${esc(relDescription(o))||"<span class='desc'>forming…</span>"}</div>
-        <div class="relAxes">${dim(o)}</div></div>`);
+        <div class="relFacet"><span class="relFacetLbl">Considered (lasting)</span><span>${considered?esc(considered):"<span class='desc'>—</span>"}</span></div>
+        <div class="relAxes">${dimSlow(o)}</div>
+        <div class="relFacet"><span class="relFacetLbl">Right now (momentary)</span><span>${momentary?esc(momentary):"<span class='desc'>at rest</span>"}</span></div>
+        <div class="relAxes">${dimFast(o)}</div>
+        ${sg.length?`<div class="relFacet"><span class="relFacetLbl">Social ties</span><span>${esc(sgA).replace(/\n/g,"<br>")}${sgA&&sgB?"<br>":""}${sgB?("<i>"+esc(sgB).replace(/\n/g,"<br>")+"</i>"):""}</span></div>`:""}
+      </div>`);
     };
     for(let i=0;i<present.length;i++){
-      addCard(present[i].name,state.user,relObj(chat,present[i].id,"__user__"));
-      for(let j=0;j<present.length;j++){ if(i===j)continue; addCard(present[i].name,present[j].name,relObj(chat,present[i].id,present[j].id)); }
+      const persona=state.personas.find(p=>p.id===present[i].id);
+      addCard(present[i].name,state.user,relObj(chat,present[i].id,"__user__"),persona);
+      for(let j=0;j<present.length;j++){ if(i===j)continue; addCard(present[i].name,present[j].name,relObj(chat,present[i].id,present[j].id),null); }
     }
     rel=cards.join("")||`<div class="desc">No relationships yet — they form on their own as characters interact.</div>`;
   }
@@ -5577,6 +5745,10 @@ function editPersona(id){
     const map={Name:'name',Avatar:'avatar',Instructions:'instructions',Personality:'personality',Backstory:'backstory',Style:'style',Look:'look',Interject:'interject'};
     document.getElementById('pe'+f).value=p[map[f]]||"";
   });
+  {const sg=document.getElementById('peSocialGraph'); if(sg)sg.value=p.socialGraph||"";
+   const auto=document.getElementById('peSocialAuto');
+   if(auto){ const a=(p.socialGraphAuto||"").trim();
+     auto.style.display=a?"block":"none"; auto.textContent=a?("Discovered in play: "+a):""; }}
   renderPeLocations(p);
   // Reset the Create-with-AI box for each open.
   {const panel=document.getElementById('peAiPanel');if(panel)panel.classList.add('hide');const brief=document.getElementById('peAiBrief');if(brief)brief.value="";}
@@ -5879,6 +6051,10 @@ function savePersona(){
     style:document.getElementById('peStyle').value.trim(),
     look:document.getElementById('peLook').value.trim(),
     interject:document.getElementById('peInterject').value.trim(),
+    // Social graph: author-owned text (editable) + LLM-discovered lines (append-only, never
+    // overwritten by the save — preserved from the existing persona).
+    socialGraph:(document.getElementById('peSocialGraph')?document.getElementById('peSocialGraph').value.trim():((editingPersona&&editingPersona.socialGraph)||"")),
+    socialGraphAuto:(editingPersona&&editingPersona.socialGraphAuto)||"",
     routine:(editingPersona&&editingPersona.routine)||_peRoutine||"",
     // Location frequenting was removed from the character editor (residence is set in the
     // Universe → Locations editor instead). Preserve any existing value rather than wiping it.
@@ -6070,6 +6246,12 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   {const loc=charLocationLine(p,chat);if(loc)rb+=`\n${loc}`;}
   blocks.push(rb);
 
+  // SOCIAL GRAPH — who the people in this world are TO this character (kinship, hierarchy,
+  // rivalry, jealousy, allegiances). Author text + any LLM-discovered ties, combined.
+  {const sgA=(p.socialGraph||"").trim(), sgB=(p.socialGraphAuto||"").trim();
+   const sg=[sgA,sgB].filter(Boolean).join("\n");
+   if(sg)blocks.push(`# YOUR RELATIONSHIPS (who these people are to you)\nThis is your map of the people in your world — act on these ties. Let kinship, rank, debts, rivalries, jealousy, and loyalties shape how you treat each person:\n${sg}`);}
+
   if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
 
   if(others&&others.length){
@@ -6153,14 +6335,31 @@ function buildTailGuidance(opts){
   g+=`. Advance the moment and leave room for ${targetName||state.user} to react.`;
   blocks.push(g);
 
-  // (2) HOW YOU FEEL TOWARD <target> — prose result only, no axis numbers.
+  // (2) HOW YOU FEEL TOWARD <target> — THREE labeled facets, prose only, never any numbers:
+  //     considered (slow/trait, filtered, drives personality), momentary (fast/state, impulsive,
+  //     colors this beat only), and the social graph (who they are to each other).
   let knowsTarget=true;
   if(state.relOn && chat && targetId){
     const o=relObj(chat,opts.selfId,targetId);
     const desc=relDescription(o);
     const hasEval=relHasContent(o);
-    if(desc && desc.trim() && !/^Roughly:/.test(desc.trim()) && hasEval){
-      blocks.push(`# HOW YOU FEEL TOWARD ${(targetName||"THEM").toUpperCase()}\nThese are your private feelings — let them shape how you speak and act, but never state them outright:\n${desc.trim()}`);
+    const considered=relConsideredProse(o);
+    const momentary=relMomentaryProse(o);
+    if((desc && desc.trim() && !/^Roughly:/.test(desc.trim()) && hasEval) || considered || momentary){
+      let fb=`# HOW YOU FEEL TOWARD ${(targetName||"THEM").toUpperCase()}\nThese are your private feelings — let them shape how you speak and act, but never state them outright.`;
+      if(desc && desc.trim() && !/^Roughly:/.test(desc.trim()) && hasEval){
+        fb+=`\n\nLASTING / CONSIDERED VIEW (your settled, filtered opinion — this is the real foundation and should govern your behaviour): ${desc.trim()}`;
+      } else if(considered){
+        fb+=`\n\nLASTING / CONSIDERED VIEW (your settled, filtered opinion — governs your behaviour): you ${considered}.`;
+      }
+      if(momentary){
+        fb+=`\n\nRIGHT-NOW FEELING (a momentary, impulsive pull from this scene — it colors your tone and may tempt a small slip, but it must NOT override the lasting view above or push you out of character): you are ${momentary} in this moment.`;
+        const tension=relImpulseTension(o);
+        if(tension==="desire") fb+=` This heat isn't backed by deeper feeling — act on it and you'd likely feel a flush of regret or self-consciousness after.`;
+        else if(tension==="anger") fb+=` You're more provoked than the situation truly warrants — a sharp word may escape, and you might quietly regret the overreaction.`;
+        else if(tension==="fear") fb+=` The flash of fear sits oddly against how much you actually trust them — it may make you flinch or overreact, then feel foolish.`;
+      }
+      blocks.push(fb);
     }
     // FIRST ENCOUNTER (player only): if there is no recorded relationship/evaluation toward the
     // user yet, the character does not know them. Tell the model so it stops acting familiar.
@@ -6610,9 +6809,19 @@ function appendNewBubbles(){ return perf("appendNewBubbles",()=>{
     if(_presentPendingMids.has(m.mid)) continue;   // committed to state but not yet its turn to show
     const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); appended++; }
   if(appended){
-    // Trim the front of the DOM to keep within the window (state is untouched).
+    // Trim the front of the DOM to keep within the window (state is untouched). Removing nodes
+    // from the TOP shifts all following content up, which visibly jumps the viewport (the "send
+    // makes the chat leap upward" bug). Measure the removed height and subtract it from scrollTop
+    // so whatever the user is looking at stays visually fixed.
     let nodes=list.querySelectorAll('[data-mid]');
-    while(nodes.length>RENDER_WINDOW){ list.removeChild(nodes[0]); nodes=list.querySelectorAll('[data-mid]'); }
+    let removedH=0;
+    while(nodes.length>RENDER_WINDOW){
+      const first=nodes[0];
+      removedH+=first.getBoundingClientRect().height;
+      list.removeChild(first);
+      nodes=list.querySelectorAll('[data-mid]');
+    }
+    if(removedH>0){ list.scrollTop=Math.max(0,list.scrollTop-removedH); }
     _renderedCount=Math.min(msgs.length,RENDER_WINDOW);
     // Only follow to the bottom if the user was already there; otherwise keep their
     // position and let them know new content arrived.
@@ -6890,6 +7099,10 @@ async function sendMessage(){
   {const bn=document.getElementById('recapBanner'); if(bn)bn.classList.add('hide');}
   inp.value="";inp.style.height="auto";
   appendNewBubbles();persistChats();
+  // The user just sent — always bring THEIR message into view (snap to bottom), regardless of
+  // prior scroll position. appendNewBubbles only auto-follows if you were already near the
+  // bottom, which (with front-trimming) could otherwise leave the view parked up the transcript.
+  {const _list=document.getElementById('chatList'); if(_list){_list.scrollTop=_list.scrollHeight;} if(typeof hideNewMsgPill==="function")hideNewMsgPill();}
 
   // ----- Nobody nearby: the user is speaking to themselves. Let directors react, no character speaks. -----
   const present=presentCast(chat);
@@ -7646,6 +7859,15 @@ async function endDay(){
     persistMemory();
     if(document.getElementById('screen-memory').classList.contains('active'))renderMemory();
   }
+  // ---- DAILY RELATIONSHIP EVALUATION ----
+  // Relationships now update ONCE per day (here), not after every exchange. For each character
+  // who participated today, we evaluate — over the WHOLE day's conversation they witnessed — how
+  // they feel toward the player and toward every OTHER character they actually saw today. This
+  // makes progression stable and logical: a day of interaction nudges a relationship once, rather
+  // than swinging it after a couple of lines.
+  if(state.relOn && state.key){
+    try{ await runDailyRelationships(chat,day); }catch(e){/* best-effort */}
+  }
   // Generate a short narration of how the day ends, based on the last beat.
   let narration=`The day draws to a close.`;
   if(state.key){
@@ -7685,8 +7907,12 @@ async function postTurn(chat){
   // (not awaited) so the player can keep going immediately — any stage-crossing narrator beat
   // simply lands a moment later. The scene writer below stays synchronous because it decides
   // who speaks next.
-  if(state.relOn||state.trackOn){
+  if(state.trackOn){
     runTrackerEngine(chat).catch(()=>{});
+  }
+  if(state.relOn){
+    // Short-term emotional read (fast axes) on an adaptive cadence — background, never blocks.
+    runShortTermRel(chat).catch(()=>{});
   }
   if(state.calOn){
     runCalendarEngine(chat).catch(()=>{});
