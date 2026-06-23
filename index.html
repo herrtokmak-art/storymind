@@ -3482,18 +3482,23 @@ function typewriterReveal(mid,fullText,onDone){
   if(!body || state.streamReveal===false){ if(body)body.innerHTML=md(fullText); if(onDone)onDone(); return; }
   cancelReveal(mid);
   const list=chatScrollEl();
-  const follow=isNearBottom(list);          // only auto-scroll if user is at the bottom
+  let follow=isNearBottom(list);          // only auto-scroll if user is at the bottom…
+  // …and the moment the user scrolls up during this reveal, latch follow OFF so we never yank
+  // the viewport back down. Whatever they're looking at stays put.
+  const onScroll=()=>{ if(!isNearBottom(list)) follow=false; };
+  if(list) list.addEventListener('scroll',onScroll,{passive:true});
+  const stopFollow=()=>{ if(list) list.removeEventListener('scroll',onScroll); };
   body.innerHTML="";                         // clear immediately so the full text never flashes
   let i=0;                                    // character index into fullText
   const baseTick=Math.round(1000/REVEAL_CPS); // ms per character
   const tick=()=>{
     const liveBody=document.querySelector('.bubble[data-mid="'+mid+'"] .body');
-    if(!liveBody){ cancelReveal(mid); if(onDone)onDone(); return; }
+    if(!liveBody){ cancelReveal(mid); stopFollow(); if(onDone)onDone(); return; }
     i++;                                       // reveal one more character
     const shown=fullText.slice(0,i);
     liveBody.innerHTML=md(shown);
     if(follow && isNearBottom(list)) list.scrollTop=list.scrollHeight;
-    if(i>=fullText.length){ cancelReveal(mid); liveBody.innerHTML=md(fullText); if(onDone)onDone(); return; }
+    if(i>=fullText.length){ cancelReveal(mid); stopFollow(); liveBody.innerHTML=md(fullText); if(onDone)onDone(); return; }
     // a longer beat after sentence-ending punctuation, a small one after clause punctuation
     const lastCh=fullText.charAt(i-1);
     const delay=/[.!?…]/.test(lastCh)?baseTick*9:(/[,;:]/.test(lastCh)?baseTick*5:baseTick);
@@ -3502,12 +3507,70 @@ function typewriterReveal(mid,fullText,onDone){
   _revealTimers[mid]=setTimeout(tick,baseTick);
 }
 
-/* ---- Sequential reveal QUEUE ----------------------------------------------
-   Decouples text reveal from generation and the image pipeline. When a character's
-   reply is ready we (1) fire illustration immediately and (2) ENQUEUE its reveal.
-   The queue plays reveals one-at-a-time at reading speed, so in a multi-character
-   turn the next character can be generated and illustrated while the previous line
-   is still rolling — nothing waits on the typewriter. */
+/* ---- Sequential PRESENTATION queue ----------------------------------------
+   The core fix for on-screen desync. A character's reply is committed to `state`
+   the moment it's generated (so persistence, illustration, memory all proceed in
+   the BACKGROUND), but its BUBBLE is not shown until its turn in this queue. Each
+   job: (1) append exactly one bubble to the DOM, (2) roll its reveal at reading
+   speed, (3) release the next job. This guarantees lines appear and roll strictly
+   one-at-a-time in order — no out-of-order blank bubbles, no flash-then-vanish,
+   and no scroll fighting between concurrent appends. Generation of the NEXT line
+   still runs in parallel in the background; only the PRESENTATION is serialized. */
+let _presentQueue=[];
+let _presentPlaying=false;
+let _presentingMid=null;             // mid currently being appended/revealed (blank-gate in bubble())
+let _presentPendingMids=new Set();   // mids committed to state but not yet presented → renderers skip them
+function enqueuePresent(mid){
+  return new Promise(resolve=>{
+    _presentPendingMids.add(mid);
+    _presentQueue.push({mid,resolve});
+    _drainPresentQueue();
+  });
+}
+function _drainPresentQueue(){
+  if(_presentPlaying) return;
+  const job=_presentQueue.shift();
+  if(!job){ return; }
+  _presentPlaying=true;
+  const m=findMsg(job.mid);
+  if(!m){ // message gone (chat switched / deleted) — skip cleanly
+    _presentPendingMids.delete(job.mid); _presentPlaying=false; job.resolve&&job.resolve(); _drainPresentQueue(); return;
+  }
+  // Reveal it now: clear the pending flag FIRST so appendNewBubbles will render this one,
+  // then append just this bubble, then roll it. The reveal's onDone releases the next job.
+  _presentPendingMids.delete(job.mid);
+  m._reveal=true;
+  _presentingMid=job.mid;          // bubble() renders this blank until the reveal's first tick
+  appendOneBubble(m);
+  typewriterReveal(m.mid,m.content,()=>{
+    delete m._reveal;
+    _presentingMid=null;
+    _presentPlaying=false;
+    job.resolve&&job.resolve();
+    _drainPresentQueue();
+  });
+}
+function clearPresentQueue(){
+  _presentQueue.forEach(j=>{ try{ cancelReveal(j.mid); }catch(e){} _presentPendingMids.delete(j.mid); j.resolve&&j.resolve(); });
+  _presentQueue=[]; _presentPlaying=false; _presentingMid=null; _presentPendingMids.clear();
+}
+// Append a SINGLE message's bubble to the chat list if it isn't already shown, honoring the
+// follow-scroll rule (never yank the viewport unless the user is already at the bottom).
+function appendOneBubble(m){
+  const list=document.getElementById('chatList');
+  if(!list||!m)return;
+  if(_renderedChatId!==state.curChat){ renderChat(); return; }
+  if(list.querySelector('[data-mid="'+m.mid+'"]')) return;   // already on screen
+  const wasAtBottom=isNearBottom(list);
+  const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid);
+  let nodes=list.querySelectorAll('[data-mid]');
+  while(nodes.length>RENDER_WINDOW){ list.removeChild(nodes[0]); nodes=list.querySelectorAll('[data-mid]'); }
+  _renderedCount=Math.min(curChat().messages.length,RENDER_WINDOW);
+  if(wasAtBottom){ list.scrollTop=list.scrollHeight; hideNewMsgPill(); }
+  else { showNewMsgPill(); }
+}
+
+/* ---- legacy reveal queue (kept as thin shims so any other caller still works) ---- */
 let _revealQueue=[];
 let _revealPlaying=false;
 let _revealPending=new Set();   // mids queued or playing — bubble() keeps these blank until rolled
@@ -3534,6 +3597,7 @@ function clearRevealQueue(){
   // On chat switch/restart, drop pending reveals so they don't roll into a new chat.
   _revealQueue.forEach(j=>{ try{ cancelReveal(j.mid); }catch(e){} _revealPending.delete(j.mid); j.resolve&&j.resolve(); });
   _revealQueue=[]; _revealPlaying=false; _revealPending.clear();
+  clearPresentQueue();
 }
 
 /* ---- OpenRouter ---- */
@@ -6042,11 +6106,19 @@ function buildTailGuidance(opts){
   blocks.push(g);
 
   // (2) HOW YOU FEEL TOWARD <target> — prose result only, no axis numbers.
+  let knowsTarget=true;
   if(state.relOn && chat && targetId){
     const o=relObj(chat,opts.selfId,targetId);
     const desc=relDescription(o);
-    if(desc && desc.trim() && !/^Roughly:/.test(desc.trim())){
+    const hasEval=relHasContent(o);
+    if(desc && desc.trim() && !/^Roughly:/.test(desc.trim()) && hasEval){
       blocks.push(`# HOW YOU FEEL TOWARD ${(targetName||"THEM").toUpperCase()}\nThese are your private feelings — let them shape how you speak and act, but never state them outright:\n${desc.trim()}`);
+    }
+    // FIRST ENCOUNTER (player only): if there is no recorded relationship/evaluation toward the
+    // user yet, the character does not know them. Tell the model so it stops acting familiar.
+    if(targetId==="__user__" && !hasEval){
+      knowsTarget=false;
+      blocks.push(`# YOU DON'T KNOW ${(targetName||state.user).toUpperCase()} YET\nYou have no prior history, evaluation, or relationship with ${targetName||state.user} — this is effectively a stranger to you. React as a real person would to someone they've just encountered: with the reserve, politeness, wariness, curiosity, or indifference your character would actually show. Do NOT display warmth, flirtation, trust, rivalry, or emotional investment you have not earned. Let any rapport build gradually from how they actually behave toward you.`);
     }
   }
 
@@ -6057,7 +6129,9 @@ function buildTailGuidance(opts){
     `Lead with dialogue and action. Keep narration thin — a light connective layer, not the substance. Avoid long stacked stage directions.`,
     `One emotional beat is stronger than five. Don't resolve everything in one reply; leave things unsaid.`,
     `Do NOT end with a reflexive question aimed at ${targetName||state.user}. End on what you DO or leave a beat open instead.`,
-    `Stay consistent with your established voice, mood, and the relationship above — don't reset between replies.`
+    knowsTarget
+      ? `Stay consistent with your established voice, mood, and the relationship above — don't reset between replies.`
+      : `Stay consistent with your established voice and mood — don't reset between replies. Remember you do not know ${targetName||state.user} yet; don't manufacture familiarity.`
   ];
   blocks.push(`# FINAL GUARDRAILS\n`+rails.map(r=>`- ${r}`).join("\n"));
 
@@ -6457,7 +6531,7 @@ function renderChat(){ return perf("renderChat",()=>{
   if(!chat.messages.length){const u=curUniverseObj();list.innerHTML=`<div class="empty"><div class="big">${esc((u&&u.avatar)||"🌌")}</div><div>You're in ${esc((u&&u.name)||"the story")}.<br>Nobody is nearby yet — narrate freely, or bring a character in with <b>/bring Name</b>.</div></div>`;return;}
   const msgs=chat.messages;
   const start=Math.max(0,msgs.length-RENDER_WINDOW);
-  for(let i=start;i<msgs.length;i++){ const m=msgs[i]; if(!m.mid) m.mid=newMid(); const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); }
+  for(let i=start;i<msgs.length;i++){ const m=msgs[i]; if(!m.mid) m.mid=newMid(); if(_presentPendingMids.has(m.mid)) continue; const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); }
   _renderedCount=msgs.length-start;
   // A full rebuild happens on chat-open/switch/restart — landing at the latest line is expected.
   list.scrollTop=list.scrollHeight;
@@ -6485,6 +6559,7 @@ function appendNewBubbles(){ return perf("appendNewBubbles",()=>{
   }
   let appended=0;
   for(let i=firstNew;i<msgs.length;i++){ const m=msgs[i]; if(!m.mid) m.mid=newMid();
+    if(_presentPendingMids.has(m.mid)) continue;   // committed to state but not yet its turn to show
     const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); appended++; }
   if(appended){
     // Trim the front of the DOM to keep within the window (state is untouched).
@@ -6591,7 +6666,7 @@ function bubble(m){
       tempTag=` <span class="pill" style="font-size:9px;border-color:var(--accent);color:var(--accent)">guest</span>`;
     }
   }
-  const _revealing=m._reveal && (_revealPending.has(m.mid) || _revealTimers[m.mid]);
+  const _revealing=m._reveal && (_revealPending.has(m.mid) || _revealTimers[m.mid] || _presentingMid===m.mid);
   // Per-message edit/delete controls (real chat lines only — not GM/narrator/day markers,
   // which return earlier). Kept tiny and muted so they don't crowd the bubble.
   const actions=`<span class="msgActions"><button class="msgAct" title="Edit" onclick="editMessage('${m.mid}')">✏️</button><button class="msgAct" title="Delete" onclick="deleteMessage('${m.mid}')">🗑️</button></span>`;
@@ -6800,11 +6875,14 @@ async function sendMessage(){
     typing.remove();
     const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
-    persistChats();appendNewBubbles();
-    // Fire illustration immediately (text is ready); reveal rolls via the queue at reading speed.
+    // BACKGROUND (does not wait on screen): persist, fire the image pipeline the instant text is
+    // ready, run the voice check. The bubble itself is shown by the presentation queue.
+    persistChats();
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,solo);
-    enqueueReveal(msg.mid,reply).then(()=>{ delete msg._reveal; });
+    // ON SCREEN: append + reveal this one line, in order, via the presentation queue. Not awaited,
+    // so the turn loop proceeds (memory/presence/GM run in the background) while it rolls.
+    enqueuePresent(msg.mid);
     // Detect anyone the reply (or the player) narrated entering/leaving — this was previously
     // only done in the multi-character path, so one-on-one scenes never ran presence detection.
     await runPresenceTracker(chat);
@@ -7051,17 +7129,14 @@ async function playCharacterTurn(chat,p,addressed){
     const cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
     const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
-    persistChats();appendNewBubbles();
-    // Text is ready NOW — fire the image pipeline and voice check immediately, before (and
-    // independent of) the typewriter. The reveal is queued so multi-character lines still roll
-    // in one after another at reading speed, but generation/illustration of the NEXT character
-    // never waits on the previous line finishing its roll.
+    // BACKGROUND: persist + fire image pipeline immediately (text is ready) + voice check. The
+    // next character can generate while this one is still queued/rolling on screen.
+    persistChats();
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
-    // Enqueue the reveal but DON'T await it — return immediately so the chain can generate and
-    // illustrate the next character while this line is still rolling. The queue guarantees
-    // reveals play one-at-a-time in order, at reading speed, to the reader.
-    enqueueReveal(msg.mid,cleaned).then(()=>{ delete msg._reveal; });
+    // ON SCREEN: append + reveal in strict order via the presentation queue. Not awaited, so the
+    // chain generates the next line in the background while this one rolls one line at a time.
+    enqueuePresent(msg.mid);
     return true;
   }catch(err){
     typing.remove();
@@ -7630,8 +7705,11 @@ async function playGamemasterBeat(chat,nudge){
       present:presentIds(chat).slice(),content:text,
       img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
-    persistChats();appendNewBubbles();
+    persistChats();
     if(state.autoImg) illustrate(msg.mid,text);
+    // Show the event in order via the presentation queue — it won't jump ahead of a line that's
+    // still rolling, and it won't yank the viewport if the user has scrolled up to read.
+    msg._reveal=true; enqueuePresent(msg.mid);
 
     // If the Scene Writer is enabled, classify this event and make it ACTIVE.
     if(state.sceneOn){
@@ -7751,8 +7829,9 @@ async function runSceneWriter(chat){
       const nm={mid:newMid(),role:"assistant",speaker:"Narrator",narratorEvent:true,sceneBeat:true,
         present:presentIds(chat).slice(),content:beat,
         img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
-      chat.messages.push(nm);persistChats();appendNewBubbles();
+      chat.messages.push(nm);persistChats();
       if(state.autoImg) illustrate(nm.mid,nm.content);
+      nm._reveal=true; enqueuePresent(nm.mid);
     }
     // Bring an approaching character into the room when the writer says so — or when
     // the player directly addressed them (forceBringIn), regardless of the model output.
