@@ -2,6 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Send no Referer on outbound requests. Some media CDNs (e.g. AtlasCloud's Alibaba OSS bucket)
+     enforce a "bucket referer policy" that 403s requests whose Referer isn't on their allowlist.
+     A file:// page sends no Referer and is allowed, but an https host (GitHub Pages) would send
+     its origin and get blocked — the "denied by bucket referer policy" AccessDenied error. Omitting
+     the Referer entirely makes the https page behave like the working file:// case. -->
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>StoryMind</title>
 <meta name="theme-color" content="#0D0F14">
@@ -3916,7 +3922,7 @@ async function toPlayableVideo(url){
     url=httpsMedia(url);
     if(!url || typeof url!=="string") return url;
     if(url.startsWith("blob:")||url.startsWith("data:")) return url;   // already local
-    const r=await fetch(url,{mode:"cors"});
+    const r=await fetch(url,{mode:"cors",referrerPolicy:"no-referrer"});
     if(!r.ok) return url;
     const blob=await r.blob();
     // Guard against an HTML error page sneaking through as a "video".
@@ -7110,7 +7116,7 @@ function sceneHTML(m){
     let v="";
     if(m.vidState==="error") v=`<button class="btn sec small" onclick="animateScene('${mid}')">⚠️ Retry video</button>`;
     else v=`<button class="btn sec small" onclick="animateScene('${mid}')">🎬 Animate</button>`;
-    return `<div class="scene"><img src="${m.img}" onclick="viewSceneImage('${mid}')">
+    return `<div class="scene"><img src="${m.img}" referrerpolicy="no-referrer" onclick="viewSceneImage('${mid}')">
             <div style="padding:8px">${v}</div></div>`;
   }
   // No image yet and not auto-illustrating -> offer a per-request generate button
@@ -7163,6 +7169,7 @@ function refreshBubble(mid){
   if(m.img && m.imgState==="done" && m.vidState!=="loading" && !m.video){
     const scene=document.createElement('div');scene.className="scene";
     const img=document.createElement('img');
+    img.referrerPolicy="no-referrer";
     // Restore scroll only AFTER the image lays out (its height isn't known until loaded).
     img.onload=_restoreScroll;
     img.src=m.img;img.onclick=()=>viewSceneImage(mid);
@@ -7184,6 +7191,7 @@ function refreshBubble(mid){
     const vid=document.createElement('video');
     vid.src=(String(m.video).startsWith("blob:")?m.video:remote);
     vid.controls=true;vid.playsInline=true;vid.loop=true;vid.preload="metadata";
+    vid.referrerPolicy="no-referrer";   // match the no-referrer page policy for referer-gated CDNs
     vid.style.cssText="width:100%;display:block;border-radius:12px";
     vid.onloadedmetadata=_restoreScroll;
     let _triedBlob=false;
