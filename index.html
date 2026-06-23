@@ -3902,8 +3902,18 @@ async function atlasUpload(dataUri){
 // fine in a new tab. Pulling the bytes and playing from a blob sidesteps all of that. On any
 // failure (CORS on the fetch, network), return the original URL unchanged so the existing
 // onerror → "Open video ↗" fallback still applies — we never make things worse than before.
+// Upgrade an http:// media URL to https:// so it isn't hard-blocked as mixed content when the
+// app itself is served over https (e.g. GitHub Pages). Most CDNs serve the same path over https;
+// if a particular host doesn't, the <video> onerror path still surfaces the direct link. Leaves
+// already-https, blob:, and data: URLs untouched.
+function httpsMedia(url){
+  if(typeof url!=="string") return url;
+  if(url.startsWith("http://")) return "https://"+url.slice(7);
+  return url;
+}
 async function toPlayableVideo(url){
   try{
+    url=httpsMedia(url);
     if(!url || typeof url!=="string") return url;
     if(url.startsWith("blob:")||url.startsWith("data:")) return url;   // already local
     const r=await fetch(url,{mode:"cors"});
@@ -7162,27 +7172,36 @@ function refreshBubble(mid){
     bar.appendChild(btn);scene.appendChild(img);scene.appendChild(bar);b.appendChild(scene);
     return;
   }
-  // Finished video: same safe approach
+  // Finished video: render the durable remote URL directly first. A plain <video src=remote>
+  // does NOT require CORS to play (only reading pixels does), so on an https host like GitHub
+  // Pages the direct source is the MOST compatible path. We only fall back to fetching a local
+  // blob if the direct play actually errors — and a blob fetch needs CORS, so it's a best-effort
+  // recovery, not the default. (Doing it the other way round — eagerly blob-fetching — fails on
+  // CDNs without CORS headers and was making https hosting worse than direct playback.)
   if(m.video && m.vidState!=="loading"){
     const scene=document.createElement('div');scene.className="scene";
-    const vid=document.createElement('video');vid.src=m.video;vid.controls=true;vid.playsInline=true;vid.loop=true;
+    const remote=httpsMedia(m.videoSrc||m.video);     // durable, embeddable source (https-upgraded)
+    const vid=document.createElement('video');
+    vid.src=(String(m.video).startsWith("blob:")?m.video:remote);
+    vid.controls=true;vid.playsInline=true;vid.loop=true;vid.preload="metadata";
     vid.style.cssText="width:100%;display:block;border-radius:12px";
     vid.onloadedmetadata=_restoreScroll;
-    // If m.video is still a remote URL (e.g. right after a reload rehydrated it from videoSrc),
-    // upgrade it to a local blob in the background so inline playback is reliable; swap the src
-    // in once ready and cache it back on the message so we only fetch once.
-    if(m.video && !String(m.video).startsWith("blob:") && !String(m.video).startsWith("data:")){
-      toPlayableVideo(m.video).then(playable=>{
-        if(playable && playable!==m.video){ m.video=playable; const live=document.querySelector('.bubble[data-mid="'+mid+'"] video'); if(live){live.src=playable;} }
-      }).catch(()=>{});
-    }
-    // If the embed fails to load (expired/signed URL, cross-origin block, or a non-video URL),
-    // don't leave a dead broken-media icon — swap in a tappable link to open it directly so the
-    // generated video is still reachable, and show why.
-    vid.onerror=()=>{
-      const href=m.videoSrc||m.video;
+    let _triedBlob=false;
+    vid.onerror=async()=>{
+      // First failure: if we were playing a remote URL, try to recover via a same-origin blob
+      // (works when the CDN sends CORS headers; harmlessly fails otherwise).
+      if(!_triedBlob && !String(vid.src).startsWith("blob:")){
+        _triedBlob=true;
+        try{
+          const playable=await toPlayableVideo(remote);
+          if(playable && playable.startsWith("blob:")){ m.video=playable; vid.src=playable; vid.load(); return; }
+        }catch(e){}
+      }
+      // Genuinely can't embed it here (no CORS, mixed-content http:// on an https host, or an
+      // expired URL). Don't leave a dead icon — offer the working direct link.
+      const href=remote;
       const fb=document.createElement('div');fb.style.cssText="padding:10px;font-size:13px;line-height:1.4";
-      fb.innerHTML=`⚠️ The video generated but couldn't play inline here. <a href="${href}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">Open video ↗</a>`;
+      fb.innerHTML=`⚠️ The video generated but can't play embedded on this host. <a href="${href}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">Open video ↗</a>`;
       if(vid.parentNode){ vid.parentNode.insertBefore(fb,vid); vid.remove(); }
     };
     const bar=document.createElement('div');bar.style.padding="8px";
@@ -7787,16 +7806,12 @@ async function animateScene(mid){
         videoUrl=await modelslabVideo(vidPrompt,msg.img,baseNeg,null);
       }
     }
-    // Remote provider URLs (AtlasCloud/ModelsLab CDNs) often refuse to play inline in a <video>
-    // element on phones — a missing/incorrect Content-Type, hotlink/Range handling, or an
-    // origin restriction makes the element fire onerror even though the file opens fine in a new
-    // tab (the "couldn't play inline / Open video ↗" symptom). Fetching the bytes into a local
-    // blob: URL sidesteps all of that, since playback is then same-origin from memory. Keep the
-    // durable remote URL on msg.videoSrc for download and for re-fetch after reload (blob: URLs
-    // don't survive a reload — loadState already nulls them).
-    setStat("Finalizing video…");
-    msg.videoSrc=videoUrl;                          // durable remote URL
-    msg.video=await toPlayableVideo(videoUrl);      // blob: if fetch succeeds, else the remote URL
+    // Keep the durable, embeddable remote URL as the primary source. A direct <video src=remote>
+    // plays without CORS on https hosts; the render path will blob-recover only if it errors.
+    // (Eagerly blob-fetching here failed on CDNs without CORS headers and discarded the URL that
+    // actually works for direct embedding.)
+    msg.videoSrc=httpsMedia(videoUrl);
+    msg.video=msg.videoSrc;
     msg.vidState="done";msg.vidPrompt=vidPrompt;
     state.videos.push({id:"vid_"+Date.now(),url:videoUrl,prompt:vidPrompt,character:cast.map(c=>c.name).join(", "),date:Date.now()});
     // Cap in-memory video base64/blob URLs the same way images are capped (IMG_MEM_CAP). Without
