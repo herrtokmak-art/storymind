@@ -2262,6 +2262,12 @@ Detect any of these KINDS:
 
 Do NOT record vague wishes ("we should hang out sometime") or things already done.
 
+CONSOLIDATION — CRITICAL to avoid duplicates:
+- Each distinct commitment must appear AT MOST ONCE. If the same underlying commitment could fit two kinds, pick the single best kind and emit it once. Example: "Ceyda will protect Emre" is ONE promise — do not ALSO emit it as a "custom" item, a warning, and a re-worded promise.
+- Before adding an item, check it is not a re-phrasing of another item in your own output (or something obviously already established earlier). Merge re-wordings, translations, and near-duplicates into a single entry. Do not output the same promise in two languages or two phrasings.
+- Output ONLY genuinely NEW commitments introduced in THIS latest exchange. Do not re-emit standing promises/plans that were already agreed earlier.
+- Prefer the clearest single title. A warning ("Ceyda warns Emre about the gym women") and the promise it leads to ("Ceyda will protect Emre") are usually the SAME commitment — emit one.
+
 For each item return an object:
 - "kind": one of "meeting","promise","conditional","custom".
 - "title": short label (e.g. 'Meet Aria at the cafe', 'Friends forever', 'Call Mara if I go to the marina').
@@ -4398,6 +4404,38 @@ function addCalendarEntry(chat,entry){
   cal.push(Object.assign({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,4),kind:"meeting",done:false,source:"manual"},entry));
   persistChats();
 }
+// Significant-word overlap for calendar dedup. Strips common English + Turkish filler words,
+// then compares the remaining content words. Two titles describing the same commitment (even
+// re-worded or partially translated) share most of their significant words (names, verbs like
+// protect/koru, nouns like promise/söz). Returns true when overlap is high enough to be the
+// same item without being so loose it merges unrelated events.
+const _CAL_STOP=new Set(["the","a","an","to","of","for","and","or","with","will","would","is","are","be","on","at","in","that","this","from","about","her","his","their","my","your","emre",
+  "ve","ile","bir","bu","şu","o","için","de","da","den","dan","ya","veya","olacak","yapma","yapacak","sözü","söz"]);
+function _calWords(s){
+  return String(s||"").toLowerCase()
+    .replace(/['’`]/g,"")
+    .split(/[^a-zçğıöşü0-9]+/i)
+    .filter(w=>w && w.length>2 && !_CAL_STOP.has(w));
+}
+function _titleSimilar(a,b){
+  const wa=_calWords(a), wb=_calWords(b);
+  if(!wa.length||!wb.length)return false;
+  // Stem each word to its first 5 chars so inflections/derivations match (protect↔protection,
+  // koru↔koruma, train↔training). Conservative enough that distinct concepts (protection vs
+  // training) still don't collide.
+  const stem=w=>w.slice(0,5);
+  const sa=new Set(wa.map(stem)), sb=new Set(wb.map(stem));
+  let inter=0; sa.forEach(w=>{ if(sb.has(w))inter++; });
+  const smaller=Math.min(sa.size,sb.size);
+  // require the smaller title to be mostly contained in the other (≥60% of its content words)
+  return smaller>0 && (inter/smaller)>=0.6;
+}
+function _whoOverlap(a,b){
+  const norm=s=>String(s||"").toLowerCase().split(/[,&]| and | ve /i).map(x=>x.trim()).filter(Boolean);
+  const A=norm(a), B=norm(b);
+  if(!A.length||!B.length)return false;
+  return A.some(x=>B.some(y=>x===y||x.includes(y)||y.includes(x)));
+}
 async function runCalendarEngine(chat){
   if(!state.calOn||!chat||!state.key)return;
   try{
@@ -4417,21 +4455,31 @@ async function runCalendarEngine(chat){
       const who=p.who||"";
       // Meetings are time-bound; promises/conditionals/custom are not (no day).
       const day=(kind==="meeting")?today+(Number(p.dayOffset)||0):null;
-      // DUPLICATE CHECK: skip if an open entry of the same kind already covers this. For meetings
-      // match title within ±1 day or same people same day; for the rest match on title (any time)
-      // or same condition, so a re-detected promise/conditional doesn't pile up.
+      // DUPLICATE CHECK. Two layers:
+      //  (1) MEETINGS: same-kind title match within ±1 day, or same people same day.
+      //  (2) STANDING COMMITMENTS (promise/conditional/custom): these describe the same kind of
+      //      thing and the detector often re-words or re-categorizes them (e.g. a promise logged
+      //      again as "custom", or in another language). So we dedup them ACROSS those kinds using
+      //      fuzzy title similarity scoped to the same people, plus exact-condition match.
+      const isStanding=k=>k==="promise"||k==="conditional"||k==="custom";
       const dup=cal.some(e=>{
         if(e.done)return false;
-        if((e.kind||"meeting")!==kind)return false;
-        const sameTitle=e.title.toLowerCase()===title.toLowerCase();
-        const sameWho=who && e.who && e.who.toLowerCase()===who.toLowerCase();
+        const ek=e.kind||"meeting";
+        const sameWho=who && e.who && _whoOverlap(e.who,who);
         if(kind==="meeting"){
+          if(ek!=="meeting")return false;
+          const sameTitle=e.title.toLowerCase()===title.toLowerCase();
           if(sameTitle && Math.abs((e.day||0)-(day||0))<=1) return true;
+          if(_titleSimilar(e.title,title) && sameWho && Math.abs((e.day||0)-(day||0))<=1) return true;
           if(sameWho && e.day===day) return true;
-        }else{
-          if(sameTitle) return true;
-          if(p.condition && e.condition && e.condition.toLowerCase()===String(p.condition).toLowerCase()) return true;
+          return false;
         }
+        // standing commitment vs standing commitment (cross-kind)
+        if(!isStanding(ek))return false;
+        if(e.title.toLowerCase()===title.toLowerCase()) return true;
+        if(p.condition && e.condition && e.condition.toLowerCase()===String(p.condition).toLowerCase()) return true;
+        // fuzzy: clearly-overlapping wording AND the same people involved → same commitment
+        if(_titleSimilar(e.title,title) && (sameWho || (!who && !e.who))) return true;
         return false;
       });
       if(dup)continue;
@@ -6763,6 +6811,10 @@ function refreshBubble(mid){
   // owning chat's revision marker to invalidate it; otherwise an image that lands on an existing
   // (already-counted) message would not be re-serialized on the next debounced persist.
   for(const cid in state.chats){ if(state.chats[cid].messages.some(x=>x.mid===mid)){ markChatDirty(state.chats[cid]); break; } }
+  // If this message hasn't been presented yet (image generated FASTER than the text reveal got
+  // to it), do nothing now: the image is in state and will render when the bubble is presented.
+  // This prevents a premature renderChat()/scroll jump while the user reads earlier lines.
+  if(_presentPendingMids.has(mid)) return;
   const b=document.querySelector('.bubble[data-mid="'+mid+'"]');
   if(!b){
     // Bubble not in the DOM. If the message belongs to the current chat AND is within
@@ -6773,16 +6825,31 @@ function refreshBubble(mid){
     const cur=state.chats[state.curChat];
     if(cur){
       const idx=cur.messages.findIndex(x=>x.mid===mid);
-      if(idx>=0 && idx>=cur.messages.length-RENDER_WINDOW) renderChat();
+      // Only rebuild if the user is at the bottom; otherwise leave their scroll position alone.
+      if(idx>=0 && idx>=cur.messages.length-RENDER_WINDOW && isNearBottom()) renderChat();
     }
     return;
   }
+  // Preserve the viewport: capture scroll state before mutating bubble height, restore after
+  // unless the user is following at the bottom. An image landing on an off-screen-but-rendered
+  // bubble must never yank what the user is currently reading.
+  const list=chatScrollEl();
+  const wasAtBottom=isNearBottom(list);
+  const prevTop=list?list.scrollTop:0, prevH=list?list.scrollHeight:0;
+  const _restoreScroll=()=>{
+    if(!list)return;
+    if(wasAtBottom){ list.scrollTop=list.scrollHeight; }
+    else { list.scrollTop=prevTop + (list.scrollHeight-prevH); } // keep the same content in view
+  };
   const old=b.querySelector('.scene');
   if(old) old.remove();
   // Finished image: build nodes and set src as a property (safe for huge base64 data URLs)
   if(m.img && m.imgState==="done" && m.vidState!=="loading" && !m.video){
     const scene=document.createElement('div');scene.className="scene";
-    const img=document.createElement('img');img.src=m.img;img.onclick=()=>viewSceneImage(mid);
+    const img=document.createElement('img');
+    // Restore scroll only AFTER the image lays out (its height isn't known until loaded).
+    img.onload=_restoreScroll;
+    img.src=m.img;img.onclick=()=>viewSceneImage(mid);
     const bar=document.createElement('div');bar.style.padding="8px";
     const btn=document.createElement('button');btn.className="btn sec small";
     btn.textContent=m.vidState==="error"?"⚠️ Retry video":"🎬 Animate";btn.onclick=()=>animateScene(mid);
@@ -6794,14 +6861,16 @@ function refreshBubble(mid){
     const scene=document.createElement('div');scene.className="scene";
     const vid=document.createElement('video');vid.src=m.video;vid.controls=true;vid.playsInline=true;vid.loop=true;
     vid.style.cssText="width:100%;display:block;border-radius:12px";
+    vid.onloadedmetadata=_restoreScroll;
     const bar=document.createElement('div');bar.style.padding="8px";
     const btn=document.createElement('button');btn.className="btn sec small";btn.textContent="⬇ Save video";btn.onclick=()=>downloadVideo(mid);
     bar.appendChild(btn);scene.appendChild(vid);scene.appendChild(bar);b.appendChild(scene);
+    _restoreScroll();
     return;
   }
-  // Loading / error states use the string template
+  // Loading / error states use the string template (small height change — restore immediately)
   const html=sceneHTML(m);
-  if(html) b.insertAdjacentHTML('beforeend',html);
+  if(html){ b.insertAdjacentHTML('beforeend',html); _restoreScroll(); }
 }
 
 async function sendMessage(){
@@ -8187,9 +8256,22 @@ async function retrieveMemories(userText,chat){
   const MAX=5;
   const pool=visibleMemories();              // only the current cast's own memories
   if(pool.length<=MAX) return pool.slice();
-  const query=await genQuery(userText,chat);
-  // bound candidates to the 20 best keyword matches before LLM ranking
+  // Build the keyword query from the user's own text + the last couple of lines — NO extra LLM
+  // round-trip. genQuery used to fire a whole API call here on every message, which (with the
+  // ranker below) meant up to THREE serial requests before the reply even started, getting
+  // slower as memories accumulated. The raw text is a fine query for keyword prefiltering.
+  const p=curPersona();
+  const recent=(chat?chat.messages:[]).filter(m=>m.role!=='system'&&!m.sysError).slice(-2)
+    .map(m=>m.content).join(" ");
+  const query=((userText||"")+" "+recent).trim();
+  // bound candidates to the 20 best keyword matches before any LLM ranking
   const candidates=prefilter(query,20);
+  // If there aren't many strong candidates, skip the LLM ranker entirely and use the keyword
+  // prefilter's top results directly. This removes the second blocking round-trip in the common
+  // case; the ranker only runs when there's a genuinely large/ambiguous candidate set.
+  if(candidates.length<=8 || !state.key){
+    return candidates.slice(0,MAX);
+  }
   const listed=candidates.map((m,i)=>
     `[${i}] ${memText(m)} | tags: ${(m.tags||[]).join(", ")} | importance: ${m.importance} | day: ${m.gameDay||1}`
   ).join("\n");
