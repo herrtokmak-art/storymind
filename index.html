@@ -3453,9 +3453,20 @@ function typewriterReveal(mid,fullText,onDone){
   cancelReveal(mid);
   const list=chatScrollEl();
   let follow=isNearBottom(list);          // only auto-scroll if user is at the bottom…
-  // …and the moment the user scrolls up during this reveal, latch follow OFF so we never yank
-  // the viewport back down. Whatever they're looking at stays put.
-  const onScroll=()=>{ if(!isNearBottom(list)) follow=false; };
+  // …and the moment the user scrolls UP during this reveal, latch follow OFF for good. We can't
+  // rely on isNearBottom() here: our own per-tick auto-scroll keeps the viewport pinned inside
+  // the stick band, so a slow finger-drag never crosses the threshold before the next tick yanks
+  // it back (the "scroll is locked for a couple seconds" bug, made worse when an image lands and
+  // grows scrollHeight mid-reveal). Instead we compare against the scrollTop WE last set: if the
+  // user's scroll position is meaningfully above that, it was a human upward drag → stop following.
+  let _lastAutoTop=list?list.scrollTop:0;   // the scrollTop our own auto-scroll last wrote
+  const onScroll=()=>{
+    if(!list) return;
+    // A drag upward of more than a few px past our last auto-position = user intent. 24px absorbs
+    // sub-pixel/elastic jitter without needing the wide stick band.
+    if(list.scrollTop < _lastAutoTop - 24){ follow=false; }
+    else if(!isNearBottom(list)){ follow=false; }
+  };
   if(list) list.addEventListener('scroll',onScroll,{passive:true});
   const stopFollow=()=>{ if(list) list.removeEventListener('scroll',onScroll); };
   body.innerHTML="";                         // clear immediately so the full text never flashes
@@ -3467,7 +3478,7 @@ function typewriterReveal(mid,fullText,onDone){
     i++;                                       // reveal one more character
     const shown=fullText.slice(0,i);
     liveBody.innerHTML=md(shown);
-    if(follow && isNearBottom(list)) list.scrollTop=list.scrollHeight;
+    if(follow){ list.scrollTop=list.scrollHeight; _lastAutoTop=list.scrollTop; }  // record our own write so onScroll can tell it apart from a user drag
     if(i>=fullText.length){ cancelReveal(mid); stopFollow(); liveBody.innerHTML=md(fullText); if(onDone)onDone(); return; }
     // a longer beat after sentence-ending punctuation, a small one after clause punctuation
     const lastCh=fullText.charAt(i-1);
@@ -7586,13 +7597,21 @@ async function illustrate(mid,replyText){
       {role:"system",content:sys},
       {role:"user",content:usr}
     ],state.rewriter,{temp:fnTemp("rewriter",0.6),max:fnTok("rewriter",220),dbg:"Image prompt writer"});
+    const _promptReadyAt=performance.now();   // image prompt is in hand — the image should go out NOW
     const finalPrompt=rewritten.trim().replace(/^["']|["']$/g,"")+", "+STYLES[state.style];
     const baseNeg="low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature";
     // Step 2: pick the scene's rule, then generate with THAT RULE'S provider (per-rule
     // override, falling back to the global image provider). This lets different rules use
     // different providers in the same story.
+    // LATENCY NOTE: pickRule() makes an extra "Scene selector" LLM hop ONLY when ≥2 image rules
+    // are enabled AND the router toggle is on. That hop is the ONLY thing between the prompt
+    // writer finishing and the image payload being sent. We time the gap so it's visible in the
+    // debug log (look for the "⏱ prompt→send gap" entry); for 0/1 rules pickRule early-outs.
     let url;
     const rule=await pickRule(state.imgRules,finalPrompt);
+    const _sendGapMs=Math.round(performance.now()-_promptReadyAt);
+    try{ const _routed=!!(rule&&state.routeOn&&(state.imgRules||[]).filter(r=>r.enabled!==false).length>1);
+      dbgDone(dbg("⏱ prompt→send gap","(local)","timing",{ms:_sendGapMs,routed:_routed}),"ok",_sendGapMs+"ms"+(_routed?" (incl. router hop)":"")); }catch(e){}
     if(rule){
       if(rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
       url=await genImageForRule(rule,finalPrompt,baseNeg);
