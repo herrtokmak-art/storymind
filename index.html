@@ -3800,55 +3800,51 @@ async function atlasGenerate(kind,body,label,setStat){
   }
   dbgDone(entry,"error","timed out");throw{friendly:"AtlasCloud timed out. Try again or a faster model."};
 }
-// An output item may be a plain URL string or an object. AtlasCloud's outputs array
-// holds objects whose URL field name varies by model, so scan for any url-looking value.
-// IMPORTANT: video results (e.g. WAN i2v) often ALSO carry a cover/preview image URL in the
-// same object. A kind-blind scan could return that image URL, which then gets stuffed into a
-// <video src> and renders as a "broken video image". So extraction is kind-aware: for video we
-// prefer video-typed fields/URLs and reject image-typed ones (and vice-versa for image).
-const _VIDEO_EXT=/\.(mp4|webm|mov|m4v|gif)(\?|#|$)/i;
-const _IMAGE_EXT=/\.(png|jpe?g|webp|bmp|avif|gif)(\?|#|$)/i;   // gif counts as image here
-function _looksVideoUrl(u){ return _VIDEO_EXT.test(u) || /\/video|videos?\//i.test(u); }
-function _looksImageUrl(u){ return _IMAGE_EXT.test(u) && !_VIDEO_EXT.test(u); }
+// Extract the result URL from an AtlasCloud output item.
+//
+// Per the AtlasCloud docs, a completed response's `outputs` is an array whose first element
+// is the result URL — for video, e.g. ["https://storage.atlascloud.ai/outputs/result.mp4"].
+// In practice an item may be a plain URL string OR an object wrapping the URL under one of a
+// few field names. AtlasCloud's OSS/storage URLs frequently have NO file extension (just a
+// hash) and carry query strings, so we must NOT require a ".mp4"-style extension to accept a
+// video — doing that was the bug that made finished videos look "broken/unviewable".
+//
+// We apply ONE narrow safety rule: if an object exposes a clear cover/thumbnail image field
+// AND a separate clear video field, prefer the video field. We never reject a URL just because
+// it lacks a video extension.
+const _VIDEO_EXT=/\.(mp4|webm|mov|m4v)(\?|#|$)/i;
+const _IMAGE_EXT=/\.(png|jpe?g|webp|bmp|avif|gif)(\?|#|$)/i;
+function _isUrl(v){ return typeof v==="string" && /^https?:\/\//i.test(v); }
 function atlasOut(o,kind){
   if(!o) return null;
-  if(typeof o==="string"){
-    // For video, a bare string that clearly points at an image is a preview, not the result.
-    if(kind==="video" && _looksImageUrl(o) && !_looksVideoUrl(o)) return null;
-    if(kind==="image" && _looksVideoUrl(o) && !_looksImageUrl(o)) return null;
-    return o;
-  }
+  // Plain string: take it as-is. (Don't second-guess by extension — OSS URLs often have none.)
+  if(typeof o==="string"){ return (_isUrl(o)||/^(blob:|data:)/i.test(o)) ? o : null; }
   if(Array.isArray(o)){
-    // First pass: a kind-matching URL. Second pass: anything (last resort).
-    for(const x of o){ const u=atlasOut(x,kind); if(u)return u; }
-    if(kind){ for(const x of o){ const u=atlasOut(x); if(u)return u; } }
+    for(const x of o){ const u=atlasOut(x,kind); if(u) return u; }
     return null;
   }
   if(typeof o==="object"){
-    // Kind-prioritized field order. For video, video_url/output beat image_url/thumbnail/cover.
-    const videoFirst=[o.video_url,o.video,o.output_url,o.output,o.url,o.media_url,o.file_url,o.src];
-    const imageFirst=[o.image_url,o.image,o.url,o.output_url,o.output,o.media_url,o.file_url,o.src];
-    const ordered=kind==="video"?videoFirst:(kind==="image"?imageFirst:[o.url,o.video_url,o.image_url,o.output_url,o.output,o.media_url,o.file_url,o.src]);
-    for(const named of ordered){
-      if(typeof named==="string" && named){
-        if(kind==="video" && _looksImageUrl(named) && !_looksVideoUrl(named)) continue; // skip preview image
-        if(kind==="image" && _looksVideoUrl(named) && !_looksImageUrl(named)) continue;
-        return named;
+    // Explicit video field wins for video extraction; explicit image field wins for image.
+    const videoFields=[o.video_url,o.video,o.output_url,o.output,o.url,o.media_url,o.file_url,o.src];
+    const imageFields=[o.image_url,o.image,o.url,o.output_url,o.output,o.media_url,o.file_url,o.src];
+    const ordered = kind==="video" ? videoFields
+                  : kind==="image" ? imageFields
+                  : [o.url,o.video_url,o.image_url,o.output_url,o.output,o.media_url,o.file_url,o.src];
+    if(kind==="video"){
+      // Skip a candidate ONLY if it clearly carries an image extension AND the object also
+      // offers a distinct non-image URL elsewhere (i.e. it's the cover, not the clip).
+      const hasNonImage = ordered.some(v=>_isUrl(v) && !(_IMAGE_EXT.test(v)&&!_VIDEO_EXT.test(v)));
+      for(const v of ordered){
+        if(!_isUrl(v)) continue;
+        if(hasNonImage && _IMAGE_EXT.test(v) && !_VIDEO_EXT.test(v)) continue; // skip the cover image
+        return v;
       }
+    } else {
+      for(const v of ordered){ if(_isUrl(v)) return v; }
     }
-    // Fallback: scan all string values; honor the kind filter first, then accept anything.
-    let anyUrl=null;
-    for(const k in o){ const v=o[k];
-      if(typeof v==="string"&&/^https?:\/\//i.test(v)){
-        if(!anyUrl)anyUrl=v;
-        if(kind==="video"&&_looksVideoUrl(v))return v;
-        if(kind==="image"&&_looksImageUrl(v))return v;
-        if(!kind)return v;
-      } else if(v&&typeof v==="object"){ const u=atlasOut(v,kind); if(u)return u; }
-    }
-    // Nothing kind-matching found; for video, only fall back to a non-image URL if one exists.
-    if(kind==="video" && anyUrl && !(_looksImageUrl(anyUrl)&&!_looksVideoUrl(anyUrl))) return anyUrl;
-    if(kind!=="video") return anyUrl;
+    // Deep scan nested object/array values, then any URL-looking string as a last resort.
+    for(const k in o){ const v=o[k]; if(v&&typeof v==="object"){ const u=atlasOut(v,kind); if(u) return u; } }
+    for(const k in o){ if(_isUrl(o[k])) return o[k]; }
   }
   return null;
 }
@@ -7179,12 +7175,12 @@ function refreshBubble(mid){
     bar.appendChild(btn);scene.appendChild(img);scene.appendChild(bar);b.appendChild(scene);
     return;
   }
-  // Finished video: render the durable remote URL directly first. A plain <video src=remote>
-  // does NOT require CORS to play (only reading pixels does), so on an https host like GitHub
-  // Pages the direct source is the MOST compatible path. We only fall back to fetching a local
-  // blob if the direct play actually errors — and a blob fetch needs CORS, so it's a best-effort
-  // recovery, not the default. (Doing it the other way round — eagerly blob-fetching — fails on
-  // CDNs without CORS headers and was making https hosting worse than direct playback.)
+  // Finished video: play the durable remote URL directly. A plain <video src=remote> does NOT
+  // require CORS to play (only reading pixels back does), so the direct source is the most
+  // compatible path on every host. We attempt a one-time same-origin blob recovery only if the
+  // direct play genuinely errors (helps CDNs that DO send CORS headers), and fall back to an
+  // "Open video" link if even that fails. We never block on a blob fetch up front — that was
+  // what broke playback against AtlasCloud's referer-gated OSS bucket.
   if(m.video && m.vidState!=="loading"){
     const scene=document.createElement('div');scene.className="scene";
     const remote=httpsMedia(m.videoSrc||m.video);     // durable, embeddable source (https-upgraded)
@@ -7192,12 +7188,11 @@ function refreshBubble(mid){
     vid.src=(String(m.video).startsWith("blob:")?m.video:remote);
     vid.controls=true;vid.playsInline=true;vid.loop=true;vid.preload="metadata";
     vid.referrerPolicy="no-referrer";   // match the no-referrer page policy for referer-gated CDNs
-    vid.style.cssText="width:100%;display:block;border-radius:12px";
+    vid.style.cssText="width:100%;display:block;border-radius:12px;background:#000";
     vid.onloadedmetadata=_restoreScroll;
     let _triedBlob=false;
     vid.onerror=async()=>{
-      // First failure: if we were playing a remote URL, try to recover via a same-origin blob
-      // (works when the CDN sends CORS headers; harmlessly fails otherwise).
+      // First failure on a remote URL: try a same-origin blob (works only if the CDN sends CORS).
       if(!_triedBlob && !String(vid.src).startsWith("blob:")){
         _triedBlob=true;
         try{
@@ -7205,11 +7200,10 @@ function refreshBubble(mid){
           if(playable && playable.startsWith("blob:")){ m.video=playable; vid.src=playable; vid.load(); return; }
         }catch(e){}
       }
-      // Genuinely can't embed it here (no CORS, mixed-content http:// on an https host, or an
-      // expired URL). Don't leave a dead icon — offer the working direct link.
-      const href=remote;
+      // Can't embed here (no CORS, mixed-content, or expired URL). Offer the working direct link
+      // instead of a dead frame — the video itself generated fine.
       const fb=document.createElement('div');fb.style.cssText="padding:10px;font-size:13px;line-height:1.4";
-      fb.innerHTML=`⚠️ The video generated but can't play embedded on this host. <a href="${href}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">Open video ↗</a>`;
+      fb.innerHTML=`▶️ Video ready. <a href="${remote}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">Tap to open ↗</a>`;
       if(vid.parentNode){ vid.parentNode.insertBefore(fb,vid); vid.remove(); }
     };
     const bar=document.createElement('div');bar.style.padding="8px";
@@ -7927,9 +7921,20 @@ function renderGallery(){
       const wrap=document.createElement('div');wrap.style.gridColumn="1/-1";
       if(!v.url){ // evicted from memory — keep metadata visible, drop the dead <video>
         wrap.innerHTML=`<div style="padding:14px;border:1px dashed var(--border);border-radius:12px;opacity:.6">🎬 ${esc(v.character)} — ${esc(v.prompt)}<div class="desc">Freed from memory this session — re-animate to view.</div></div>`;
-      }else{
-        wrap.innerHTML=`<video src="${v.url}" controls playsinline loop style="width:100%;border-radius:12px;border:1px solid var(--border)"></video><div class="desc">${esc(v.character)} — ${esc(v.prompt)}</div>`;
+        el.appendChild(wrap);return;
       }
+      const remote=httpsMedia(v.url);
+      const vid=document.createElement('video');
+      vid.src=remote;vid.controls=true;vid.playsInline=true;vid.loop=true;vid.preload="metadata";
+      vid.referrerPolicy="no-referrer";
+      vid.style.cssText="width:100%;border-radius:12px;border:1px solid var(--border);background:#000";
+      vid.onerror=()=>{
+        const fb=document.createElement('div');fb.style.cssText="padding:10px;font-size:13px;line-height:1.4";
+        fb.innerHTML=`▶️ Video ready. <a href="${remote}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">Tap to open ↗</a>`;
+        if(vid.parentNode){ vid.parentNode.insertBefore(fb,vid); vid.remove(); }
+      };
+      const cap=document.createElement('div');cap.className="desc";cap.textContent=`${v.character} — ${v.prompt}`;
+      wrap.appendChild(vid);wrap.appendChild(cap);
       el.appendChild(wrap);
     });
   }
