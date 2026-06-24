@@ -76,6 +76,8 @@
   .inputBar{display:flex;gap:8px;padding:10px 12px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;align-items:flex-end;}
   .inputBar textarea{flex:1;resize:none;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:18px;padding:11px 14px;font-size:16px;font-family:inherit;max-height:120px;line-height:1.3;}
   .iconBtn{background:var(--accent);color:#fff;border:none;width:44px;height:44px;border-radius:50%;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  #autoRpBtn{background:var(--surface);color:var(--muted);}
+  #autoRpBtn.on{background:var(--accent);color:#fff;}
   .iconBtn:disabled{opacity:.4;}
   /* generic */
   .pad{padding:16px;display:flex;flex-direction:column;gap:14px;}
@@ -267,6 +269,7 @@
       <button class="btn sec small" onclick="toggleChatMenu(event)" title="More">⋯</button>
     </div>
     <div id="chatMenu" class="chatMenu hide">
+      <button onclick="forceGamemaster();closeChatMenu()">🎬 Nudge the story (Gamemaster)</button>
       <button onclick="endDay();closeChatMenu()">🌙 End Day</button>
       <button onclick="openStoryState();closeChatMenu()">📊 Story State</button>
       <button onclick="openCast();closeChatMenu()">🎭 Nearby characters</button>
@@ -277,7 +280,7 @@
   <div id="recapBanner" class="hide"></div>
   <div id="chatList"></div>
   <div class="inputBar">
-    <button class="iconBtn" id="gmBtn" onclick="forceGamemaster()" title="Nudge the story (Gamemaster)" style="background:var(--surface)">🎬</button>
+    <button class="iconBtn" id="autoRpBtn" onclick="toggleAutoRp()" title="Auto-narrate my turns — type a short action or line and the app writes it out in your voice">🪶</button>
     <textarea id="chatInput" rows="1" placeholder="Say or do something…  (/bring Name to call someone in)"></textarea>
     <button class="iconBtn" id="sendBtn" onclick="sendMessage()">➤</button>
   </div>
@@ -405,6 +408,9 @@
           <div><label>Condense when a character exceeds (memories)</label><input type="number" id="setCondenseThreshold" min="10" step="5" value="40"></div>
           <div><label>Keep verbatim if importance ≥ (0–1)</label><input type="number" id="setCondenseKeep" min="0" max="1" step="0.05" value="0.8"></div>
           <div><label>Memories merged per pass</label><input type="number" id="setCondenseBatch" min="3" step="1" value="15"></div>
+          <div class="desc" style="margin-top:8px">🧠 <b>Two-tier recall.</b> Each turn the app injects a few <b>recent</b> (sharp, verbatim) memories and a few <b>distant</b> (condensed, fuzzier) ones under separate headings. Condensed memories become the distant pool.</div>
+          <div><label>Recent memories per turn</label><input type="number" id="setMemRecentCount" min="0" max="10" step="1" value="3"></div>
+          <div><label>Distant memories per turn</label><input type="number" id="setMemDistantCount" min="0" max="10" step="1" value="2"></div>
         </div>
 
         <div class="card">
@@ -495,6 +501,9 @@
           <details class="acc"><summary>🛠️ Memory builder prompt (every 10 messages)</summary>
             <textarea class="fld" id="setMemBuild" style="min-height:160px"></textarea>
             <div class="desc">Produces a structured JSON memory. Use {{char}} and {{user}}.</div></details>
+          <details class="acc"><summary>👁️ Bystander gist prompt (perception tiers)</summary>
+            <textarea class="fld" id="setGistBuild" style="min-height:160px"></textarea>
+            <div class="desc">When a character is present but NOT in the conversation, they form a fuzzy outside impression (the social shape) instead of a verbatim memory — they don't hear the words. Use {{char}}, {{user}}.</div></details>
           <details class="acc"><summary>🔍 Query generator prompt (each message)</summary>
             <textarea class="fld" id="setQueryGen" style="min-height:120px"></textarea>
             <div class="desc">Turns the current moment into a search query over stored memories.</div></details>
@@ -525,6 +534,11 @@
           <details class="acc"><summary>🕸️ Relationship generator prompt</summary>
             <textarea class="fld" id="setRelGenPrompt" style="min-height:160px"></textarea>
             <div class="desc">Builds each character's factual relationship sheet (tie + prose) toward everyone. Returns JSON. Use {{char}} and {{user}}.</div></details>
+          <details class="acc"><summary>🪶 Auto-RP player narrator prompt</summary>
+            <textarea class="fld" id="setPlayerNarratePrompt" style="min-height:160px"></textarea>
+            <div class="desc">Rewrites your terse input into a short, in-voice player turn (when Auto-RP is on). Use {{user}}, {{player_profile}}, {{scene}}.</div>
+            <div><label>Model <span class="desc" style="display:inline">(blank = roleplay model — speed matters here)</span></label>
+              <input type="text" class="fld" id="setPlayerNarrateModel" list="modelList" placeholder="(uses roleplay model)"></div></details>
           <details class="acc"><summary>📊 Freeform tracker prompt</summary>
             <textarea class="fld" id="setTrackPrompt" style="min-height:160px"></textarea>
             <div class="desc">Judges soft deltas and detects trigger phrases. Dice/day-counting handled by the app.</div></details>
@@ -788,6 +802,8 @@
     <div class="desc">Leave blank to use your global defaults from Settings.</div>
     <div><label>Your name (this universe)</label><input type="text" id="ueUserName" placeholder="(global default)"></div>
     <div><label>Your appearance (this universe)</label><textarea class="fld" id="ueUserLook" placeholder="tall, late 20s, short dark hair, worn leather jacket…" style="min-height:56px"></textarea></div>
+    <div><label>Your personality (this universe)</label><textarea class="fld" id="ueUserPersonality" placeholder="how you tend to act: confident, dry-humoured, guarded, reckless… — used by Auto-RP to narrate your turns in your voice" style="min-height:56px"></textarea></div>
+    <div><label>Your speech style (this universe)</label><textarea class="fld" id="ueUserStyle" placeholder="how you talk: terse, sarcastic, warm, formal, lots of slang… — used by Auto-RP" style="min-height:56px"></textarea></div>
     <div><label>Your background (this universe)</label><textarea class="fld" id="ueUserBio" placeholder="who you are here: history, role, ties to this world — used by the Gamemaster & Scene Writer" style="min-height:72px"></textarea></div>
     <div class="subhead" style="margin-top:10px">📊 Trackers</div>
     <div class="desc">Named numeric values the story tracks (suspicion, intoxication, a power budget, pregnancy…). Each can belong to the whole story, a single character (private to them), or you the player (public or private). Each tracker has its own behaviour, its own AI prompt &amp; model, and breaking points. Values start fresh in each chat.</div>
@@ -1116,8 +1132,9 @@ const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",
-  memModel:"sm_memmodel",memBuild:"sm_membuild",queryGen:"sm_querygen",ranker:"sm_ranker",
+  memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
+  autoRpOn:"sm_autorpon",playerNarratePrompt:"sm_playernarrate",playerNarrateModel:"sm_playernarratemodel",userPersonality:"sm_userpersonality",userStyle:"sm_userstyle",
   routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
   sceneOn:"sm_sceneon",sceneSetup:"sm_scenesetup",sceneWriter:"sm_scenewriter",sceneMin:"sm_scenemin",sceneMax:"sm_scenemax",
   theme:"sm_theme",font:"sm_font",streamReveal:"sm_streamreveal",chats:"sm_chats",curChat:"sm_curchat",
@@ -1127,6 +1144,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   fnCfg:"sm_fncfg",
   // Memory condenser (Stage 4)
   condenseOn:"sm_condenseon",condenseThreshold:"sm_condensethresh",condenseKeep:"sm_condensekeep",condenseBatch:"sm_condensebatch",condensePrompt:"sm_condenseprompt",
+  memRecentCount:"sm_memrecentcount",memDistantCount:"sm_memdistantcount",
   // Character bio generator + auto-character (Stages 5/6)
   bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",univPrompt:"sm_univprompt",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
   // History compaction (tiered narration stripping)
@@ -2089,6 +2107,40 @@ Respond ONLY with a JSON object, no other text:
 
 Include 5-10 lowercase tags (names, locations, actions, objects, emotional themes).`;
 
+// ===== BYSTANDER GIST (Living Universe, layer 1: perception tiers) =====
+// Used when {{char}} was PRESENT but NOT part of the conversation — a bystander across the room.
+// They did NOT hear the words. They form a low-fidelity impression of the SOCIAL SHAPE only:
+// who was talking to whom, and the emotional read (close/flirtatious, tense/arguing, secretive,
+// warm, cold, ordinary). This is deliberately fuzzy — an outside observer's read, not a transcript.
+const DEFAULT_GIST_BUILD=`You create a BYSTANDER's memory. {{char}} was present in the same place but was NOT part of the conversation — they were across the room, busy, or simply nearby. {{char}} did NOT hear what was actually said.
+
+From {{char}}'s outside vantage point, record only what they could plausibly OBSERVE about {{user}} and the person {{user}} was talking with: body language, tone, closeness, the emotional SHAPE of the exchange — NOT the words or specifics, which {{char}} did not hear.
+
+## Instructions
+1. First person, present-tense, from {{char}} as an outside observer ("I notice {{user}} and ___ talking in the corner…").
+2. Capture the SOCIAL READ only: were they close/flirtatious, tense/arguing, secretive/conspiratorial, warm, cold, formal, or unremarkable? Use hedged, observational language ("looks like", "seems", "the way they…").
+3. Do NOT invent specific dialogue, facts, names of topics, or details {{char}} could not have overheard. No quotes. If you don't know who the other person is, describe them.
+4. Keep it to 1-2 sentences. This is a glance, not a study.
+5. Most exchanges are unremarkable — if nothing stood out, say so plainly and score charge low.
+
+## Response Format
+Respond ONLY with a JSON object, no other text:
+{
+  "content": "1-2 sentence outside-observer impression. No overheard words. Hedged and visual.",
+  "location": "Where it happened (short phrase)",
+  "emotion": "neutral|curious|amused|suspicious|disapproving|concerned|indifferent",
+  "gist": "one short phrase for the social shape, e.g. 'a close, flirtatious-looking talk' / 'a tense argument' / 'a secretive, head-together exchange' / 'an ordinary chat'",
+  "charge": 0.0-1.0,
+  "importance_score": 0.0-1.0,
+  "tags": ["name","place","social-shape"],
+  "type": "OBSERVATION"
+}
+
+## Charge guide (how gossip-worthy the SHAPE looked — used later by the world)
+0.7-1.0: visibly intimate/flirtatious, a heated argument, something furtive or secretive — the kind of thing people talk about.
+0.4-0.6: notably warm or notably cold, an emotional moment, an odd pairing.
+0.0-0.3: ordinary, unremarkable, routine — nothing worth mentioning.`;
+
 const DEFAULT_QUERYGEN=`You generate a short semantic SEARCH QUERY used to retrieve a character's most relevant past memories for the current moment in a roleplay.
 
 Given the recent conversation and the user's newest message, output 5-12 keywords/short phrases capturing what memories would be most useful right now: people named, places, topics, objects, unresolved threads, emotional themes.
@@ -2433,7 +2485,7 @@ A scene is **RIPE FOR A TRIGGER** when introducing a small external complication
 - The moment is **purely comedic or lighthearted** and a trigger would kill the tone rather than enhance it.
 
 ### The golden rule:
-A trigger should feel like **the world is alive and paying attention**, not like the GM is punishing the characters for having a moment. It should add **flavor, stakes, or a delicious complication** — never just chaos for chaos's sake. When in doubt, don't trigger.
+A trigger should feel like **the world is alive and paying attention**, not like the GM is punishing the characters for having a moment. It should add **flavor, stakes, or a delicious complication** — never just chaos for chaos's sake. A trigger must arise from THIS scene — the people present, their pressure points, what was just said. If you cannot name a specific, in-context reason for a trigger, return trigger:false. When in doubt, don't trigger.
 
 ### Sensitivity for this judgment: {{sensitivity}}.
 - **cautious**: only flag clearly dead scenes; only trigger when the opportunity is screaming.
@@ -2471,20 +2523,15 @@ const DEFAULT_GM_AUTHOR=`You are the GAMEMASTER, an unseen narrator of this role
 
 ## YOUR INPUTS
 
-You are given:
-- **WORLD SETTING**: {{world_setting}} — the universe, tone, genre, rules, and norms.
-- **CURRENT SCENE**: {{scene}} — exact location, time of day, weather, environment details.
-- **PLAYER BACKGROUND**: {{user_background}} — who {{user}} is, their role, reputation, secrets, goals.
-- **CHARACTER BACKGROUNDS**: {{character_backgrounds}} — each present character's role, personality, history.
-- **CHARACTER PRESSURE POINTS**: {{pressure_points}} — for EACH character present (and for {{user}}): their fears, secrets, desires, rivalries, vulnerabilities, debts, attachments, and triggers. Pressure points are the emotional/dramatic levers you can pull.
-- **WHO IS PRESENT**: {{present_characters}} — list of who is physically in the scene right now.
-- **RECENT EXCHANGE**: the last few messages of the scene, for continuity.
+Everything you need arrives in the message that follows this one: the world setting, the current scene (location, time, weather), who is present right now, the cast's backgrounds and their PRESSURE POINTS (fears, secrets, desires, rivalries — your dramatic levers), a compact map of who the established characters are to each other, and the most recent lines of the scene. Read all of it. The "trigger context", "reason", and "energy" above are the assessment that flagged this moment.
 
 ---
 
 ## YOUR JOB
 
-Introduce **ONE** thing that nudges the scene forward. It must be **grounded in WHERE {{user}} is right now and WHAT just happened** — never random, never out of nowhere. Stay fully consistent with the location, time of day, weather, and continuity.
+Introduce **ONE** thing that nudges the scene forward. It MUST connect to **what was just said** and **who is actually present** — pull on a present character's pressure point, or follow directly from the last beat. Never random, never generic, never out of nowhere. If nothing specific fits, prefer the SMALLEST fitting environmental beat over forcing an arrival. Stay fully consistent with the location, time of day, weather, and continuity.
+
+**Reuse the established cast.** If someone should arrive, strongly prefer a character from the provided roster whose pressure point or tie pulls them here. Only invent a new person when no established character plausibly fits this exact place and moment.
 
 ---
 
@@ -2547,12 +2594,7 @@ The narration should be vivid and sensory: what is seen, heard, felt, or noticed
 // Classifies a freshly-triggered event into a structured object the engine can run.
 const DEFAULT_SCENE_SETUP=`## YOUR INPUTS
 
-- **NARRATION**: {{narration}} — the 1–2 sentence Turkish narration the Gamemaster just delivered.
-- **WORLD SETTING**: {{world_setting}} — the universe, tone, genre, rules, and norms.
-- **CURRENT SCENE**: {{scene}} — exact location, time of day, weather, environmental details.
-- **CHARACTER BACKGROUNDS**: {{character_backgrounds}} — each character's role, personality, history.
-- **CHARACTER PRESSURE POINTS**: {{pressure_points}} — fears, secrets, desires, rivalries, vulnerabilities for each character.
-- **WHO IS PRESENT**: {{present_characters}} — list of who is physically in the scene right now.
+The message that follows provides the world setting, the current scene (location, time, weather), the cast's backgrounds and pressure points, who is present, the relationships of those present, and — at the end — the GM narration that just fired ("The event just introduced:"). Classify THAT narration.
 
 ---
 
@@ -2655,12 +2697,7 @@ const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active event i
 - **Turn**: {{turn}} of {{max}} — how deep into this event you are.
 - **Minimum turns**: {{min}} — the event must run at least this long before resolving.
 - **Maximum turns**: {{max}} — must resolve by this turn.
-- **WORLD SETTING**: {{world_setting}}
-- **CURRENT SCENE**: {{scene}} — location, time, weather.
-- **CHARACTER BACKGROUNDS**: {{character_backgrounds}}
-- **CHARACTER PRESSURE POINTS**: {{pressure_points}}
-- **WHO IS PRESENT**: {{present_characters}}
-- **{{user}}'s last action**: what just happened.
+- The message that follows also provides the world setting, current scene, the backgrounds and pressure points of those present, their relationships, and the recent lines including {{user}}'s last action.
 
 ---
 
@@ -2776,6 +2813,29 @@ If you are given EXISTING relationships/opinions, treat them as the current trut
 Return ONLY strict JSON, no commentary, mapping each person's EXACT name to their entry:
 {"Character Name":{"tie":"...","relationship":"..."}, "{{user}}":{"tie":"stranger","relationship":"..."}}
 Use the exact names provided. No other keys.`;
+
+// ===== AUTO-RP / PLAYER NARRATOR =====
+// Turns the player's terse input into a short, in-voice player turn. Speed AND quality matter; the
+// output must be SHORT and lightly narrated — never a purple-prose paragraph.
+const DEFAULT_PLAYER_NARRATE=`You are the voice of {{user}}, the PLAYER character in a roleplay. The player types something short — a line of dialogue, an action, or a brief command — and you rewrite it as {{user}}'s actual turn in the scene: what they say and/or do, in their voice.
+
+WHO {{user}} IS (write in their voice, never break from it):
+{{player_profile}}
+
+THE SCENE RIGHT NOW:
+{{scene}}
+
+RULES:
+- Keep it SHORT and natural — usually one to three sentences. This is a normal conversational turn, NOT a dramatic set piece. Do not over-narrate, do not pile on adjectives, do not write a paragraph.
+- Render dialogue in "double quotes" and actions/narration in *single asterisks*, matching the story's format.
+- If the player gave a literal line ("hi, I'm Emre"), keep their words but place them naturally, lightly adding a beat of action or tone if it helps — do NOT invent new claims, plans, or information the player didn't imply.
+- If the player gave a COMMAND or action ("introduce myself", "leave angrily", "order a drink"), carry it out as a concrete in-scene turn in {{user}}'s voice.
+- If the player already wrote a full, well-formed narrated turn, mostly pass it through — light polish only. Never bloat it.
+- NEVER speak or act for any other character. NEVER decide how others react. Only {{user}}'s own words and actions.
+- NEVER add out-of-character commentary, meta-text, or explanation. Output ONLY the rewritten turn — no quotes around the whole thing, no labels.
+- Stay consistent with the scene, the location, and what was just said. Do not contradict continuity.
+
+Output ONLY {{user}}'s turn.`;
 
 /* ===== MULTI-CHARACTER TURN ROUTING (SkyrimAI-style) ===== */
 // ROUTER 1 — fires after the PLAYER speaks. Decides who the player addressed and who replies.
@@ -3230,6 +3290,7 @@ function loadState(){
     rewritePrompt:store.raw(K.rewritePrompt,DEFAULT_REWRITE),
     memModel:store.raw(K.memModel,"deepseek/deepseek-v3.2"),
     memBuild:store.raw(K.memBuild,DEFAULT_MEMBUILD),
+    gistBuild:store.raw(K.gistBuild,DEFAULT_GIST_BUILD),
     queryGen:store.raw(K.queryGen,DEFAULT_QUERYGEN),
     ranker:store.raw(K.ranker,DEFAULT_RANKER),
     gmOn:store.get(K.gmOn,true),
@@ -3246,6 +3307,11 @@ function loadState(){
     daySummaryPrompt:store.raw(K.daySummaryPrompt,DEFAULT_DAY_SUMMARY),
     relGenPrompt:store.raw(K.relGenPrompt,DEFAULT_RELGEN),
     relShortPrompt:store.raw(K.relShortPrompt,DEFAULT_REL_SHORT),
+    autoRpOn:store.get(K.autoRpOn,false),
+    playerNarratePrompt:store.raw(K.playerNarratePrompt,DEFAULT_PLAYER_NARRATE),
+    playerNarrateModel:store.raw(K.playerNarrateModel,""),
+    userPersonality:store.raw(K.userPersonality,""),
+    userStyle:store.raw(K.userStyle,""),
     baseInstruction:store.raw(K.baseInstruction,DEFAULT_BASE_INSTRUCTION),
     formatRules:store.raw(K.formatRules,DEFAULT_FORMAT_RULES),
     presencePrompt:store.raw(K.presencePrompt,DEFAULT_PRESENCE_TRACKER),
@@ -3267,6 +3333,8 @@ function loadState(){
     condenseThreshold:+store.raw(K.condenseThreshold,40),
     condenseKeep:+store.raw(K.condenseKeep,0.8),
     condenseBatch:+store.raw(K.condenseBatch,15),
+    memRecentCount:+store.raw(K.memRecentCount,3),
+    memDistantCount:+store.raw(K.memDistantCount,2),
     condensePrompt:store.raw(K.condensePrompt,DEFAULT_CONDENSE),
     bioModel:store.raw(K.bioModel,"deepseek/deepseek-v4-pro"),
     bioPrompt:store.raw(K.bioPrompt,DEFAULT_BIO),
@@ -3375,6 +3443,27 @@ function loadState(){
     state.sceneSetup=DEFAULT_SCENE_SETUP;
     store.setRaw(K.sceneSetup,state.sceneSetup);
   }
+  // One-time upgrade: older director prompts described their inputs with {{placeholders}} that the
+  // engine never fills (the real data arrives in the user message), so the literal text
+  // "{{world_setting}}", "{{character_backgrounds}}", etc. leaked into the prompt and produced
+  // off-tone, unrelated events. Any stored prompt still carrying those dead placeholders is the
+  // stale default — reset it to the corrected version. Custom prompts that don't contain the
+  // exact markers are left untouched.
+  const _deadPH=/\{\{(world_setting|character_backgrounds|present_characters|pressure_points)\}\}/;
+  [["gmAuthor",DEFAULT_GM_AUTHOR],["sceneSetup",DEFAULT_SCENE_SETUP],["sceneWriter",DEFAULT_SCENE_WRITER]].forEach(([k,def])=>{
+    if(typeof state[k]==="string" && _deadPH.test(state[k])){
+      state[k]=def; store.setRaw(K[k],state[k]);
+    }
+  });
+  // Also clear universe-level overrides carrying the same dead placeholders.
+  (state.universes||[]).forEach(u=>{
+    if(u&&u.prompts&&typeof u.prompts==="object"){
+      ["gmAuthor","sceneSetup","sceneWriter"].forEach(k=>{
+        if(typeof u.prompts[k]==="string" && _deadPH.test(u.prompts[k])) delete u.prompts[k];
+      });
+    }
+  });
+  try{persistUniverses&&persistUniverses();}catch(e){}
   // One-time upgrade: add the "HOW TO END A REPLY" anti-question-hook guidance to
   // installs still running the stock base instruction. We only touch it when it still
   // looks like the unedited default (carries the stable PUSH AND PULL marker) AND the
@@ -4280,6 +4369,8 @@ const PROMPT_REGISTRY=[
    hint:"Picks which image/video model rule fits the scene."},
   {key:"memBuild", label:"🛠️ Memory builder", def:()=>DEFAULT_MEMBUILD, json:true,
    hint:"Produces a structured JSON memory. Use {{char}} and {{user}}."},
+  {key:"gistBuild", label:"👁️ Bystander gist (perception)", def:()=>DEFAULT_GIST_BUILD, json:true,
+   hint:"A bystander's fuzzy outside impression when present but not in the conversation. Use {{char}}, {{user}}."},
   {key:"queryGen", label:"🔍 Memory query generator", def:()=>DEFAULT_QUERYGEN, json:false,
    hint:"Turns the current moment into a search query."},
   {key:"ranker", label:"📊 Memory ranker", def:()=>DEFAULT_RANKER, json:true,
@@ -4310,6 +4401,8 @@ const PROMPT_REGISTRY=[
    hint:"Each character writes a private diary entry at day's end. Use {{char}}, {{user}}."},
   {key:"relGenPrompt", label:"🕸️ Relationship generator", def:()=>DEFAULT_RELGEN, json:false,
    hint:"Writes a character's factual ties (kinship, address, cohabitation, standing) to everyone. Use {{char}}, {{user}}."},
+  {key:"playerNarratePrompt", label:"🪶 Auto-RP player narrator", def:()=>DEFAULT_PLAYER_NARRATE, json:false,
+   hint:"Rewrites the player's terse input into a short, in-voice player turn. Use {{user}}, {{player_profile}}, {{scene}}."},
   {key:"sceneSetup", label:"🧩 Scene Writer setup", def:()=>DEFAULT_SCENE_SETUP, json:true,
    hint:"Classifies a new event. Returns JSON."},
   {key:"sceneWriter", label:"✍️ Scene Writer advance", def:()=>DEFAULT_SCENE_WRITER, json:true,
@@ -4393,7 +4486,10 @@ function sceneStateLine(chat){
   if(c.location&&c.location.trim())bits.push("at "+c.location.trim());
   return "CURRENT SCENE: "+bits.join(", ");
 }
-function directorContext(chat){
+function directorContext(chat,mode){
+  // mode: "gm" → compact tie-only roster (broad, cheap, so the GM reuses real characters);
+  //       "scene" → relationships only for present characters + the event participant;
+  //       default → full roster sheets (legacy behaviour).
   const parts=[];
   const w=curWorldSetting();
   if(w)parts.push(`WORLD SETTING:\n${w}`);
@@ -4434,16 +4530,36 @@ function directorContext(chat){
   if(state.userBio&&state.userBio.trim()||state.userLook&&state.userLook.trim()) parts.push(pl);
   const bg=castBackstorySheet(chat);
   if(bg)parts.push(`CHARACTER BACKGROUNDS (ground events in who these characters are):\n${bg}`);
-  // RELATIONSHIPS across the whole roster — so the director knows the existing web of ties and
-  // doesn't invent new people when an established character fits.
+  // RELATIONSHIPS — scoped by mode so we don't pay full-prose tokens where they aren't needed.
   try{
-    const roster=(state.personas||[]).filter(p=>p.universeId===chat.universeId);
-    const relLines=[];
-    roster.forEach(p=>{
-      const sheet=relSheetBlock(p);
-      if(sheet)relLines.push(`${p.name}:\n${sheet.split("\n").map(l=>"  "+l.replace(/^- /,"")).join("\n")}`);
-    });
-    if(relLines.length)parts.push(`RELATIONSHIPS IN THIS WORLD (who people are to each other — prefer using these established characters):\n${relLines.join("\n")}`);
+    if(mode==="gm"){
+      // Compact tie-only roster: broad awareness so the GM reuses existing characters.
+      const ties=compactRosterTies(chat);
+      if(ties)parts.push(`WHO PEOPLE ARE TO EACH OTHER (use these established characters — do NOT invent new people when one of these fits):\n${ties}`);
+    }else if(mode==="scene"){
+      // Only present characters' relationships toward each other + the player + the participant.
+      const present=presentCast(chat);
+      const ev=chat.activeEvent;
+      const participantId=ev&&ev.participant&&ev.participant.charId;
+      const scopeIds=new Set(present.map(p=>p.id));
+      if(participantId)scopeIds.add(participantId);
+      const relLines=[];
+      present.forEach(p=>{
+        const targets=[...scopeIds].filter(id=>id!==p.id);
+        const sheet=relSheetBlockFor(p,targets);
+        if(sheet)relLines.push(`${p.name}:\n${sheet.split("\n").map(l=>"  "+l.replace(/^- /,"")).join("\n")}`);
+      });
+      if(relLines.length)parts.push(`RELATIONSHIPS OF THOSE PRESENT:\n${relLines.join("\n")}`);
+    }else{
+      // legacy: full roster sheets
+      const roster=(state.personas||[]).filter(p=>p.universeId===chat.universeId);
+      const relLines=[];
+      roster.forEach(p=>{
+        const sheet=relSheetBlock(p);
+        if(sheet)relLines.push(`${p.name}:\n${sheet.split("\n").map(l=>"  "+l.replace(/^- /,"")).join("\n")}`);
+      });
+      if(relLines.length)parts.push(`RELATIONSHIPS IN THIS WORLD (who people are to each other — prefer using these established characters):\n${relLines.join("\n")}`);
+    }
   }catch(e){}
   const ij=castInterjectSheet(chat);
   if(ij)parts.push(`CHARACTER PRESSURE POINTS (use these to craft events that hit home):\n${ij}`);
@@ -5839,7 +5955,9 @@ function globalUserDefaults(){
   return {
     user:store.raw(K.user,"You")||"You",
     userLook:store.raw(K.userLook,"")||"",
-    userBio:store.raw(K.userBio,"")||""
+    userBio:store.raw(K.userBio,"")||"",
+    userPersonality:store.raw(K.userPersonality,"")||"",
+    userStyle:store.raw(K.userStyle,"")||""
   };
 }
 function applyUniverseProfile(uid){
@@ -5850,8 +5968,11 @@ function applyUniverseProfile(uid){
     state.user=has(u.userName)?u.userName.trim():def.user;
     state.userLook=has(u.userLook)?u.userLook:def.userLook;
     state.userBio=has(u.userBio)?u.userBio:def.userBio;
+    state.userPersonality=has(u.userPersonality)?u.userPersonality:def.userPersonality;
+    state.userStyle=has(u.userStyle)?u.userStyle:def.userStyle;
   }else{
     state.user=def.user; state.userLook=def.userLook; state.userBio=def.userBio;
+    state.userPersonality=def.userPersonality; state.userStyle=def.userStyle;
   }
 }
 // Open a single universe: show its setting box + its characters.
@@ -5885,6 +6006,8 @@ function editUniverse(id){
   document.getElementById('ueSetting').value=u.setting||"";
   document.getElementById('ueUserName').value=u.userName||"";
   document.getElementById('ueUserLook').value=u.userLook||"";
+  {const e=document.getElementById('ueUserPersonality'); if(e)e.value=u.userPersonality||"";}
+  {const e=document.getElementById('ueUserStyle'); if(e)e.value=u.userStyle||"";}
   document.getElementById('ueUserBio').value=u.userBio||"";
   _ueTrackers=Array.isArray(u.trackers)?JSON.parse(JSON.stringify(u.trackers)):[];
   renderTrackerEditor();
@@ -6308,6 +6431,8 @@ function saveUniverse(){
     setting:document.getElementById('ueSetting').value.trim(),
     userName:document.getElementById('ueUserName').value.trim(),
     userLook:document.getElementById('ueUserLook').value.trim(),
+    userPersonality:(document.getElementById('ueUserPersonality')?document.getElementById('ueUserPersonality').value.trim():""),
+    userStyle:(document.getElementById('ueUserStyle')?document.getElementById('ueUserStyle').value.trim():""),
     userBio:document.getElementById('ueUserBio').value.trim(),
     trackers:_ueTrackers.slice(),
     locations:_ueLocs.slice(),
@@ -6868,6 +6993,53 @@ function relSheetBlock(persona){
   const prose=(persona.relationshipsGen||"").trim();
   return prose;
 }
+// SCOPED relationship block — only this persona's relationships toward the given target ids
+// (plus the player by default). Used in the roleplay payload so a speaking character only carries
+// their relationships with the people actually nearby, not the whole universe (token savings).
+function relSheetBlockFor(persona,targetIds){
+  if(!persona)return "";
+  const rels=persona.relationships;
+  const want=new Set(["__user__",...(targetIds||[])]);
+  want.delete(persona.id);
+  if(rels&&typeof rels==="object"&&Object.keys(rels).length){
+    const lines=[];
+    const order=[...want].sort((a,b)=>{ if(a==="__user__")return -1; if(b==="__user__")return 1;
+      return (ownerLabel(a)||"").localeCompare(ownerLabel(b)||""); });
+    for(const id of order){
+      const e=rels[id]; if(!e)continue;
+      const who=(id==="__user__")?state.user:ownerLabel(id);
+      const tie=(e.tie||"").trim(), rel=(e.relationship||"").trim();
+      if(!tie&&!rel)continue;
+      lines.push(`- ${who}${tie?` (${tie})`:""}: ${rel||tie}`);
+    }
+    if(lines.length)return lines.join("\n");
+  }
+  // No structured data for the wanted targets → fall back to the legacy prose blob (whole thing).
+  return (persona.relationshipsGen||"").trim();
+}
+// COMPACT roster ties — one short line per character of who the key people are to them, TIE ONLY
+// (no prose). Cheap, broad awareness for the Gamemaster so it reuses real characters instead of
+// inventing new ones, without paying for full relationship prose.
+function compactRosterTies(chat){
+  const uid=chat&&chat.universeId;
+  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  const idToName={}; roster.forEach(p=>idToName[p.id]=p.name);
+  const lines=[];
+  roster.forEach(p=>{
+    const rels=p.relationships;
+    if(!rels||typeof rels!=="object")return;
+    const ties=[];
+    for(const id in rels){
+      const tie=(rels[id]&&rels[id].tie||"").trim();
+      if(!tie||tie.toLowerCase()==="stranger")continue;   // skip strangers — no useful tie
+      const who=(id==="__user__")?state.user:(idToName[id]||null);
+      if(!who)continue;
+      ties.push(`${who} (${tie})`);
+    }
+    if(ties.length)lines.push(`${p.name}: ${ties.join(", ")}`);
+  });
+  return lines.join("\n");
+}
 
 // Manual trigger from the character editor. Generates (or re-generates) this character's sheet.
 async function genRelationshipsForCharacter(id,btn){
@@ -6990,6 +7162,7 @@ async function generateUniverse(brief,count){
     avatar:clean(j.avatar)||"🌌",
     setting:clean(j.setting),
     userName:clean(j.userName), userLook:clean(j.userLook), userBio:clean(j.userBio),
+    userPersonality:clean(j.userPersonality), userStyle:clean(j.userStyle),
     characters:chars, locations:locs
   };
 }
@@ -7154,6 +7327,21 @@ function visibleMemories(){
     return true;
   });
 }
+// Render the two-tier memory section for a payload. Accepts the new {recent,distant} shape OR a
+// legacy flat array (treated as recent). Returns an array of "# HEADER\n..." blocks (0, 1, or 2).
+function memoryBlocks(injectedMemories){
+  if(!state.mem||!injectedMemories)return [];
+  let recent=[], distant=[];
+  if(Array.isArray(injectedMemories)){ recent=injectedMemories; }       // legacy callers
+  else { recent=injectedMemories.recent||[]; distant=injectedMemories.distant||[]; }
+  const fmt=m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;};
+  const out=[];
+  if(recent.length)
+    out.push(`# RECENT MEMORIES\nFresh, specific things you remember — stay consistent with these:\n`+recent.map(fmt).join("\n"));
+  if(distant.length)
+    out.push(`# DISTANT MEMORIES\nOlder, fuzzier — the gist of what came before. Treat as background, less precise than recent memory:\n`+distant.map(fmt).join("\n"));
+  return out;
+}
 function buildSystemPrompt(injectedMemories){
   const cast=presentCast();   // build around who is actually present
   const multi=cast.length>1;
@@ -7176,9 +7364,6 @@ function buildSystemPrompt(injectedMemories){
   {const _fr=(up("formatRules")||"").trim();
    if(_fr)blocks.push(/^#/.test(_fr)?_fr:`# FORMATTING RULES\n${_fr}`);}
 
-  // 4) OUT OF CHARACTER COMMANDS
-  blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
-
   // 5) CHARACTER BIO(S)
   if(multi){
     const names=cast.map(c=>c.name);
@@ -7191,8 +7376,9 @@ function buildSystemPrompt(injectedMemories){
       if(c.style)cb+=`\nSpeaking style: ${c.style}`;
       if(c.look)cb+=`\nAppearance: ${c.look}`;
       const loc=charLocationLine(c);if(loc)cb+=`\n${loc}`;
-      const sheet=relSheetBlock(c);
-      if(sheet)cb+=`\nRelationships (who people are to ${c.name}):\n${sheet}`;
+      const sheetIds=cast.filter(x=>x.id!==c.id).map(x=>x.id);
+      const sheet=relSheetBlockFor(c,sheetIds);
+      if(sheet)cb+=`\nRelationships (who the nearby people are to ${c.name}):\n${sheet}`;
       blocks.push(cb);
     });
     const scen=cast.map(c=>c.scenario).filter(Boolean)[0];
@@ -7207,9 +7393,11 @@ function buildSystemPrompt(injectedMemories){
       if(p.style)rb+=`\nSpeaking style: ${p.style}`;
       const loc=charLocationLine(p);if(loc)rb+=`\n${loc}`;
       blocks.push(rb);
-      // RELATIONSHIPS — right after the bio: who everyone in this world is to them (the foundation).
-      {const sheet=relSheetBlock(p);
-       if(sheet)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these people are to you)\nThis is your map of the people in your world — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${sheet}`);}
+      // RELATIONSHIPS — right after the bio: who the NEARBY people are to them (scoped to present
+      // characters + the player, to keep the roleplay payload lean).
+      {const presentIds2=presentCast().filter(c=>c.id!==p.id).map(c=>c.id);
+       const sheet=relSheetBlockFor(p,presentIds2);
+       if(sheet)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these nearby people are to you)\nThis is who the people currently around you are to you — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${sheet}`);}
       if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
     }
   }
@@ -7222,26 +7410,15 @@ function buildSystemPrompt(injectedMemories){
    if(state.userLook&&state.userLook.trim())pb+=`\nAppearance: ${state.userLook.trim()}`;
    blocks.push(pb);}
 
-  // (Relationship feelings and RESPONSE GUIDANCE are appended AFTER the dialogue by
-  //  buildTailGuidance(), so the strongest instructions sit closest to generation.)
+  // (Relationship feelings, the live SCENE RIGHT NOW snapshot — time, location, who's present,
+  //  trackers — and RESPONSE GUIDANCE are all appended AFTER the dialogue by buildTailGuidance(),
+  //  so the most drift-prone facts and the strongest instructions sit closest to generation.)
 
-  // 8) CURRENT TIME
-  blocks.push(`# CURRENT TIME\nIt is currently Day ${curGameDay()} of this story.`);
+  // OUT OF CHARACTER COMMANDS — placed low (rare edge case; doesn't deserve prime attention up top).
+  blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
 
-  // 9) CURRENT SCENE
-  {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
-
-  // 10) TRACKER STATE (+ calendar) — multi-char legacy path: show only the shared (story-wide
-  // + user-public) trackers, since this prompt isn't built for one specific character.
-  {const tc=trackerContext(chat,"__shared__");if(tc)blocks.push(`# TRACKER STATE\n${tc}`);}
-  {const cl=calendarContextLine();if(cl)blocks.push(`# ${cl}`);}
-
-  // 11) MEMORIES
-  const mems=injectedMemories&&injectedMemories.length?injectedMemories:null;
-  if(state.mem&&mems){
-    blocks.push(`# MEMORIES\nStay consistent with these:\n`+
-       mems.map(m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;}).join("\n"));
-  }
+  // 11) MEMORIES — two tiers (recent verbatim + distant condensed).
+  memoryBlocks(injectedMemories).forEach(b=>blocks.push(b));
 
   if(multi){
     const names=cast.map(c=>c.name);
@@ -7274,9 +7451,6 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   {const _fr=(up("formatRules")||"").trim();
    if(_fr)blocks.push(/^#/.test(_fr)?_fr:`# FORMATTING RULES\n${_fr}`);}
 
-  // 4) OUT OF CHARACTER COMMANDS
-  blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
-
   // 5) YOUR BIO
   let rb=`# ${p.name} BIO\nYou are ${p.name}, one character in a multi-character roleplay with ${state.user}. Stay fully in character as ${p.name} only. Never break character or mention being an AI. You speak and act ONLY as ${p.name} — never voice ${state.user}, the narrator, or any other character.`;
   if(p.instructions)rb+=`\n\nInstructions: ${p.instructions}`;
@@ -7287,13 +7461,14 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   {const loc=charLocationLine(p,chat);if(loc)rb+=`\n${loc}`;}
   blocks.push(rb);
 
-  // RELATIONSHIPS — right after the bio: the structured sheet (JSON) of who everyone is to this
-  // character, plus any author-written notes (which win). This is the foundation for their behaviour.
-  {const sheet=relSheetBlock(p);
+  // RELATIONSHIPS — right after the bio: scoped to the people actually present (others in the
+  // scene) + the player, plus any author-written notes (which win). Keeps the payload lean.
+  {const otherIds=(others||[]).map(o=>o.id).filter(id=>id&&id!==p.id);
+   const sheet=relSheetBlockFor(p,otherIds);
    const author=(p.socialGraph||"").trim();
    const discovered=(p.socialGraphAuto||"").trim();
    const combined=[sheet,author,discovered].filter(Boolean).join("\n\n");
-   if(combined)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these people are to you)\nThis is your map of the people in your world — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${combined}`);}
+   if(combined)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these nearby people are to you)\nThis is who the people currently around you are to you — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${combined}`);}
 
   if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
 
@@ -7313,22 +7488,14 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   // (Relationship feelings and the core RESPONSE GUIDANCE are appended after the dialogue
   //  by buildTailGuidance(). Only situational entrance/exit notes stay here.)
 
-  // 8) CURRENT TIME
-  blocks.push(`# CURRENT TIME\nIt is currently Day ${curGameDay()} of this story.`);
+  // (CURRENT TIME, CURRENT SCENE, TRACKER STATE and calendar now live in the post-dialogue tail
+  //  (buildTailGuidance) so they sit closest to generation and the model can't drift on them.)
 
-  // 9) CURRENT SCENE
-  {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
+  // OUT OF CHARACTER COMMANDS — placed low (rare edge case; doesn't deserve prime attention up top).
+  blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
 
-  // 10) TRACKER STATE (+ calendar)
-  {const tc=trackerContext();if(tc)blocks.push(`# TRACKER STATE\n${tc}`);}
-  {const cl=calendarContextLine();if(cl)blocks.push(`# ${cl}`);}
-
-  // 11) MEMORIES
-  const mems=injectedMemories&&injectedMemories.length?injectedMemories:null;
-  if(state.mem&&mems){
-    blocks.push(`# MEMORIES\nStay consistent with these:\n`+
-       mems.map(m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;}).join("\n"));
-  }
+  // 11) MEMORIES — two tiers (recent verbatim + distant condensed).
+  memoryBlocks(injectedMemories).forEach(b=>blocks.push(b));
 
   // Situational entrance/exit note only (the generic "voice only your turn" rules now live
   // in the post-dialogue FINAL GUARDRAILS so they fire closest to generation).
@@ -7369,8 +7536,30 @@ function tagLastForTarget(history){
    opts: { chat, selfId, selfName, targetName, targetId, multi }
    - targetId === "__user__" for the player, otherwise a character id (or null/unknown). */
 function buildTailGuidance(opts){
-  const {chat,selfName,targetName,targetId,multi}=opts||{};
+  const {chat,selfName,selfId,targetName,targetId,multi}=opts||{};
   const blocks=[];
+
+  // (0) SCENE RIGHT NOW — placed in the tail (closest to generation) so the model can't drift on
+  //     where the character is, who's in the room, or the time. This is the single biggest cause
+  //     of roleplay slips, so it sits last-but-for the guidance, not buried thousands of tokens up.
+  if(chat){
+    const ssBits=[];
+    ssBits.push(`Day ${chat.gameDay||1}`);
+    {const per=(typeof chatPeriod==="function")?chatPeriod(chat):""; if(per)ssBits.push(per);}
+    if(chat.location&&chat.location.trim())ssBits.push(`at ${chat.location.trim()}`);
+    // who else is physically here (besides this character)
+    let othersHere="";
+    try{
+      const present=presentCast(chat).filter(c=>c.id!==selfId).map(c=>c.name);
+      othersHere=present.length?present.join(", "):"";
+    }catch(e){}
+    let sn=`# SCENE RIGHT NOW\n${ssBits.join(", ")}.`;
+    sn+=othersHere?`\nAlso physically present with you: ${othersHere}.`:`\nYou are alone with ${targetName||state.user} right now.`;
+    // shared/visible trackers, so consequences stay live in the model's mind at generation time
+    try{ const tc=trackerContext(chat, selfId||"__shared__"); if(tc)sn+=`\n${tc}`; }catch(e){}
+    {const cl=(typeof calendarContextLine==="function")?calendarContextLine(chat):""; if(cl)sn+=`\n${cl}`;}
+    blocks.push(sn);
+  }
 
   // (1) RESPONSE GUIDANCE
   let g=`# RESPONSE GUIDANCE\nYou are ${selfName}. Continue the scene with your single next turn`;
@@ -7635,6 +7824,7 @@ function restartScene(){
   renderChat();updateChatHeader();
 }
 function updateChatHeader(){
+  reflectAutoRp();
   const chat=state.curChat&&state.chats[state.curChat];
   const u=curUniverseObj();
   const present=chat?presentCast(chat):[];
@@ -7665,6 +7855,14 @@ function updateChatHeader(){
 }
 // Quick editor for the scene's period + location (per-chat state).
 function toggleChatMenu(e){ if(e)e.stopPropagation(); const m=document.getElementById('chatMenu'); if(m)m.classList.toggle('hide'); }
+// Auto-RP toggle: on = the player's terse input is rewritten into a short in-voice turn before sending.
+function reflectAutoRp(){ const b=document.getElementById('autoRpBtn'); if(b)b.classList.toggle('on',!!state.autoRpOn); }
+function toggleAutoRp(){
+  state.autoRpOn=!state.autoRpOn;
+  store.set(K.autoRpOn,state.autoRpOn);
+  reflectAutoRp();
+  toast(state.autoRpOn?"🪶 Auto-RP on — type short, I'll narrate your turns":"Auto-RP off");
+}
 function closeChatMenu(){ const m=document.getElementById('chatMenu'); if(m)m.classList.add('hide'); }
 document.addEventListener('click',e=>{ const m=document.getElementById('chatMenu'); if(m&&!m.classList.contains('hide')&&!e.target.closest('#chatMenu')&&!e.target.closest('[onclick*="toggleChatMenu"]'))m.classList.add('hide'); });
 let _ssPeriod="";
@@ -8162,23 +8360,77 @@ function refreshBubble(mid){
   if(html){ b.insertAdjacentHTML('beforeend',html); _restoreScroll(); }
 }
 
+// ===== AUTO-RP: rewrite the player's terse input as a short, in-voice player turn =====
+function _playerProfileBlock(){
+  const bits=[`Name: ${state.user}`];
+  if(state.userPersonality&&state.userPersonality.trim())bits.push(`Personality: ${state.userPersonality.trim()}`);
+  if(state.userStyle&&state.userStyle.trim())bits.push(`Speech style: ${state.userStyle.trim()}`);
+  if(state.userBio&&state.userBio.trim())bits.push(`Background: ${state.userBio.trim()}`);
+  if(state.userLook&&state.userLook.trim())bits.push(`Appearance: ${state.userLook.trim()}`);
+  return bits.join("\n");
+}
+// Compact scene line for the narrator (where, when, who's present).
+function _autoRpSceneLine(chat){
+  const bits=[`Day ${chat.gameDay||1}`];
+  {const per=(typeof chatPeriod==="function")?chatPeriod(chat):""; if(per)bits.push(per);}
+  if(chat.location&&chat.location.trim())bits.push(`at ${chat.location.trim()}`);
+  let line=bits.join(", ")+".";
+  try{
+    const others=presentCast(chat).map(c=>c.name);
+    line+=others.length?` Present: ${others.join(", ")}.`:` You are alone.`;
+  }catch(e){}
+  return line;
+}
+async function narratePlayerTurn(rawText,chat){
+  if(!state.key)return rawText;
+  const recent=(chat?chat.messages:[]).filter(m=>m.role!=='system'&&!m.sysError).slice(-4)
+    .map(m=>`${m.role==='user'?state.user:(m.speaker||"Character")}: ${m.content}`).join("\n");
+  const sys=fillTpl(up("playerNarratePrompt"),{
+    user:state.user,
+    player_profile:_playerProfileBlock(),
+    scene:_autoRpSceneLine(chat)
+  });
+  const model=(state.playerNarrateModel&&state.playerNarrateModel.trim())?state.playerNarrateModel:state.model;
+  try{
+    const out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:(recent?`Recent lines:\n${recent}\n\n`:"")+`${state.user} just typed (rewrite this as their turn):\n${rawText}`}
+    ],model,{temp:fnTemp("mem",0.6),max:fnTok("mem",200),dbg:"Auto-RP player narrator"});
+    const clean=(out||"").trim().replace(/^["']|["']$/g,"").trim();
+    return clean||rawText;   // fall back to raw text if the model returns nothing
+  }catch(e){ return rawText; }   // never block the turn — fall back to what they typed
+}
 async function sendMessage(){
   const inp=document.getElementById('chatInput');
-  const text=inp.value.trim();if(!text)return;
+  let text=inp.value.trim();if(!text)return;
   const chat=curChat();
 
-  // ----- OOC commands: /bring Name, /leave Name (or /send Name), /who -----
+  // ----- OOC commands: /bring Name, /leave Name (or /send Name), /who ----- (never narrated)
   if(text.startsWith("/")){
     inp.value="";inp.style.height="auto";
     handleOOC(chat,text);
     return;
   }
 
+  // ----- AUTO-RP: rewrite the player's terse input into a short in-voice turn before sending. -----
+  // Runs only when the toggle is on. Best-effort: if it fails or returns nothing, the raw text is
+  // used. The input is locked with a hint while it converts so the player sees it's working.
+  if(state.autoRpOn){
+    const sendBtn=document.getElementById('sendBtn');
+    inp.value="";inp.style.height="auto";
+    inp.disabled=true; if(sendBtn)sendBtn.disabled=true;
+    const _ph=inp.placeholder; inp.placeholder="🪶 writing your turn…";
+    try{ text=await narratePlayerTurn(text,chat); }
+    catch(e){}
+    finally{ inp.disabled=false; if(sendBtn)sendBtn.disabled=false; inp.placeholder=_ph; }
+  }else{
+    inp.value="";inp.style.height="auto";
+  }
+
   chat.messages.push({mid:newMid(),role:"user",content:text,present:presentIds(chat).slice()});
   chat.lastActive=Date.now();
   _followAfterSend=true;   // follow this whole turn to the bottom (see flag definition)
   {const bn=document.getElementById('recapBanner'); if(bn)bn.classList.add('hide');}
-  inp.value="";inp.style.height="auto";
   appendNewBubbles();persistChats();
   // The user just sent — always bring THEIR message into view (snap to bottom), regardless of
   // prior scroll position. appendNewBubbles only auto-follows if you were already near the
@@ -8213,10 +8465,10 @@ async function sendMessage(){
     }
     // ===== SINGLE PRESENT CHARACTER: direct flow =====
     const solo=cast[0];
-    // ---- MEMORY RETRIEVAL: generate a search query, then rank stored memories ----
-    let injected=[];
+    // ---- MEMORY RETRIEVAL: two-tier (recent verbatim + distant condensed) ----
+    let injected={recent:[],distant:[]};
     if(state.mem && state.memory.length){
-      try{ injected=await retrieveMemories(text,chat); }catch(e){ injected=[]; }
+      try{ injected=await retrieveMemories(text,chat); }catch(e){ injected={recent:[],distant:[]}; }
     }
     const sysMsg={role:"system",content:buildSystemPrompt(injected)};
     const history=compactHistory(
@@ -8461,9 +8713,15 @@ async function playCharacterTurn(chat,p,addressed){
   typing.className="bubble ai";typing.innerHTML=`<div class="meta">${avatarHTML(p)}${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
   if(list){list.appendChild(typing);if(isNearBottom(list)||_followAfterSend)setScrollTop(list,list.scrollHeight);}
   try{
-    let injected=[];
+    let injected={recent:[],distant:[]};
     if(state.mem && state.memory.length){
-      try{ injected=(await retrieveMemories(castConvoText(chat,4),chat)).filter(m=>m.ownerId===p.id); }catch(e){ injected=[]; }
+      try{
+        const r=await retrieveMemories(castConvoText(chat,4),chat);
+        injected={
+          recent:(r.recent||[]).filter(m=>m.ownerId===p.id),
+          distant:(r.distant||[]).filter(m=>m.ownerId===p.id)
+        };
+      }catch(e){ injected={recent:[],distant:[]}; }
     }
     const sys={role:"system",content:buildCharPrompt(p,others,injected,addressed)};
     // Resolve who this character is replying to → name + id for the tail guidance.
@@ -9088,7 +9346,7 @@ async function maybeGamemaster(chat,force){
     const cast=curCast();                       // whole universe roster (who could appear)
     const present=presentCast(chat);             // who is actually in the scene now
     const fallbackName=(present[0]&&present[0].name)||(cast[0]&&cast[0].name)||"Narrator";
-    const ctx=directorContext(chat);
+    const ctx=directorContext(chat,"gm");
     const since=chat.messages.filter(m=>m.role!=='system'&&!m.sysError)
       .slice(-4).map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
     // STAGE 1 — judge (skipped when manually forced; the user explicitly wants an event)
@@ -9178,7 +9436,7 @@ async function playGamemasterBeat(chat,nudge){
 async function setupActiveEvent(chat,eventText){
   try{
     const known=curCast().map(c=>c.name).join(", ");
-    const ctx=directorContext(chat);
+    const ctx=directorContext(chat,"scene");
     const out=await chatCompletion([
       {role:"system",content:up("sceneSetup")},
       {role:"user",content:(ctx?ctx+"\n\n":"")+`Known characters already in the cast: ${known}\nPlayer: ${state.user}\n\nThe event just introduced:\n${eventText}`}
@@ -9239,7 +9497,7 @@ async function runSceneWriter(chat){
   const force=ev.turn>=ev.maxTurns;          // force-resolve at the cap
   try{
     const partInfo=ev.participant?`Event character: ${ev.participant.name} (${ev.participant.approaching?"approaching, NOT yet in the room":"in the room"}).`:"No character; environmental event.";
-    const ctx=directorContext(chat);
+    const ctx=directorContext(chat,"scene");
     // The player's most recent line — used to detect direct address of the character.
     const lastUser=[...chat.messages].reverse().find(m=>m.role==='user');
     const lastUserText=(lastUser&&lastUser.content||"").trim();
@@ -9433,8 +9691,8 @@ async function playSingleReaction(chat,p,eventText){
   typing.className="bubble ai";typing.innerHTML=`<div class="meta">${avatarHTML(p)}${esc(p.name)}</div><div class="typing"><span></span><span></span><span></span></div>`;
   if(list){list.appendChild(typing);if(isNearBottom(list)||_followAfterSend)setScrollTop(list,list.scrollHeight);}
   try{
-    let injected=[];
-    if(state.mem && state.memory.length){try{injected=await retrieveMemories(eventText,chat);}catch(e){injected=[];}}
+    let injected={recent:[],distant:[]};
+    if(state.mem && state.memory.length){try{injected=await retrieveMemories(eventText,chat);}catch(e){injected={recent:[],distant:[]};}}
     const sysMsg={role:"system",content:buildSystemPrompt(injected)};
     const history=compactHistory(
       chat.messages.filter(m=>m.role!=='system'&&(!m.sysError||m.dayMarker||m.presenceNote))
@@ -9500,14 +9758,30 @@ async function maybeBuildMemory(chat){
     if(total-last < 10) continue;
     chat.memCounts[p.id]=total;
     try{
-      const convo=witnessed.slice(-10)
+      const window=witnessed.slice(-10);
+      // PERCEPTION TIER: did this character actually take part in the conversation, or were they
+      // just present (a bystander across the room)? A participant SPOKE in the window; a bystander
+      // was present but never spoke. Bystanders did NOT hear the words — they form a fuzzy outside
+      // impression (the social SHAPE) instead of a verbatim memory. (Living Universe, layer 1.)
+      const isBystander = (cast.length>0) && !window.some(m=>m.role!=='user' && m.speakerId===p.id);
+      const convo=window
         .map(m=>`${m.role==='user'?state.user:(m.speaker||cast[0].name)}: ${m.content}`).join("\n");
-      const sys=fillTpl(up("memBuild"),{char:p.name,user:state.user})+
-        (cast.length>1?`\n\nIMPORTANT: Write this memory strictly from ${p.name}'s own perspective and personal experience. Only record what ${p.name} personally witnessed. Do not include events that happened while ${p.name} was absent.`:"");
+      let sys, userMsg;
+      if(isBystander){
+        // Who was actually conversing (for the bystander's outside view): the player + whoever spoke.
+        const speakers=[...new Set(window.filter(m=>m.role!=='user'&&m.speakerId&&m.speakerId!==p.id).map(m=>m.speaker))];
+        const withWhom=speakers.length?speakers.join(", "):"someone";
+        sys=fillTpl(up("gistBuild"),{char:p.name,user:state.user});
+        userMsg=`${p.name} is present in the same place but NOT part of the conversation — across the room, not within earshot of the actual words. From the outside, ${p.name} can only see that ${state.user} and ${withWhom} are talking. Here is what was said (${p.name} did NOT hear this — use it ONLY to judge the emotional SHAPE of the exchange, never the specifics):\n\n${convo}`;
+      }else{
+        sys=fillTpl(up("memBuild"),{char:p.name,user:state.user})+
+          (cast.length>1?`\n\nIMPORTANT: Write this memory strictly from ${p.name}'s own perspective and personal experience. Only record what ${p.name} personally witnessed. Do not include events that happened while ${p.name} was absent.`:"");
+        userMsg=`Conversation ${p.name} witnessed (with ${state.user}):\n\n${convo}`;
+      }
       const out=await chatCompletion([
         {role:"system",content:sys},
-        {role:"user",content:`Conversation ${p.name} witnessed (with ${state.user}):\n\n${convo}`}
-      ],state.memModel,{temp:fnTemp("mem",0.3),max:fnTok("mem",500),dbg:"Memory builder · "+p.name});
+        {role:"user",content:userMsg}
+      ],state.memModel,{temp:fnTemp("mem",0.3),max:fnTok("mem",isBystander?260:500),dbg:(isBystander?"Bystander gist · ":"Memory builder · ")+p.name});
       const j=parseJSON(out);
       if(!j||!j.content)continue;
       const mem={
@@ -9515,12 +9789,19 @@ async function maybeBuildMemory(chat){
         content:String(j.content).trim(),
         location:j.location||"",
         emotion:j.emotion||"neutral",
-        importance:typeof j.importance_score==="number"?j.importance_score:0.5,
+        importance:typeof j.importance_score==="number"?j.importance_score:(isBystander?0.3:0.5),
         tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):[],
-        type:j.type||"EXPERIENCE",
+        type:isBystander?"OBSERVATION":(j.type||"EXPERIENCE"),
         ownerId:p.id, character:p.name, date:Date.now(), gameDay:curGameDay(), source:"auto",
         universeId:(chat&&chat.universeId)||state.curUniverse||null, chatId:(chat&&chat.id)||state.curChat||null
       };
+      // Bystander gist carries the perceived social shape + a gossip-worthiness charge, for later
+      // layers (gossip propagation). Harmless metadata now; nothing reads it yet.
+      if(isBystander){
+        if(j.gist)mem.gist=String(j.gist).trim();
+        mem.charge=typeof j.charge==="number"?Math.max(0,Math.min(1,j.charge)):0;
+        mem.observerOnly=true;
+      }
       if(!memoriesOf(p.id).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase())){
         state.memory.push(mem);
       }
@@ -9618,9 +9899,10 @@ async function genQuery(userText,chat){
 }
 
 /* keyword pre-filter so the ranker sees a bounded candidate set */
-function prefilter(query,limit){
+function prefilter(query,limit,poolOverride){
   const qWords=new Set((query.toLowerCase().match(/[a-z0-9]+/g)||[]).filter(w=>w.length>2));
-  const scored=visibleMemories().map(m=>{
+  const pool=poolOverride||visibleMemories();
+  const scored=pool.map(m=>{
     const hay=(memText(m)+" "+(m.tags||[]).join(" ")+" "+(m.location||"")).toLowerCase();
     let score=0; qWords.forEach(w=>{if(hay.includes(w))score++;});
     score+=(m.importance||0)*0.5;
@@ -9628,44 +9910,59 @@ function prefilter(query,limit){
   }).sort((a,b)=>b.score-a.score);
   return scored.slice(0,limit).map(x=>x.m);
 }
+// Is this a DISTANT (condensed) memory? Distant = the consolidated summaries the condenser made.
+function isDistantMem(m){ return !!(m && m.type==="CONSOLIDATED"); }
 
-/* STEP 3 — rank candidates with the LLM, return the top N memories */
+/* STEP 3 — two-tier retrieval. Returns {recent:[...], distant:[...]}.
+   RECENT = verbatim experiential memories (sharp, fast-moving).
+   DISTANT = condensed/consolidated memories (the durable gist of what came before).
+   Each tier is queried independently with its own count, so the payload carries both granularities
+   under separate headings. */
 async function retrieveMemories(userText,chat){
-  const MAX=5;
-  const pool=visibleMemories();              // only the current cast's own memories
-  if(pool.length<=MAX) return pool.slice();
-  // Build the keyword query from the user's own text + the last couple of lines — NO extra LLM
-  // round-trip. genQuery used to fire a whole API call here on every message, which (with the
-  // ranker below) meant up to THREE serial requests before the reply even started, getting
-  // slower as memories accumulated. The raw text is a fine query for keyword prefiltering.
-  const p=curPersona();
-  const recent=(chat?chat.messages:[]).filter(m=>m.role!=='system'&&!m.sysError).slice(-2)
+  const recCount=Math.max(0, state.memRecentCount!=null?state.memRecentCount:3);
+  const disCount=Math.max(0, state.memDistantCount!=null?state.memDistantCount:2);
+  const all=visibleMemories();                       // current cast's own memories, this universe
+  const recentPool=all.filter(m=>!isDistantMem(m));   // verbatim
+  const distantPool=all.filter(m=>isDistantMem(m));   // condensed
+
+  // Query string: the user's text + the last couple of lines (no extra LLM round-trip).
+  const recentLines=(chat?chat.messages:[]).filter(m=>m.role!=='system'&&!m.sysError).slice(-2)
     .map(m=>m.content).join(" ");
-  const query=((userText||"")+" "+recent).trim();
-  // bound candidates to the 20 best keyword matches before any LLM ranking
-  const candidates=prefilter(query,20);
-  // If there aren't many strong candidates, skip the LLM ranker entirely and use the keyword
-  // prefilter's top results directly. This removes the second blocking round-trip in the common
-  // case; the ranker only runs when there's a genuinely large/ambiguous candidate set.
-  if(candidates.length<=8 || !state.key){
-    return candidates.slice(0,MAX);
-  }
-  const listed=candidates.map((m,i)=>
-    `[${i}] ${memText(m)} | tags: ${(m.tags||[]).join(", ")} | importance: ${m.importance} | day: ${m.gameDay||1}`
-  ).join("\n");
-  const sys=fillTpl(up("ranker"),{maxCount:String(MAX)});
-  try{
-    const out=await chatCompletion([
-      {role:"system",content:sys},
-      {role:"user",content:`SEARCH QUERY:\n${query}\n\nMEMORIES:\n${listed}`}
-    ],state.memModel,{temp:fnTemp("mem",0.1),max:fnTok("mem",60),dbg:"Memory ranker"});
-    const idx=parseJSON(out);
-    if(Array.isArray(idx)){
-      const picked=idx.map(i=>candidates[i]).filter(Boolean).slice(0,MAX);
-      if(picked.length) return picked;
+  const query=((userText||"")+" "+recentLines).trim();
+
+  // Rank ONE pool down to `max`, reusing the keyword prefilter and (only when needed) the LLM ranker.
+  const rankPool=async (pool,max,label)=>{
+    if(max<=0||!pool.length)return [];
+    if(pool.length<=max)return pool.slice();
+    const candidates=prefilter(query,Math.max(12,max*4),pool);
+    // Small/clear candidate set, or no API key → keyword top-N, no blocking LLM call.
+    if(candidates.length<=Math.max(8,max+3) || !state.key){
+      return candidates.slice(0,max);
     }
-  }catch(e){}
-  return candidates.slice(0,MAX); // fallback: keyword top-5
+    const listed=candidates.map((m,i)=>
+      `[${i}] ${memText(m)} | tags: ${(m.tags||[]).join(", ")} | importance: ${m.importance} | day: ${m.gameDay||1}`
+    ).join("\n");
+    const sys=fillTpl(up("ranker"),{maxCount:String(max)});
+    try{
+      const out=await chatCompletion([
+        {role:"system",content:sys},
+        {role:"user",content:`SEARCH QUERY:\n${query}\n\nMEMORIES:\n${listed}`}
+      ],state.memModel,{temp:fnTemp("mem",0.1),max:fnTok("mem",60),dbg:"Memory ranker · "+label});
+      const idx=parseJSON(out);
+      if(Array.isArray(idx)){
+        const picked=idx.map(i=>candidates[i]).filter(Boolean).slice(0,max);
+        if(picked.length)return picked;
+      }
+    }catch(e){}
+    return candidates.slice(0,max); // fallback: keyword top-N
+  };
+
+  // Run both tiers in parallel.
+  const [recent,distant]=await Promise.all([
+    rankPool(recentPool,recCount,"recent"),
+    rankPool(distantPool,disCount,"distant")
+  ]);
+  return {recent,distant};
 }
 
 let memFilterOwner="all";
@@ -9950,8 +10247,8 @@ function renderToggleSegs(){
 const GLOBAL_PROMPT_TEXTAREAS={
   setBaseInstruction:"baseInstruction", setFormatRules:"formatRules",
   setRewritePrompt:"rewritePrompt", setVidPrompt:"vidPrompt", setRouterPrompt:"routerPrompt",
-  setMemBuild:"memBuild", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
-  setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setRelPrompt:"relPrompt", setRelShortPrompt:"relShortPrompt", setRelGenPrompt:"relGenPrompt", setTrackPrompt:"trackPrompt",
+  setMemBuild:"memBuild", setGistBuild:"gistBuild", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
+  setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setRelPrompt:"relPrompt", setRelShortPrompt:"relShortPrompt", setRelGenPrompt:"relGenPrompt", setPlayerNarratePrompt:"playerNarratePrompt", setTrackPrompt:"trackPrompt",
   setVoiceCheckPrompt:"voiceCheckPrompt", setTravelPrompt:"travelPrompt", setCalPrompt:"calPrompt",
   setGmJudge:"gmJudge", setGmAuthor:"gmAuthor", setDaySummary:"daySummaryPrompt",
   setSceneSetup:"sceneSetup", setSceneWriter:"sceneWriter",
@@ -10043,12 +10340,15 @@ function syncSettingsUI(){
   document.getElementById('setPresencePrompt').value=state.presencePrompt;
   {const gs=document.getElementById('gmSensSeg');gs.innerHTML="";["cautious","balanced","active"].forEach(v=>seg(gs,v,state.gmSensitivity,x=>{state.gmSensitivity=x;}));}
   document.getElementById('setMemBuild').value=state.memBuild;
+  {const e=document.getElementById('setGistBuild'); if(e)e.value=state.gistBuild||DEFAULT_GIST_BUILD;}
   document.getElementById('setQueryGen').value=state.queryGen;
   document.getElementById('setRanker').value=state.ranker;
   document.getElementById('setCondenseOn').checked=state.condenseOn;
   document.getElementById('setCondenseThreshold').value=state.condenseThreshold;
   document.getElementById('setCondenseKeep').value=state.condenseKeep;
   document.getElementById('setCondenseBatch').value=state.condenseBatch;
+  {const e=document.getElementById('setMemRecentCount'); if(e)e.value=(state.memRecentCount!=null?state.memRecentCount:3);}
+  {const e=document.getElementById('setMemDistantCount'); if(e)e.value=(state.memDistantCount!=null?state.memDistantCount:2);}
   document.getElementById('setCondensePrompt').value=state.condensePrompt;
   document.getElementById('setBioModel').value=state.bioModel;
   document.getElementById('setBioPrompt').value=state.bioPrompt;
@@ -10062,6 +10362,8 @@ function syncSettingsUI(){
   document.getElementById('setRelPrompt').value=state.relPrompt;
   {const e=document.getElementById('setRelShortPrompt'); if(e)e.value=state.relShortPrompt||DEFAULT_REL_SHORT;}
   {const e=document.getElementById('setRelGenPrompt'); if(e)e.value=state.relGenPrompt||DEFAULT_RELGEN;}
+  {const e=document.getElementById('setPlayerNarratePrompt'); if(e)e.value=state.playerNarratePrompt||DEFAULT_PLAYER_NARRATE;}
+  {const e=document.getElementById('setPlayerNarrateModel'); if(e)e.value=state.playerNarrateModel||"";}
   document.getElementById('setTrackOn').checked=state.trackOn;
   document.getElementById('setTrackPrompt').value=state.trackPrompt;
   document.getElementById('setVoiceCheckOn').checked=state.voiceCheckOn;
@@ -10130,12 +10432,15 @@ function saveSettings(notify){
   state.presenceOff=!document.getElementById('setPresenceOn').checked;
   state.presencePrompt=document.getElementById('setPresencePrompt').value.trim()||DEFAULT_PRESENCE_TRACKER;
   state.memBuild=document.getElementById('setMemBuild').value.trim()||DEFAULT_MEMBUILD;
+  {const e=document.getElementById('setGistBuild'); if(e)state.gistBuild=e.value.trim()||DEFAULT_GIST_BUILD;}
   state.queryGen=document.getElementById('setQueryGen').value.trim()||DEFAULT_QUERYGEN;
   state.ranker=document.getElementById('setRanker').value.trim()||DEFAULT_RANKER;
   state.condenseOn=document.getElementById('setCondenseOn').checked;
   state.condenseThreshold=Math.max(10,+document.getElementById('setCondenseThreshold').value||40);
   state.condenseKeep=Math.min(1,Math.max(0,+document.getElementById('setCondenseKeep').value));
   state.condenseBatch=Math.max(3,+document.getElementById('setCondenseBatch').value||15);
+  {const e=document.getElementById('setMemRecentCount'); if(e)state.memRecentCount=Math.max(0,Math.min(10,+e.value||0));}
+  {const e=document.getElementById('setMemDistantCount'); if(e)state.memDistantCount=Math.max(0,Math.min(10,+e.value||0));}
   state.condensePrompt=document.getElementById('setCondensePrompt').value.trim()||DEFAULT_CONDENSE;
   state.bioModel=document.getElementById('setBioModel').value.trim()||"deepseek/deepseek-v3.2";
   state.bioPrompt=document.getElementById('setBioPrompt').value.trim()||DEFAULT_BIO;
@@ -10149,6 +10454,8 @@ function saveSettings(notify){
   state.relPrompt=document.getElementById('setRelPrompt').value.trim()||DEFAULT_REL;
   {const e=document.getElementById('setRelShortPrompt'); if(e)state.relShortPrompt=e.value.trim()||DEFAULT_REL_SHORT;}
   {const e=document.getElementById('setRelGenPrompt'); if(e)state.relGenPrompt=e.value.trim()||DEFAULT_RELGEN;}
+  {const e=document.getElementById('setPlayerNarratePrompt'); if(e)state.playerNarratePrompt=e.value.trim()||DEFAULT_PLAYER_NARRATE;}
+  {const e=document.getElementById('setPlayerNarrateModel'); if(e)state.playerNarrateModel=e.value.trim();}
   state.trackOn=document.getElementById('setTrackOn').checked;
   state.trackPrompt=document.getElementById('setTrackPrompt').value.trim()||DEFAULT_TRACK;
   state.voiceCheckOn=document.getElementById('setVoiceCheckOn').checked;
@@ -10175,11 +10482,11 @@ function saveSettings(notify){
   store.setRaw(K.steps,state.steps);
   store.setRaw(K.vidPrompt,state.vidPrompt);store.setRaw(K.vidDur,state.vidDur);store.setRaw(K.vidRes,state.vidRes);store.set(K.vidSound,state.vidSound);
   store.set(K.autoImg,state.autoImg);store.setRaw(K.rewritePrompt,state.rewritePrompt);
-  store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
-  store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);
+  store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.gistBuild,state.gistBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
+  store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);store.setRaw(K.memRecentCount,state.memRecentCount);store.setRaw(K.memDistantCount,state.memDistantCount);
   store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.setRaw(K.univPrompt,state.univPrompt);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
   store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);store.setRaw(K.histTurns,state.histTurns);
-  store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.setRaw(K.relShortPrompt,state.relShortPrompt);store.setRaw(K.relGenPrompt,state.relGenPrompt);store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
+  store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.setRaw(K.relShortPrompt,state.relShortPrompt);store.setRaw(K.relGenPrompt,state.relGenPrompt);store.setRaw(K.playerNarratePrompt,state.playerNarratePrompt);store.setRaw(K.playerNarrateModel,state.playerNarrateModel||"");store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
   store.setRaw(K.locModel,state.locModel);store.setRaw(K.travelTime,state.travelTime);store.setRaw(K.travelPrompt,state.travelPrompt);store.set(K.calOn,state.calOn);store.setRaw(K.calPrompt,state.calPrompt);
   store.set(K.gmOn,state.gmOn);store.setRaw(K.gmEvery,state.gmEvery);store.setRaw(K.gmSensitivity,state.gmSensitivity);store.setRaw(K.gmModel,state.gmModel);
   store.setRaw(K.gmJudge,state.gmJudge);store.setRaw(K.gmAuthor,state.gmAuthor);store.setRaw(K.daySummaryPrompt,state.daySummaryPrompt);
