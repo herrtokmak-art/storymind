@@ -788,15 +788,17 @@
     <div id="ueTrackerList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn sec small" type="button" onclick="addTracker()">＋ New tracker</button>
-      <button class="btn sec small" type="button" onclick="addTrackerPreset('love')">❤️ Love preset</button>
-      <button class="btn sec small" type="button" onclick="addTrackerPreset('pregnancy')">🤰 Pregnancy preset</button>
+      <button class="btn sec small" type="button" onclick="addTrackerPreset('love')">❤️ Love <span class="desc">(AI)</span></button>
+      <button class="btn sec small" type="button" onclick="addTrackerPreset('suspicion')">🚓 Heat <span class="desc">(AI)</span></button>
+      <button class="btn sec small" type="button" onclick="addTrackerPreset('sobriety')">📅 Days sober <span class="desc">(End Day)</span></button>
+      <button class="btn sec small" type="button" onclick="addTrackerPreset('pregnancy')">🤰 Pregnancy <span class="desc">(event→day)</span></button>
     </div>
     <div class="subhead" style="margin-top:10px">🗺️ Locations</div>
     <div class="desc">Places in this world — homes where characters live and points of interest to travel to. You can generate a picture for each; the chat background changes when you're there.</div>
     <div id="ueLocList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
     <button class="btn sec small" type="button" onclick="addLocation()">＋ New location</button>
     <button class="btn sec small" type="button" onclick="genLocations()">✨ Generate locations</button>
-    <button class="btn sec small" type="button" onclick="genAllSchedules()">🗓️ Generate schedules for cast</button>
+    <button class="btn sec small" type="button" id="genSchedBtn" onclick="genAllSchedules()">🗓️ Generate schedules for cast</button>
     <div class="desc">Builds each character's daily rhythm across these locations. Save the universe first if you just added locations.</div>
 
     <div class="subhead" style="margin-top:10px">📜 Prompts (this universe)</div>
@@ -897,8 +899,16 @@
       <textarea class="fld" id="teDesc" placeholder="e.g. How close the police are to catching the player. Rises when they leave evidence or are seen; falls when they cover their tracks." style="min-height:64px"></textarea></div>
 
     <div><label>Belongs to</label>
-      <select class="fld" id="teOwner" onchange="teOwnerChanged()"></select>
-      <div class="desc">Story = one shared value everyone sees. A character = private to them (their own value). You = the player; choose public or private below.</div></div>
+      <div class="seg" id="teOwnerType" style="display:flex;gap:6px;margin-top:4px">
+        <button type="button" data-ot="__story__" onclick="teSetOwnerType('__story__')">🌍 Story</button>
+        <button type="button" data-ot="__user__" onclick="teSetOwnerType('__user__')">🧑 You</button>
+        <button type="button" data-ot="__chars__" onclick="teSetOwnerType('__chars__')">🎭 Characters</button>
+      </div>
+      <div class="desc">Story = one shared value everyone sees. You = the player. Characters = a private copy for each one you pick.</div></div>
+    <div id="teCharsRow" style="display:none">
+      <label>Pick characters <span class="desc" style="display:inline">(one tracker is created for each)</span></label>
+      <div id="teCharList" style="display:flex;flex-direction:column;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;max-height:180px;overflow:auto"></div>
+    </div>
     <div id="teUserVisRow" style="display:none"><label>Player tracker visibility</label>
       <div class="seg" id="teUserVis" style="display:flex;gap:6px;margin-top:4px">
         <button type="button" data-vis="public" onclick="teSetVis('public')">👁️ Public (characters see it)</button>
@@ -919,40 +929,46 @@
         <option value="counter">🔢 Counter / accumulate (up only)</option>
       </select></div>
 
-    <details class="sgroup" style="margin-top:8px">
-      <summary><span class="sg-ico">⚙️</span><span class="sg-meta">How it updates<div class="sg-sub">AI judgement, an event trigger, or both · dice · per-day</div></span><span class="sg-chev">▶</span></summary>
-      <div class="sgbody"><div class="card">
-        <div><label>Update mode</label>
-          <select class="fld" id="teMode" onchange="teModeChanged()">
-            <option value="llm">🤖 AI judges from the scene</option>
-            <option value="trigger">⚡ Fires on a specific event</option>
-            <option value="both">🤖+⚡ Both</option>
-          </select></div>
-        <div id="teTriggerRow" style="display:none">
-          <div><label>Trigger phrase <span class="desc" style="display:inline">(plain English the AI watches for)</span></label>
-            <input type="text" class="fld" id="teTriggerPhrase" placeholder="e.g. the player is seen committing a crime"></div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <div style="flex:1;min-width:120px"><label>Dice (optional)</label><input type="text" class="fld" id="teDice" placeholder="e.g. 1d3"></div>
-            <div style="flex:1;min-width:120px"><label>Counts as hit</label><input type="number" class="fld" id="teDiceHit" placeholder="3"></div>
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <div style="flex:1;min-width:120px"><label>On hit, set to</label><input type="number" class="fld" id="teOnHitSet" placeholder="1"></div>
-            <div style="flex:1;min-width:120px"><label>Else change by</label><input type="number" class="fld" id="teTriggerDelta" placeholder="1"></div>
-          </div>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <div style="flex:1;min-width:120px"><label>Per-day change</label><input type="number" class="fld" id="tePerDay" placeholder="0 = none"></div>
-          <div style="flex:1;min-width:120px"><label>Start counting at</label><input type="number" class="fld" id="teActivateAt" placeholder="blank = now"></div>
-        </div>
-        <div class="desc">Per-day change ticks at End Day (e.g. +1 to count pregnancy days). "Start counting at" delays that until the value reaches a threshold.</div>
-      </div></div>
-    </details>
+    <div style="margin-top:8px"><label>What moves it</label>
+      <select class="fld" id="teMethod" onchange="teMethodChanged()">
+        <option value="llm">🤖 AI judges the scene (each turn)</option>
+        <option value="endday">📅 Fixed change every End Day</option>
+        <option value="trigger_then_day">⚡→📅 AI watches for an event, then counts up each End Day</option>
+      </select>
+      <div class="desc" id="teMethodHint"></div>
+    </div>
+
+    <!-- AI-judged fields -->
+    <div id="teLlmRow" style="display:none;margin-top:6px">
+      <label>What the AI should look for</label>
+      <textarea class="fld" id="teLlmPrompt" placeholder="e.g. Raise this when the player leaves evidence, is seen at the scene, or a witness talks. Lower it when they cover their tracks or mislead the police." style="min-height:80px"></textarea>
+      <div class="desc">Plain English. Each turn the AI reads the recent scene and nudges the value based on this.</div>
+    </div>
+
+    <!-- Event-trigger fields (for trigger_then_day) -->
+    <div id="teTriggerRow" style="display:none;margin-top:6px">
+      <label>Event the AI watches for</label>
+      <input type="text" class="fld" id="teTriggerPhrase" placeholder="e.g. the character is creampied / ejaculated inside vagina">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+        <div style="flex:1;min-width:120px"><label>Chance dice (optional)</label><input type="text" class="fld" id="teDice" placeholder="e.g. 1d3"></div>
+        <div style="flex:1;min-width:120px"><label>Counts as hit when roll =</label><input type="number" class="fld" id="teDiceHit" placeholder="3"></div>
+      </div>
+      <div style="flex:1;min-width:120px;margin-top:6px"><label>On the event, set value to</label><input type="number" class="fld" id="teOnHitSet" placeholder="1"></div>
+      <div class="desc">When the event happens (and the dice hits, if set), the value jumps to this — then the per-day count below takes over.</div>
+    </div>
+
+    <!-- End-Day increment fields -->
+    <div id="teEnddayRow" style="display:none;margin-top:6px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px"><label>Change each End Day</label><input type="number" class="fld" id="tePerDay" placeholder="e.g. 1"></div>
+        <div style="flex:1;min-width:120px"><label>Only after value reaches</label><input type="number" class="fld" id="teActivateAt" placeholder="blank = always"></div>
+      </div>
+      <div class="desc">Added (or subtracted) automatically when you press End Day. "Only after value reaches" delays counting until the value is at least that — e.g. pregnancy starts counting only once conceived.</div>
+    </div>
 
     <details class="sgroup" style="margin-top:8px">
-      <summary><span class="sg-ico">🧠</span><span class="sg-meta">Its own AI<div class="sg-sub">A dedicated prompt &amp; model for this tracker (optional)</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico">🧠</span><span class="sg-meta">Its own model<div class="sg-sub">A dedicated AI model for this tracker (optional)</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody"><div class="card">
-        <div><label>Prompt <span class="desc" style="display:inline">(leave blank to use the global tracker prompt)</span></label>
-          <textarea class="fld" id="tePrompt" placeholder="Instructions for the AI that updates THIS tracker. It receives the recent scene and must return JSON {&quot;delta&quot;:number,&quot;triggered&quot;:bool}." style="min-height:90px"></textarea></div>
         <div><label>Model <span class="desc" style="display:inline">(blank = your memory/utility model)</span></label>
           <input type="text" class="fld" id="teModel" list="modelList" placeholder="(default)"></div>
       </div></div>
@@ -1057,6 +1073,11 @@
       <div class="desc">Distinct from the numeric feeling tracker — this is durable social <i>fact</i>. First run uses only the character cards; later runs fold in how the long-term opinions have changed.</div>
     </div>
     <div class="desc" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px">📍 <b>Where they live:</b> assign this character as a <b>resident</b> of a place in the <b>Universe → Locations</b> editor. They'll be found there (and nowhere else) unless you bring them into a scene manually.</div>
+    <div><label>🗺️ Daily whereabouts <span class="desc" style="display:inline">(auto-generated from their routine — where they tend to be each part of the day)</span></label>
+      <div id="peWhereabouts" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px"></div>
+      <div class="row" style="margin-top:4px">
+        <button class="btn sec small" type="button" id="peSchedBtn" onclick="genScheduleForCharacter(this)">🗓️ Generate / refresh whereabouts</button>
+      </div></div>
     <div class="row">
       <button class="btn danger sec small" id="peDelete" onclick="deletePersona()">Delete</button>
       <button class="btn" onclick="savePersona()">Save</button>
@@ -5404,6 +5425,13 @@ function _fastBaseline(o,key){
   if(key==="agitation") return Math.round(Math.max(0,(-(o.trust||0))*0.08)+Math.max(0,(-(o.respect||0))*0.06)); // distrust/contempt → faint simmer
   return 0;
 }
+// Resolve a tracker's change-method, mapping any legacy updateMode to the current 3 methods.
+function trackerMethod(t){
+  if(t.method)return t.method;
+  const m=t.updateMode||"llm";
+  if(m==="trigger"||m==="both")return "trigger_then_day";
+  return "llm";
+}
 // Evaluate, with ONE call, how character `fromP` now feels about target `toId`/`toName`,
 // across all relationship axes. The LONG axes are now judged from the day's MEMORIES (the
 // character's own first-person record), filtered through the evaluator's BIO — not the raw
@@ -5506,6 +5534,9 @@ async function runTrackerEngine(chat){
   // Build the list of (tracker, ownerKey) evaluations to run this turn.
   const jobs=[];
   for(const t of ts){
+    // End-Day-only trackers never run a per-turn AI call — they change solely at End Day.
+    const method=trackerMethod(t);
+    if(method==="endday")continue;
     const owner=trackerOwner(t);
     if(owner==="__story__"||owner==="__user__"){
       jobs.push({t,ownerKey:owner});
@@ -5554,22 +5585,23 @@ async function runTrackerEngine(chat){
   for(const r of results){
     if(!r)continue;
     const {t,ownerKey,rep}=r;
-    const mode=t.updateMode||"llm";
+    const method=trackerMethod(t);
     const before=trackerVal(chat,t,ownerKey);
     const beforeStage=activeStage(t,before);
     let v=before;
-    // soft delta (llm-judged), constrained by behaviour
-    if((mode==="llm"||mode==="both") && typeof rep.delta==="number"){
+    // AI-judged free delta — only for the pure "llm" method.
+    if(method==="llm" && typeof rep.delta==="number"){
       v+=applyBehavior(t,rep.delta);
     }
-    // trigger fired → dice (if any) decides; else apply triggerDelta (also behaviour-constrained)
-    if((mode==="trigger"||mode==="both") && rep.triggered){
+    // Event trigger — for "trigger_then_day": the AI watched for the event; on a hit (and dice,
+    // if set) the value jumps to onHitSet (the per-day count then takes over at End Day).
+    if(method==="trigger_then_day" && rep.triggered){
       if(t.dice){
         const roll=rollDice(t.dice);
         const hit=(t.diceHit!=null)?(roll===Number(t.diceHit)):(roll!=null);
-        if(hit) v=(t.onHitSet!=null?t.onHitSet:(v+applyBehavior(t,(t.triggerDelta||1))));
+        if(hit) v=(t.onHitSet!=null?t.onHitSet:(v+applyBehavior(t,1)));
       }else{
-        v=v+applyBehavior(t,(t.triggerDelta!=null?t.triggerDelta:1));
+        v=(t.onHitSet!=null?t.onHitSet:(v+applyBehavior(t,1)));
       }
     }
     setTrackerValOwner(chat,t,ownerKey,v);
@@ -5835,9 +5867,10 @@ function renderTrackerEditor(){
     const row=document.createElement('div'); row.className="card"; row.style.padding="8px";
     const stages=(t.stages||[]).length;
     const beh={up:"⬆️ up only",down:"⬇️ down only",counter:"🔢 counter",free:"↕️ free"}[t.behavior||"free"];
+    const meth={llm:"🤖 AI",endday:"📅 End Day",trigger_then_day:"⚡→📅 event"}[trackerMethod(t)]||"🤖 AI";
     row.innerHTML=`<div class="kvline" style="padding:0">
       <div style="min-width:0"><b>${esc(t.name||"(unnamed)")}</b>
-        <div class="desc">${esc(_trackerOwnerSummary(t))} · ${t.min!=null?t.min:0}–${t.max!=null?t.max:100} · start ${t.start!=null?t.start:0} · ${beh}${t.model?` · ${esc(t.model.split('/').pop())}`:""}${t.prompt?` · own prompt`:""}${t.perDay?` · +${t.perDay}/day`:""} · ${stages} point${stages===1?"":"s"}</div>
+        <div class="desc">${esc(_trackerOwnerSummary(t))} · ${meth} · ${t.min!=null?t.min:0}–${t.max!=null?t.max:100} · ${beh}${t.perDay?` · ${t.perDay>0?"+":""}${t.perDay}/day`:""} · ${stages} point${stages===1?"":"s"}</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button class="btn sec small" type="button" data-edit>Edit</button>
@@ -5850,44 +5883,71 @@ function renderTrackerEditor(){
 }
 function addTracker(){
   _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"New tracker",owner:"__story__",userVisibility:"public",
-    min:0,max:100,start:0,behavior:"free",updateMode:"llm",prompt:"",model:"",stages:[]});
+    min:0,max:100,start:0,behavior:"free",method:"llm",prompt:"",model:"",stages:[]});
   editTracker(_ueTrackers.length-1);
 }
 function addTrackerPreset(kind){
+  const nid=()=>"trk_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   if(kind==='love'){
-    _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"Love",owner:"__story__",min:0,max:100,start:0,behavior:"free",updateMode:"llm",prompt:"",model:"",
+    // AI-judged: the AI reads the scene and nudges it up or down.
+    _ueTrackers.push({id:nid(),name:"Love",owner:"__story__",min:0,max:100,start:0,behavior:"free",method:"llm",
+      prompt:"Raise this when there's warmth, flirtation, vulnerability, kindness, or growing closeness between them. Lower it on coldness, betrayal, cruelty, or rejection. Move slowly — a single nice moment is a small nudge.",model:"",
       stages:[{at:0,text:"indifferent"},{at:20,text:"curious, warming up"},{at:45,text:"clearly attracted"},{at:70,text:"in love, affectionate"},{at:90,text:"devoted, can't hide it"}]});
+  }else if(kind==='suspicion'){
+    // AI-judged: police closing in.
+    _ueTrackers.push({id:nid(),name:"Heat (police suspicion)",owner:"__user__",userVisibility:"private",min:0,max:100,start:0,behavior:"free",method:"llm",
+      prompt:"Raise this when the player leaves evidence, is seen near a crime, a witness talks, or they act recklessly. Lower it when they establish an alibi, destroy evidence, mislead investigators, or lie low. Big slip-ups move it a lot; small ones a little.",model:"",
+      stages:[{at:0,text:"off the radar"},{at:30,text:"a person of interest"},{at:60,text:"actively investigated"},{at:85,text:"closing in — arrest imminent"}]});
+  }else if(kind==='sobriety'){
+    // End-Day: a simple automatic daily counter, no AI.
+    _ueTrackers.push({id:nid(),name:"Days sober",owner:"__user__",userVisibility:"private",min:0,max:3650,start:0,behavior:"up",method:"endday",perDay:1,
+      prompt:"",model:"",
+      stages:[{at:1,text:"day one"},{at:7,text:"one week clean"},{at:30,text:"a month strong"},{at:365,text:"a full year"}]});
   }else if(kind==='pregnancy'){
-    _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"Pregnancy",owner:"__story__",min:0,max:280,start:0,behavior:"up",updateMode:"trigger",prompt:"",model:"",
-      triggerPhrase:"the character is creampied / ejaculated inside",dice:"1d3",diceHit:3,onHitSet:1,activateAt:1,perDay:1,
+    // Event then End-Day: AI watches for the event, then it counts up each day.
+    _ueTrackers.push({id:nid(),name:"Pregnancy",owner:"__story__",min:0,max:280,start:0,behavior:"up",method:"trigger_then_day",
+      triggerPhrase:"the character is creampied / ejaculated inside vagina (specifically vagina — not mouth, anus, face, or body)",dice:"1d3",diceHit:3,onHitSet:1,activateAt:1,perDay:1,prompt:"",model:"",
       stages:[{at:1,text:"newly conceived (unaware)"},{at:30,text:"first signs — nausea, fatigue"},{at:90,text:"visibly showing"},{at:180,text:"heavily pregnant"},{at:270,text:"due any day"}]});
   }
   renderTrackerEditor();
 }
 
 // ---- Modal-driven tracker editor ----
-let _teIndex=null, _teStages=[], _teVis="public";
-function _teOwnerOptions(){
-  // Story, You, then every character in the universe being edited.
-  const opts=[`<option value="__story__">🌍 The whole story (shared)</option>`,
-              `<option value="__user__">🧑 You (the player)</option>`];
+let _teIndex=null, _teStages=[], _teVis="public", _teOwnerType="__story__";
+function _teUniverseChars(){
   const uid=editingUniverse?editingUniverse.id:state.curUniverse;
-  state.personas.filter(p=>!uid||p.universeId===uid).forEach(p=>{
-    opts.push(`<option value="${p.id}">🎭 ${esc(p.name)}</option>`);
-  });
-  return opts.join("");
+  return state.personas.filter(p=>!uid||p.universeId===uid);
 }
-function teOwnerChanged(){
-  const owner=document.getElementById('teOwner').value;
-  document.getElementById('teUserVisRow').style.display=(owner==="__user__")?"block":"none";
+function teSetOwnerType(ot){
+  _teOwnerType=ot;
+  document.querySelectorAll('#teOwnerType button').forEach(b=>b.classList.toggle('on',b.dataset.ot===ot));
+  document.getElementById('teCharsRow').style.display=(ot==="__chars__")?"block":"none";
+  document.getElementById('teUserVisRow').style.display=(ot==="__user__")?"block":"none";
+}
+function _teRenderCharList(selectedIds){
+  const box=document.getElementById('teCharList'); if(!box)return;
+  const sel=new Set(selectedIds||[]);
+  const chars=_teUniverseChars();
+  if(!chars.length){ box.innerHTML=`<div class="desc">No characters in this universe yet.</div>`; return; }
+  box.innerHTML=chars.map(p=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+    <input type="checkbox" class="teCharChk" value="${p.id}" ${sel.has(p.id)?"checked":""}>
+    <span>${esc(p.avatar||"🎭")} ${esc(p.name)}</span></label>`).join("");
 }
 function teSetVis(v){
   _teVis=(v==="private")?"private":"public";
   document.querySelectorAll('#teUserVis button').forEach(b=>b.classList.toggle('on',b.dataset.vis===_teVis));
 }
-function teModeChanged(){
-  const mode=document.getElementById('teMode').value;
-  document.getElementById('teTriggerRow').style.display=(mode==="trigger"||mode==="both")?"block":"none";
+function teMethodChanged(){
+  const m=document.getElementById('teMethod').value;
+  document.getElementById('teLlmRow').style.display=(m==="llm")?"block":"none";
+  document.getElementById('teTriggerRow').style.display=(m==="trigger_then_day")?"block":"none";
+  document.getElementById('teEnddayRow').style.display=(m==="endday"||m==="trigger_then_day")?"block":"none";
+  const hints={
+    llm:"The AI reads each turn and nudges the value based on what you describe below.",
+    endday:"No AI — the value simply changes by a fixed amount when you press End Day.",
+    trigger_then_day:"The AI watches for a specific event; when it happens the value jumps, then it counts up automatically each End Day (e.g. pregnancy)."
+  };
+  const h=document.getElementById('teMethodHint'); if(h)h.textContent=hints[m]||"";
 }
 function _teRenderStages(){
   const el=document.getElementById('teStagesList'); if(!el)return; el.innerHTML="";
@@ -5911,19 +5971,26 @@ function editTracker(i){
   _teStages=Array.isArray(t.stages)?JSON.parse(JSON.stringify(t.stages)):[];
   _teVis=(t.userVisibility||"public");
   const g=(id,v)=>{const e=document.getElementById(id); if(e)e.value=(v==null?"":v);};
-  document.getElementById('teOwner').innerHTML=_teOwnerOptions();
   g('teName',t.name); g('teDesc',t.desc);
-  document.getElementById('teOwner').value=t.owner||"__story__";
   g('teStart',t.start!=null?t.start:0); g('teMin',t.min!=null?t.min:0); g('teMax',t.max!=null?t.max:100);
   g('teBehavior',t.behavior||"free");
-  g('teMode',t.updateMode||"llm");
-  g('teTriggerPhrase',t.triggerPhrase); g('teDice',t.dice); g('teDiceHit',t.diceHit);
-  g('teOnHitSet',t.onHitSet); g('teTriggerDelta',t.triggerDelta);
+  // method (map legacy)
+  const method=trackerMethod(t);
+  g('teMethod',method);
+  g('teLlmPrompt',t.prompt);
+  g('teTriggerPhrase',t.triggerPhrase); g('teDice',t.dice); g('teDiceHit',t.diceHit); g('teOnHitSet',t.onHitSet);
   g('tePerDay',t.perDay); g('teActivateAt',t.activateAt);
-  g('tePrompt',t.prompt); g('teModel',t.model);
+  g('teModel',t.model);
   document.getElementById('teBehavior').value=t.behavior||"free";
-  document.getElementById('teMode').value=t.updateMode||"llm";
-  teSetVis(_teVis); teOwnerChanged(); teModeChanged(); _teRenderStages();
+  document.getElementById('teMethod').value=method;
+  // owner type: an existing character-owned tracker edits as a single character (pre-ticked)
+  const owner=t.owner||"__story__";
+  let ot="__story__", selChars=[];
+  if(owner==="__user__")ot="__user__";
+  else if(owner!=="__story__"){ ot="__chars__"; selChars=[owner]; }
+  teSetOwnerType(ot);
+  _teRenderCharList(selChars);
+  teSetVis(_teVis); teMethodChanged(); _teRenderStages();
   openModal('trackerEditModal');
 }
 function saveTrackerEdit(){
@@ -5931,25 +5998,54 @@ function saveTrackerEdit(){
   const t=_ueTrackers[_teIndex]; if(!t){closeModal('trackerEditModal');return;}
   const gv=id=>{const e=document.getElementById(id);return e?e.value:"";};
   const num=(id,def)=>{const v=gv(id).trim(); return v===""?def:(+v);};
-  t.name=gv('teName').trim()||t.name;
-  t.desc=gv('teDesc').trim();
-  t.owner=gv('teOwner')||"__story__";
-  t.userVisibility=_teVis;
-  t.start=num('teStart',0); t.min=num('teMin',0); t.max=num('teMax',100);
-  if(t.min>t.max){ const tmp=t.min; t.min=t.max; t.max=tmp; }
-  t.behavior=gv('teBehavior')||"free";
-  t.updateMode=gv('teMode')||"llm";
-  t.triggerPhrase=gv('teTriggerPhrase').trim();
-  t.dice=gv('teDice').trim();
-  t.diceHit=gv('teDiceHit').trim()===""?null:num('teDiceHit',null);
-  t.onHitSet=gv('teOnHitSet').trim()===""?null:num('teOnHitSet',null);
-  t.triggerDelta=gv('teTriggerDelta').trim()===""?null:num('teTriggerDelta',1);
-  t.perDay=gv('tePerDay').trim()===""?0:num('tePerDay',0);
-  t.activateAt=gv('teActivateAt').trim()===""?null:num('teActivateAt',null);
-  t.prompt=gv('tePrompt').trim();
-  t.model=gv('teModel').trim();
-  // commit stages (drop empty-text rows)
-  t.stages=_teStages.filter(s=>s&&(s.text||"").trim()!=="").map(s=>({at:+s.at||0,text:(s.text||"").trim()}));
+  // Gather the common definition from the form (everything except owner).
+  const base={
+    name:gv('teName').trim()||t.name,
+    desc:gv('teDesc').trim(),
+    userVisibility:_teVis,
+    start:num('teStart',0), min:num('teMin',0), max:num('teMax',100),
+    behavior:gv('teBehavior')||"free",
+    method:gv('teMethod')||"llm",
+    model:gv('teModel').trim(),
+    prompt:"", triggerPhrase:"", dice:"", diceHit:null, onHitSet:null, triggerDelta:null, perDay:0, activateAt:null,
+    stages:_teStages.filter(s=>s&&(s.text||"").trim()!=="").map(s=>({at:+s.at||0,text:(s.text||"").trim()}))
+  };
+  if(base.min>base.max){ const tmp=base.min; base.min=base.max; base.max=tmp; }
+  // Method-specific fields.
+  if(base.method==="llm"){
+    base.prompt=gv('teLlmPrompt').trim();
+  }else if(base.method==="endday"){
+    base.perDay=gv('tePerDay').trim()===""?0:num('tePerDay',0);
+    base.activateAt=gv('teActivateAt').trim()===""?null:num('teActivateAt',null);
+  }else if(base.method==="trigger_then_day"){
+    base.triggerPhrase=gv('teTriggerPhrase').trim();
+    base.dice=gv('teDice').trim();
+    base.diceHit=gv('teDiceHit').trim()===""?null:num('teDiceHit',null);
+    base.onHitSet=gv('teOnHitSet').trim()===""?null:num('teOnHitSet',null);
+    base.perDay=gv('tePerDay').trim()===""?0:num('tePerDay',0);
+    base.activateAt=gv('teActivateAt').trim()===""?null:num('teActivateAt',null);
+  }
+  // Keep updateMode roughly in sync for any legacy reader (not used by the new engine).
+  base.updateMode=(base.method==="trigger_then_day")?"trigger":(base.method==="endday"?"none":"llm");
+
+  // OWNER resolution.
+  if(_teOwnerType==="__chars__"){
+    const ids=Array.from(document.querySelectorAll('#teCharList .teCharChk:checked')).map(c=>c.value);
+    if(!ids.length){ toast("Pick at least one character (or choose Story / You)"); return; }
+    // Replace the editing row with ONE tracker per selected character (sharing the definition).
+    const made=ids.map((cid,k)=>Object.assign({},base,{
+      id:(k===0?t.id:("trk_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5))),
+      owner:cid,
+      stages:base.stages.map(s=>({at:s.at,text:s.text}))   // own copy per tracker
+    }));
+    _ueTrackers.splice(_teIndex,1,...made);
+    closeModal('trackerEditModal');
+    renderTrackerEditor();
+    toast(`Saved for ${made.length} character${made.length===1?"":"s"} ✓ — Save the universe to keep`);
+    return;
+  }
+  // Story or User: a single tracker.
+  Object.assign(t,base,{owner:(_teOwnerType==="__user__")?"__user__":"__story__"});
   closeModal('trackerEditModal');
   renderTrackerEditor();
   toast("Tracker saved ✓ — Save the universe to keep");
@@ -6028,19 +6124,26 @@ async function genAllSchedules(){
   if(!locs.length){ toast("Add locations first, then Save"); return; }
   const cast=state.personas.filter(p=>p.universeId===uni.id);
   if(!cast.length){ toast("No characters in this universe"); return; }
-  toast(`Generating ${cast.length} schedules…`);
+  toast(`Generating schedules for ${cast.length} character${cast.length===1?"":"s"}…`);
+  const sBtn=document.getElementById('genSchedBtn'); const sOld=sBtn?sBtn.textContent:"";
+  if(sBtn){sBtn.disabled=true;sBtn.textContent="🗓️ Generating…";}
   let done=0, failed=0, lastErr="";
   for(const p of cast){
     try{
       const sc=await generateSchedule(p,p.routine,uni);
-      if(sc){p.schedule=sc;done++;persistPersonas();}
+      if(sc){p.schedule=sc;done++;persistPersonas();
+        // if this character's editor is open, refresh its whereabouts panel live
+        if(editingPersona&&editingPersona.id===p.id)renderPeLocations(p);
+      }
       else{ failed++; lastErr="empty result"; }
     }catch(e){ failed++; lastErr=(e&&e.friendly)||"error"; }
+    if(sBtn)sBtn.textContent=`🗓️ ${done+failed}/${cast.length}…`;
     // Small gap between calls so a big cast doesn't trip OpenRouter's rate limit (which showed
     // up as "Network error" rows in the debug log when 9 fired back-to-back).
     await new Promise(r=>setTimeout(r,350));
   }
-  if(done && !failed) toast(`Schedules generated for ${done} character${done===1?"":"s"} ✓`);
+  if(sBtn){sBtn.disabled=false;sBtn.textContent=sOld;}
+  if(done && !failed) toast(`✓ Schedules generated for ${done} character${done===1?"":"s"}`);
   else if(done && failed) toast(`✓ ${done} done · ⚠️ ${failed} failed (${lastErr})`);
   else toast(`⚠️ Couldn't generate schedules — ${lastErr||"check API key & model"}`);
 }
@@ -6416,9 +6519,46 @@ function editPersona(id){
   openModal('personaModal');
 }
 function clearProfilePic(){peImageData=null;renderAvatarPreview();}
-// Per-character location ticking was removed from the editor; residence is assigned in the
-// Universe → Locations editor. Kept as a safe no-op so existing callers don't error.
-function renderPeLocations(p){ /* removed: character-card location frequenting */ }
+// Render the character's auto-generated daily whereabouts (their schedule) as a read-only,
+// human-readable panel: for each period, the locations they're most likely to be, by weight.
+function renderPeLocations(p){
+  const el=document.getElementById('peWhereabouts'); if(!el)return;
+  const uni=universeById(p&&p.universeId)||curUniverseObj();
+  const locs=(uni&&Array.isArray(uni.locations))?uni.locations:[];
+  const idToName={}; locs.forEach(l=>idToName[l.id]=l.name);
+  const sched=p&&p.schedule;
+  if(!sched||typeof sched!=="object"||!Object.keys(sched).length){
+    el.innerHTML=`<div class="desc">No whereabouts yet. ${locs.length?'Press “Generate / refresh whereabouts”, or use “Generate schedules for cast” in the Universe editor.':'Add locations to this universe first (Universe → Locations).'}</div>`;
+    return;
+  }
+  const rows=[];
+  for(const period of PERIODS){
+    const row=sched[period]; if(!row||typeof row!=="object")continue;
+    // sort locations by weight desc, show top few with their share
+    const entries=Object.keys(row).map(id=>({name:idToName[id]||"(somewhere)",w:+row[id]||0}))
+      .filter(e=>e.w>0).sort((a,b)=>b.w-a.w);
+    if(!entries.length)continue;
+    const total=entries.reduce((s,e)=>s+e.w,0)||1;
+    const top=entries.slice(0,3).map(e=>`${esc(e.name)} <span class="desc">${Math.round(e.w/total*100)}%</span>`).join(" · ");
+    rows.push(`<div class="kvline" style="padding:3px 0"><span style="min-width:78px;color:var(--muted);font-size:12px">${period}</span><span style="flex:1;text-align:right">${top}</span></div>`);
+  }
+  el.innerHTML=rows.length?rows.join(""):`<div class="desc">Schedule is empty — try regenerating.</div>`;
+}
+// Generate (or refresh) THIS character's schedule on demand from the editor, with feedback.
+async function genScheduleForCharacter(btn){
+  const p=editingPersona;
+  if(!p||!p.id){ toast("Save the character first"); return; }
+  if(!state.key){ toast("Add your API key first"); return; }
+  const uni=universeById(p.universeId);
+  if(!uni||!Array.isArray(uni.locations)||!uni.locations.length){ toast("This universe has no locations yet — add some first"); return; }
+  const old=btn?btn.textContent:""; if(btn){btn.disabled=true;btn.textContent="🗓️ Generating…";}
+  try{
+    const sc=await generateSchedule(p,p.routine,uni);
+    if(sc){ p.schedule=sc; persistPersonas(); renderPeLocations(p); toast("Whereabouts generated ✓"); }
+    else toast("⚠️ Couldn't generate — the model returned nothing usable");
+  }catch(e){ toast("🗓️ "+(e&&e.friendly||"Couldn't generate")); }
+  finally{ if(btn){btn.disabled=false;btn.textContent=old;} }
+}
 async function generateProfilePic(){
   const look=document.getElementById('peLook').value.trim();
   const name=document.getElementById('peName').value.trim();
