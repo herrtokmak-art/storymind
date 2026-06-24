@@ -518,7 +518,13 @@
           <div class="subhead">📊 Story Systems</div>
           <details class="acc"><summary>❤️ Relationship tracker prompt</summary>
             <textarea class="fld" id="setRelPrompt" style="min-height:160px"></textarea>
-            <div class="desc">Decides how feelings shift each turn. Returns JSON deltas.</div></details>
+            <div class="desc">Long-term (slow axes): re-judges feelings at End Day from the day's memories. Returns JSON deltas.</div></details>
+          <details class="acc"><summary>⚡ Short-term feelings prompt (fast axes)</summary>
+            <textarea class="fld" id="setRelShortPrompt" style="min-height:160px"></textarea>
+            <div class="desc">Momentary feelings, scored every few exchanges. Returns JSON deltas for desire/comfort/fear/agitation.</div></details>
+          <details class="acc"><summary>🕸️ Relationship generator prompt</summary>
+            <textarea class="fld" id="setRelGenPrompt" style="min-height:160px"></textarea>
+            <div class="desc">Builds each character's factual relationship sheet (tie + prose) toward everyone. Returns JSON. Use {{char}} and {{user}}.</div></details>
           <details class="acc"><summary>📊 Freeform tracker prompt</summary>
             <textarea class="fld" id="setTrackPrompt" style="min-height:160px"></textarea>
             <div class="desc">Judges soft deltas and detects trigger phrases. Dice/day-counting handled by the app.</div></details>
@@ -3239,6 +3245,7 @@ function loadState(){
     sceneMax:+store.raw(K.sceneMax,8),
     daySummaryPrompt:store.raw(K.daySummaryPrompt,DEFAULT_DAY_SUMMARY),
     relGenPrompt:store.raw(K.relGenPrompt,DEFAULT_RELGEN),
+    relShortPrompt:store.raw(K.relShortPrompt,DEFAULT_REL_SHORT),
     baseInstruction:store.raw(K.baseInstruction,DEFAULT_BASE_INSTRUCTION),
     formatRules:store.raw(K.formatRules,DEFAULT_FORMAT_RULES),
     presencePrompt:store.raw(K.presencePrompt,DEFAULT_PRESENCE_TRACKER),
@@ -9944,7 +9951,7 @@ const GLOBAL_PROMPT_TEXTAREAS={
   setBaseInstruction:"baseInstruction", setFormatRules:"formatRules",
   setRewritePrompt:"rewritePrompt", setVidPrompt:"vidPrompt", setRouterPrompt:"routerPrompt",
   setMemBuild:"memBuild", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
-  setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setRelPrompt:"relPrompt", setTrackPrompt:"trackPrompt",
+  setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setRelPrompt:"relPrompt", setRelShortPrompt:"relShortPrompt", setRelGenPrompt:"relGenPrompt", setTrackPrompt:"trackPrompt",
   setVoiceCheckPrompt:"voiceCheckPrompt", setTravelPrompt:"travelPrompt", setCalPrompt:"calPrompt",
   setGmJudge:"gmJudge", setGmAuthor:"gmAuthor", setDaySummary:"daySummaryPrompt",
   setSceneSetup:"sceneSetup", setSceneWriter:"sceneWriter",
@@ -10053,6 +10060,8 @@ function syncSettingsUI(){
   {const h=document.getElementById('setHistTurns'); if(h)h.value=state.histTurns;}
   document.getElementById('setRelOn').checked=state.relOn;
   document.getElementById('setRelPrompt').value=state.relPrompt;
+  {const e=document.getElementById('setRelShortPrompt'); if(e)e.value=state.relShortPrompt||DEFAULT_REL_SHORT;}
+  {const e=document.getElementById('setRelGenPrompt'); if(e)e.value=state.relGenPrompt||DEFAULT_RELGEN;}
   document.getElementById('setTrackOn').checked=state.trackOn;
   document.getElementById('setTrackPrompt').value=state.trackPrompt;
   document.getElementById('setVoiceCheckOn').checked=state.voiceCheckOn;
@@ -10138,6 +10147,8 @@ function saveSettings(notify){
   {const h=document.getElementById('setHistTurns'); if(h)state.histTurns=Math.max(2,Math.min(200,+h.value||20));}
   state.relOn=document.getElementById('setRelOn').checked;
   state.relPrompt=document.getElementById('setRelPrompt').value.trim()||DEFAULT_REL;
+  {const e=document.getElementById('setRelShortPrompt'); if(e)state.relShortPrompt=e.value.trim()||DEFAULT_REL_SHORT;}
+  {const e=document.getElementById('setRelGenPrompt'); if(e)state.relGenPrompt=e.value.trim()||DEFAULT_RELGEN;}
   state.trackOn=document.getElementById('setTrackOn').checked;
   state.trackPrompt=document.getElementById('setTrackPrompt').value.trim()||DEFAULT_TRACK;
   state.voiceCheckOn=document.getElementById('setVoiceCheckOn').checked;
@@ -10168,7 +10179,7 @@ function saveSettings(notify){
   store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);
   store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.setRaw(K.univPrompt,state.univPrompt);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
   store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);store.setRaw(K.histTurns,state.histTurns);
-  store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
+  store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.setRaw(K.relShortPrompt,state.relShortPrompt);store.setRaw(K.relGenPrompt,state.relGenPrompt);store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
   store.setRaw(K.locModel,state.locModel);store.setRaw(K.travelTime,state.travelTime);store.setRaw(K.travelPrompt,state.travelPrompt);store.set(K.calOn,state.calOn);store.setRaw(K.calPrompt,state.calPrompt);
   store.set(K.gmOn,state.gmOn);store.setRaw(K.gmEvery,state.gmEvery);store.setRaw(K.gmSensitivity,state.gmSensitivity);store.setRaw(K.gmModel,state.gmModel);
   store.setRaw(K.gmJudge,state.gmJudge);store.setRaw(K.gmAuthor,state.gmAuthor);store.setRaw(K.daySummaryPrompt,state.daySummaryPrompt);
