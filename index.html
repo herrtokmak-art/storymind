@@ -2757,19 +2757,19 @@ Respond ONLY with strict JSON:
 // (and the player): kinship/role ties, forms of address & pet names, cohabitation, and initial
 // standing feelings. This is the "who is who to me" map that drives roleplay behaviour. It is
 // distinct from the per-axis numeric tracker: this is durable social fact, not momentary feeling.
-const DEFAULT_RELGEN=`You define {{char}}'s RELATIONSHIPS — who every other person in this world is TO them, as durable social fact, derived from the world setting and everyone's character cards.
+const DEFAULT_RELGEN=`You define {{char}}'s RELATIONSHIPS — who every other person in this world is TO them, as durable social fact, derived from the world setting and everyone's character cards. This becomes the FOUNDATION of how {{char}} treats each person in the roleplay.
 
-For EACH other character (and for {{user}}, the player), determine:
-- TIE: the concrete relationship — father, mother, sibling, spouse, child, cousin, friend, best friend, rival, enemy, ally, boss, subordinate, mentor, ex, stranger, etc. Use what the cards and world setting imply. If the cards give no basis for a tie, say so honestly (e.g. "an acquaintance from the same circle" or "a stranger").
-- ADDRESS: how {{char}} addresses them and how they address {{char}} back — names, titles, nicknames, pet names, or terms of respect/contempt. Note any asymmetry.
-- LIVING: whether they live together and where (use ONLY the provided locations). Omit if they don't.
-- STANDING: {{char}}'s initial feeling/stance toward them given who both are (warmth, wariness, loyalty, resentment, attraction, duty, indifference…). Keep it to the baseline their history would produce, not a momentary mood.
+For EACH other character (and for {{user}}, the player), produce two things:
+- "tie": the concrete relationship in a few words — e.g. wife, husband, father, mother, daughter, son, sibling, cousin, best friend, friend, rival, enemy, ally, boss, employee, mentor, ex, neighbour, stranger, acquaintance. If the cards give no basis for a tie, say so honestly ("stranger", "acquaintance from the same circle").
+- "relationship": a short, vivid PROSE description from {{char}}'s point of view of who this person is to them and how they relate. Decide what's worth including — it may cover how they address each other (names, titles, nicknames, pet names), whether and where they live together (use ONLY the provided locations), shared history, and {{char}}'s baseline feeling/stance (warmth, wariness, loyalty, resentment, attraction, duty, indifference). Keep it to the settled baseline their history would produce, not a momentary mood. Be specific and grounded; never contradict the world setting.
 
-SPECIAL CASE — {{user}}: If nothing in the cards or setting establishes that {{char}} already knows {{user}}, state plainly that {{char}} does NOT know them yet — they are a stranger, with no prior tie, address, or feeling. Do not invent a bond.
+SPECIAL CASE — {{user}}: If nothing in the cards or setting establishes that {{char}} already knows {{user}}, set "tie" to "stranger" and say plainly in "relationship" that {{char}} does NOT know them yet — no prior history, no bond. Do not invent a relationship.
 
-If you are given EXISTING long-term opinions, treat them as the current truth and let them update the standing feelings (a bond that has soured, a stranger now known). On a first generation there will be none — work from the cards alone.
+If you are given EXISTING relationships/opinions, treat them as the current truth and let them refine the descriptions (a bond that has soured, a stranger now known). On a first generation there will be none — work from the cards alone.
 
-Write from {{char}}'s point of view, in their frame. Be specific and grounded; never contradict the world setting. Output a concise but complete sheet, one short paragraph or line per person, plain text (no JSON, no numbered axes). This text will be shown to {{char}} during roleplay as their map of the people around them.`;
+Return ONLY strict JSON, no commentary, mapping each person's EXACT name to their entry:
+{"Character Name":{"tie":"...","relationship":"..."}, "{{user}}":{"tie":"stranger","relationship":"..."}}
+Use the exact names provided. No other keys.`;
 
 /* ===== MULTI-CHARACTER TURN ROUTING (SkyrimAI-style) ===== */
 // ROUTER 1 — fires after the PLAYER speaks. Decides who the player addressed and who replies.
@@ -4427,6 +4427,17 @@ function directorContext(chat){
   if(state.userBio&&state.userBio.trim()||state.userLook&&state.userLook.trim()) parts.push(pl);
   const bg=castBackstorySheet(chat);
   if(bg)parts.push(`CHARACTER BACKGROUNDS (ground events in who these characters are):\n${bg}`);
+  // RELATIONSHIPS across the whole roster — so the director knows the existing web of ties and
+  // doesn't invent new people when an established character fits.
+  try{
+    const roster=(state.personas||[]).filter(p=>p.universeId===chat.universeId);
+    const relLines=[];
+    roster.forEach(p=>{
+      const sheet=relSheetBlock(p);
+      if(sheet)relLines.push(`${p.name}:\n${sheet.split("\n").map(l=>"  "+l.replace(/^- /,"")).join("\n")}`);
+    });
+    if(relLines.length)parts.push(`RELATIONSHIPS IN THIS WORLD (who people are to each other — prefer using these established characters):\n${relLines.join("\n")}`);
+  }catch(e){}
   const ij=castInterjectSheet(chat);
   if(ij)parts.push(`CHARACTER PRESSURE POINTS (use these to craft events that hit home):\n${ij}`);
   return parts.join("\n\n");
@@ -5373,10 +5384,17 @@ async function runShortTermRel(chat){
     if(!participated(fromP))continue;
     // Toward the player (the common case). Character→character short-term is left to the daily pass.
     const o=relObj(chat,fromP.id,"__user__");
+    // FOUNDATION — who the player is to this character (from the generated relationship sheet), so
+    // the fast read is grounded in the real bond rather than treating them as a stranger.
+    const foundation=relSheetEntry(fromP,"__user__");
+    const foundLine=foundation
+      ? `\nWho ${state.user} is to ${fromP.name} (their established relationship — read the moment through THIS): ${foundation.tie?foundation.tie+" — ":""}${foundation.relationship||""}`
+      : "";
     const curLine=`Character: ${fromP.name}. Current short-term feelings toward ${state.user}: `+
       REL_FAST.map(k=>`${k} ${o.st[k]||0}`).join(", ")+
       `\nStanding long-term sentiment (context only — do NOT score these): `+
-      REL_SLOW.map(k=>`${k} ${o[k]||0}`).join(", ");
+      REL_SLOW.map(k=>`${k} ${o[k]||0}`).join(", ")+
+      foundLine;
     try{
       const msgs=[{role:"system",content:sys}];
       exchange.forEach(m=>msgs.push(m));
@@ -5463,6 +5481,12 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs,dayMems,day)
   };
   let relevant=mems.filter(mentionsTarget);
   if(!relevant.length) relevant=mems.slice(-6); // fall back to recent context
+  // FOUNDATION — the established relationship sheet entry toward the target. The long view evolves
+  // FROM this baseline (a daughter, a rival, a stranger) rather than judging in a vacuum.
+  const found=relSheetEntry(fromP,toId);
+  const foundBlock=found
+    ? `FOUNDATION — who ${tName} already is to ${fromP.name} (their established relationship; your judgment should EVOLVE this baseline, not ignore it): ${found.tie?found.tie+" — ":""}${found.relationship||""}\n\n`
+    : "";
   const memBlock=relevant.length
     ? `MEMORIES ${fromP.name} FORMED TODAY (their own first-person record — reason about how these shape the way they now see ${tName}):\n`+
       relevant.map(m=>`- ${memText(m)}${m.emotion?` (felt: ${m.emotion})`:""}`).join("\n")
@@ -5480,7 +5504,7 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs,dayMems,day)
     REL_SLOW.map(k=>{const d=REL_DIMS.find(x=>x.key===k);return `- ${k}: ${o[k]||0}`;}).join("\n")+
     (o.desc?`\nCurrent description: ${o.desc}`:"");
 
-  const userMsg=`${bioBlock}${memBlock}${fastBlock}\n\n${curLine}\n\n`+
+  const userMsg=`${bioBlock}${foundBlock}${memBlock}${fastBlock}\n\n${curLine}\n\n`+
     `Judge the LASTING relationship as a whole, reasoning from the MEMORIES above (the facts ${fromP.name} would actually carry forward), filtered through who ${fromP.name} is. Weigh all axes HOLISTICALLY (they constrain each other; familiarity gates how deep trust/affection/respect can go). The fleeting feelings are LOW WEIGHT — let them tint, not decide. Output a SINGLE, measured per-axis delta reflecting the whole day (not an overreaction to any one event) and a fresh 1-2 sentence description of how ${fromP.name} feels about ${tName} now. ALSO: if today established a DURABLE relational FACT about ${tName} that ${fromP.name} would treat as known (a kinship/role/history tie — e.g. "${tName} is X's brother", "${tName} is my new boss", "${tName} betrayed Y"), include it as "social_fact" (one short sentence from ${fromP.name}'s point of view). Omit social_fact if nothing durable was revealed — do NOT restate feelings there.`;
 
   const out=await chatCompletion([
@@ -5494,7 +5518,19 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs,dayMems,day)
   // re-evaluation can target only the bonds that actually shifted (the dayOpinions log is cleared
   // just below, so we can't rely on it afterward).
   o.movedDay = movedSlow ? (day||chat.gameDay||0) : (o.movedDay||0);
-  if(typeof j.description==="string"&&j.description.trim())o.desc=j.description.trim();
+  if(typeof j.description==="string"&&j.description.trim()){
+    o.desc=j.description.trim();
+    // EVOLVE THE SHEET — write the fresh description back into the persona's structured
+    // relationship entry, so the foundation stays current and feeds the next roleplay payload.
+    const persona=state.personas.find(p=>p.id===fromP.id);
+    if(persona){
+      if(!persona.relationships||typeof persona.relationships!=="object")persona.relationships={};
+      const prev=persona.relationships[toId]||{};
+      // keep the tie unless the eval surfaced a new durable fact (handled via social_fact below)
+      persona.relationships[toId]={ tie:(prev.tie||"").trim(), relationship:o.desc };
+      persistPersonas();
+    }
+  }
   // The day's fast opinions have now been folded into the lasting view — clear them for the
   // next day (they are stored in the per-day history below for the diary/visualisation).
   o.dayOpinions=[];
@@ -6765,10 +6801,65 @@ async function generateRelationshipsFor(persona,forUniverse){
   }catch(e){ return null; }
   const text=(out||"").trim();
   if(!text)return null;
+  // Parse the JSON sheet → store keyed by target ID (resolve names → ids; player → __user__).
+  const j=parseJSON(text);
+  if(j && typeof j==="object" && !Array.isArray(j)){
+    const nameToId={}; cast.forEach(p=>nameToId[(p.name||"").toLowerCase().trim()]=p.id);
+    const rels={};
+    for(const key in j){
+      const entry=j[key]; if(!entry||typeof entry!=="object")continue;
+      const k=(key||"").toLowerCase().trim();
+      let id=null;
+      if(k===(state.user||"").toLowerCase().trim()||k==="player"||k==="user"||k==="{{user}}")id="__user__";
+      else id=nameToId[k]||null;
+      if(!id||id===persona.id)continue;   // skip unknown names and self
+      rels[id]={ tie:String(entry.tie||"").trim(), relationship:String(entry.relationship||entry.desc||"").trim() };
+    }
+    if(Object.keys(rels).length){
+      persona.relationships=rels;                 // structured (JSON) — the new source of truth
+      persona.relationshipsGen=text;              // keep raw for reference / fallback display
+      persona.relationshipsGenAt=Date.now();
+      persistPersonas();
+      return text;
+    }
+  }
+  // Fallback: model didn't return clean JSON — keep the prose so nothing is lost.
   persona.relationshipsGen=text;
   persona.relationshipsGenAt=Date.now();
   persistPersonas();
   return text;
+}
+// Read one character's relationship entry toward a target id, from the structured JSON if present,
+// else null. {tie, relationship} or null.
+function relSheetEntry(persona,targetId){
+  if(!persona||!persona.relationships||typeof persona.relationships!=="object")return null;
+  const e=persona.relationships[targetId];
+  if(!e)return null;
+  const tie=(e.tie||"").trim(), rel=(e.relationship||"").trim();
+  if(!tie&&!rel)return null;
+  return {tie,relationship:rel};
+}
+// Render a character's full relationship sheet (JSON) as a readable block for the roleplay payload.
+function relSheetBlock(persona){
+  if(!persona)return "";
+  const rels=persona.relationships;
+  if(rels&&typeof rels==="object"&&Object.keys(rels).length){
+    const lines=[];
+    // player first, then others by name
+    const order=Object.keys(rels).sort((a,b)=>{ if(a==="__user__")return -1; if(b==="__user__")return 1;
+      return (ownerLabel(a)||"").localeCompare(ownerLabel(b)||""); });
+    for(const id of order){
+      const e=rels[id]; if(!e)continue;
+      const who=(id==="__user__")?state.user:ownerLabel(id);
+      const tie=(e.tie||"").trim(), rel=(e.relationship||"").trim();
+      if(!tie&&!rel)continue;
+      lines.push(`- ${who}${tie?` (${tie})`:""}: ${rel||tie}`);
+    }
+    if(lines.length)return lines.join("\n");
+  }
+  // fallback to legacy prose blob
+  const prose=(persona.relationshipsGen||"").trim();
+  return prose;
 }
 
 // Manual trigger from the character editor. Generates (or re-generates) this character's sheet.
@@ -6991,6 +7082,7 @@ function savePersona(){
     // Generated relationship sheet (editable in the character page). Preserve/read-back.
     relationshipsGen:(document.getElementById('peRelGen')?document.getElementById('peRelGen').value.trim():((editingPersona&&editingPersona.relationshipsGen)||"")),
     relationshipsGenAt:(editingPersona&&editingPersona.relationshipsGenAt)||null,
+    relationships:(editingPersona&&editingPersona.relationships)||undefined,
     routine:(editingPersona&&editingPersona.routine)||_peRoutine||"",
     // Location frequenting was removed from the character editor (residence is set in the
     // Universe → Locations editor instead). Preserve any existing value rather than wiping it.
@@ -7092,6 +7184,8 @@ function buildSystemPrompt(injectedMemories){
       if(c.style)cb+=`\nSpeaking style: ${c.style}`;
       if(c.look)cb+=`\nAppearance: ${c.look}`;
       const loc=charLocationLine(c);if(loc)cb+=`\n${loc}`;
+      const sheet=relSheetBlock(c);
+      if(sheet)cb+=`\nRelationships (who people are to ${c.name}):\n${sheet}`;
       blocks.push(cb);
     });
     const scen=cast.map(c=>c.scenario).filter(Boolean)[0];
@@ -7106,6 +7200,9 @@ function buildSystemPrompt(injectedMemories){
       if(p.style)rb+=`\nSpeaking style: ${p.style}`;
       const loc=charLocationLine(p);if(loc)rb+=`\n${loc}`;
       blocks.push(rb);
+      // RELATIONSHIPS — right after the bio: who everyone in this world is to them (the foundation).
+      {const sheet=relSheetBlock(p);
+       if(sheet)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these people are to you)\nThis is your map of the people in your world — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${sheet}`);}
       if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
     }
   }
@@ -7183,12 +7280,13 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   {const loc=charLocationLine(p,chat);if(loc)rb+=`\n${loc}`;}
   blocks.push(rb);
 
-  // SOCIAL GRAPH — who the people in this world are TO this character (kinship, hierarchy,
-  // rivalry, jealousy, allegiances). Author text (wins) + the generated relationship sheet +
-  // any LLM-discovered ties, combined.
-  {const sgA=(p.socialGraph||"").trim(), sgGen=(p.relationshipsGen||"").trim(), sgB=(p.socialGraphAuto||"").trim();
-   const sg=[sgA,sgGen,sgB].filter(Boolean).join("\n\n");
-   if(sg)blocks.push(`# YOUR RELATIONSHIPS (who these people are to you)\nThis is your map of the people in your world — act on these ties. Let kinship, rank, debts, rivalries, jealousy, and loyalties shape how you treat each person:\n${sg}`);}
+  // RELATIONSHIPS — right after the bio: the structured sheet (JSON) of who everyone is to this
+  // character, plus any author-written notes (which win). This is the foundation for their behaviour.
+  {const sheet=relSheetBlock(p);
+   const author=(p.socialGraph||"").trim();
+   const discovered=(p.socialGraphAuto||"").trim();
+   const combined=[sheet,author,discovered].filter(Boolean).join("\n\n");
+   if(combined)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these people are to you)\nThis is your map of the people in your world — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${combined}`);}
 
   if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
 
@@ -8985,7 +9083,7 @@ async function maybeGamemaster(chat,force){
     const fallbackName=(present[0]&&present[0].name)||(cast[0]&&cast[0].name)||"Narrator";
     const ctx=directorContext(chat);
     const since=chat.messages.filter(m=>m.role!=='system'&&!m.sysError)
-      .slice(-Math.max(6,(state.gmEvery||8))).map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
+      .slice(-4).map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
     // STAGE 1 — judge (skipped when manually forced; the user explicitly wants an event)
     var triggerContext="", energy="";
     if(!force){
@@ -9151,7 +9249,7 @@ async function runSceneWriter(chat){
     const sys=fillTpl(up("sceneWriter"),{user:state.user,summary:ev.summary,turn:ev.turn,min:ev.minTurns,max:ev.maxTurns});
     const swMsgs=[{role:"system",content:sys+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(forceBringIn&&ev.participant?`\n\n${state.user} just addressed ${ev.participant.name} directly. You MUST set "bring_in":"${ev.participant.name}" this turn.`:``)}];
     if(ctx)swMsgs.push({role:"user",name:"context",content:ctx});
-    recentExchangeMsgs(chat,8).forEach(m=>swMsgs.push(m));
+    recentExchangeMsgs(chat,4).forEach(m=>swMsgs.push(m));
     swMsgs.push({role:"user",content:`${partInfo}${lastUserText?`\n${state.user}'s latest line: "${lastUserText}"`:``}\n\nBased on the exchange above, advance the event now. Return the JSON.`});
     const out=await chatCompletion(swMsgs,state.gmModel,{temp:fnTemp("gm",0.7),max:fnTok("gm",200),dbg:"Scene writer: advance"});
     // Parse the structured reply (may be {} if the model didn't return clean JSON).
