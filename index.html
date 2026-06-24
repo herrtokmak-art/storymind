@@ -185,6 +185,34 @@
   #onboard.show{display:flex;}
   #onboard h1{font-size:30px;margin:0;}
   #onboard .tag{color:var(--muted);margin-top:-6px;}
+  /* ---- Diaries: book shelf + handwritten pages ---- */
+  .bookGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  @media(min-width:560px){.bookGrid{grid-template-columns:repeat(3,1fr);}}
+  .bookCard{position:relative;cursor:pointer;aspect-ratio:3/4;border-radius:6px 10px 10px 6px;overflow:hidden;
+    background:linear-gradient(120deg,#6d3b2e,#854b38 60%,#6d3b2e);border:1px solid rgba(0,0,0,.4);
+    box-shadow:0 4px 14px rgba(0,0,0,.35), inset 8px 0 0 rgba(0,0,0,.22), inset 14px 0 0 rgba(255,255,255,.05);
+    display:flex;flex-direction:column;justify-content:flex-end;transition:transform .12s ease;}
+  .bookCard:active{transform:scale(.97);}
+  .bookCard .bk-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.9;}
+  .bookCard .bk-spine{position:absolute;top:0;bottom:0;left:0;width:13px;background:rgba(0,0,0,.28);z-index:2;}
+  .bookCard .bk-grad{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.8),rgba(0,0,0,.25) 50%,rgba(0,0,0,.1));z-index:2;}
+  .bookCard .bk-info{position:relative;z-index:3;padding:11px 12px 13px 18px;}
+  .bookCard .bk-name{color:#fdf3e3;font-weight:700;font-size:15px;line-height:1.2;text-shadow:0 1px 3px rgba(0,0,0,.7);}
+  .bookCard .bk-sub{color:rgba(253,243,227,.82);font-size:11px;margin-top:3px;text-shadow:0 1px 2px rgba(0,0,0,.7);}
+  .bookCard .bk-emoji{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:54px;opacity:.55;z-index:1;}
+  /* reader */
+  .diaryReader{max-width:600px;width:100%;max-height:92%;overflow-y:auto;background:none;border:none;padding:0;}
+  .diaryDayTabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;justify-content:center;}
+  .diaryDayTab{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:16px;padding:5px 12px;font-size:12px;cursor:pointer;}
+  .diaryDayTab.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .paperPage{position:relative;background:#f6ecd6;color:#3a2f23;border-radius:6px;padding:26px 24px 30px;
+    box-shadow:0 6px 22px rgba(0,0,0,.4);
+    background-image:repeating-linear-gradient(transparent,transparent 27px,rgba(120,90,60,.18) 28px);
+    line-height:28px;}
+  .paperPage::before{content:"";position:absolute;top:0;bottom:0;left:34px;width:2px;background:rgba(190,80,70,.35);}
+  .paperPage .pp-date{font-weight:700;font-size:13px;color:#7a5b3a;margin-bottom:8px;padding-left:14px;letter-spacing:.5px;}
+  .paperPage .pp-body{font-family:'Segoe Print','Bradley Hand','Comic Sans MS',cursive;font-size:17px;color:#33291d;padding-left:14px;white-space:pre-wrap;}
+  .paperPage .pp-meta{margin-top:14px;padding-left:14px;font-size:11px;color:#8a6c4a;font-style:italic;}
 </style>
 </head>
 <body data-theme="dark">
@@ -307,6 +335,12 @@
 <div class="screen" id="screen-memory">
   <header><div>Story Memory</div><div style="display:flex;gap:6px"><button class="btn sec small" onclick="condenseAllNow()">🗜️ Condense</button><button class="btn sec small" onclick="addMemoryManual()">＋ Add</button></div></header>
   <div class="pad" id="memoryList"></div>
+</div>
+
+<!-- ===== DIARIES ===== -->
+<div class="screen" id="screen-diary">
+  <header><div id="diaryHeaderTitle">Diaries</div><div id="diaryHeaderActions"></div></header>
+  <div class="pad" id="diaryList"></div>
 </div>
 
 <!-- ===== SETTINGS ===== -->
@@ -750,7 +784,7 @@
     <div><label>Your appearance (this universe)</label><textarea class="fld" id="ueUserLook" placeholder="tall, late 20s, short dark hair, worn leather jacket…" style="min-height:56px"></textarea></div>
     <div><label>Your background (this universe)</label><textarea class="fld" id="ueUserBio" placeholder="who you are here: history, role, ties to this world — used by the Gamemaster & Scene Writer" style="min-height:72px"></textarea></div>
     <div class="subhead" style="margin-top:10px">📊 Trackers</div>
-    <div class="desc">Named values the story tracks (love, trust, pregnancy…). Define them here per universe; each new chat starts fresh. The AI nudges them as the scene unfolds; stage text is fed back into the story.</div>
+    <div class="desc">Named numeric values the story tracks (suspicion, intoxication, a power budget, pregnancy…). Each can belong to the whole story, a single character (private to them), or you the player (public or private). Each tracker has its own behaviour, its own AI prompt &amp; model, and breaking points. Values start fresh in each chat.</div>
     <div id="ueTrackerList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn sec small" type="button" onclick="addTracker()">＋ New tracker</button>
@@ -853,6 +887,89 @@
   </div>
 </div>
 
+<!-- ===== TRACKER EDITOR (modern) ===== -->
+<div class="modal" id="trackerEditModal">
+  <button class="x" onclick="closeModal('trackerEditModal')">×</button>
+  <div class="card editCard">
+    <h3>📊 Tracker</h3>
+    <div><label>Name</label><input type="text" class="fld" id="teName" placeholder="e.g. Suspicion, Power uses, Pregnancy"></div>
+    <div><label>What it tracks <span class="desc" style="display:inline">(shown to its AI — be specific)</span></label>
+      <textarea class="fld" id="teDesc" placeholder="e.g. How close the police are to catching the player. Rises when they leave evidence or are seen; falls when they cover their tracks." style="min-height:64px"></textarea></div>
+
+    <div><label>Belongs to</label>
+      <select class="fld" id="teOwner" onchange="teOwnerChanged()"></select>
+      <div class="desc">Story = one shared value everyone sees. A character = private to them (their own value). You = the player; choose public or private below.</div></div>
+    <div id="teUserVisRow" style="display:none"><label>Player tracker visibility</label>
+      <div class="seg" id="teUserVis" style="display:flex;gap:6px;margin-top:4px">
+        <button type="button" data-vis="public" onclick="teSetVis('public')">👁️ Public (characters see it)</button>
+        <button type="button" data-vis="private" onclick="teSetVis('private')">🔒 Private (only you)</button>
+      </div></div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px"><label>Start</label><input type="number" class="fld" id="teStart" value="0"></div>
+      <div style="flex:1;min-width:120px"><label>Min</label><input type="number" class="fld" id="teMin" value="0"></div>
+      <div style="flex:1;min-width:120px"><label>Max</label><input type="number" class="fld" id="teMax" value="100"></div>
+    </div>
+
+    <div><label>How it changes</label>
+      <select class="fld" id="teBehavior">
+        <option value="free">↕️ Free — can go up or down</option>
+        <option value="up">⬆️ Increase only</option>
+        <option value="down">⬇️ Decrease only</option>
+        <option value="counter">🔢 Counter / accumulate (up only)</option>
+      </select></div>
+
+    <details class="sgroup" style="margin-top:8px">
+      <summary><span class="sg-ico">⚙️</span><span class="sg-meta">How it updates<div class="sg-sub">AI judgement, an event trigger, or both · dice · per-day</div></span><span class="sg-chev">▶</span></summary>
+      <div class="sgbody"><div class="card">
+        <div><label>Update mode</label>
+          <select class="fld" id="teMode" onchange="teModeChanged()">
+            <option value="llm">🤖 AI judges from the scene</option>
+            <option value="trigger">⚡ Fires on a specific event</option>
+            <option value="both">🤖+⚡ Both</option>
+          </select></div>
+        <div id="teTriggerRow" style="display:none">
+          <div><label>Trigger phrase <span class="desc" style="display:inline">(plain English the AI watches for)</span></label>
+            <input type="text" class="fld" id="teTriggerPhrase" placeholder="e.g. the player is seen committing a crime"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:120px"><label>Dice (optional)</label><input type="text" class="fld" id="teDice" placeholder="e.g. 1d3"></div>
+            <div style="flex:1;min-width:120px"><label>Counts as hit</label><input type="number" class="fld" id="teDiceHit" placeholder="3"></div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:120px"><label>On hit, set to</label><input type="number" class="fld" id="teOnHitSet" placeholder="1"></div>
+            <div style="flex:1;min-width:120px"><label>Else change by</label><input type="number" class="fld" id="teTriggerDelta" placeholder="1"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:120px"><label>Per-day change</label><input type="number" class="fld" id="tePerDay" placeholder="0 = none"></div>
+          <div style="flex:1;min-width:120px"><label>Start counting at</label><input type="number" class="fld" id="teActivateAt" placeholder="blank = now"></div>
+        </div>
+        <div class="desc">Per-day change ticks at End Day (e.g. +1 to count pregnancy days). "Start counting at" delays that until the value reaches a threshold.</div>
+      </div></div>
+    </details>
+
+    <details class="sgroup" style="margin-top:8px">
+      <summary><span class="sg-ico">🧠</span><span class="sg-meta">Its own AI<div class="sg-sub">A dedicated prompt &amp; model for this tracker (optional)</div></span><span class="sg-chev">▶</span></summary>
+      <div class="sgbody"><div class="card">
+        <div><label>Prompt <span class="desc" style="display:inline">(leave blank to use the global tracker prompt)</span></label>
+          <textarea class="fld" id="tePrompt" placeholder="Instructions for the AI that updates THIS tracker. It receives the recent scene and must return JSON {&quot;delta&quot;:number,&quot;triggered&quot;:bool}." style="min-height:90px"></textarea></div>
+        <div><label>Model <span class="desc" style="display:inline">(blank = your memory/utility model)</span></label>
+          <input type="text" class="fld" id="teModel" list="modelList" placeholder="(default)"></div>
+      </div></div>
+    </details>
+
+    <div style="margin-top:8px"><label>📍 Breaking points <span class="desc" style="display:inline">(threshold → text injected into the payload when reached)</span></label>
+      <div id="teStagesList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
+      <button class="btn sec small" type="button" onclick="teAddStage()">＋ Add breaking point</button>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button class="btn sec" onclick="closeModal('trackerEditModal')">Cancel</button>
+      <button class="btn" onclick="saveTrackerEdit()">Save tracker</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== SET TIME / PLACE (modern) ===== -->
 <div class="modal" id="sceneStateModal">
   <button class="x" onclick="closeModal('sceneStateModal')">×</button>
@@ -931,6 +1048,14 @@
     <div><label>🕸️ Relationships / social graph</label><textarea class="fld" id="peSocialGraph" placeholder="Who is who to this character: kinship, who's their boss/subordinate, rivals, enemies, allies, exes, who they're jealous of or protective over. e.g. 'Mara is my younger sister. I answer to Captain Vale and resent it. I distrust Idris — he courted Mara. Fiercely protective of Mara.'" style="min-height:72px"></textarea>
       <div class="desc">This character's map of their world — fed into their payload so they act on real ties (kinship, hierarchy, rivalry, jealousy). Your text is never overwritten; the engines may <i>append</i> things discovered in play below.</div>
       <div id="peSocialAuto" class="desc" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;font-style:italic"></div></div>
+    <div id="peRelGenWrap">
+      <label>🧬 Generated relationships <span class="desc" style="font-weight:400">— factual ties to everyone (kinship, how they address each other, who they live with, standing)</span></label>
+      <div class="row" style="margin:4px 0">
+        <button class="btn sec small" type="button" id="peRelGenBtn" onclick="genRelationshipsForCharacter((editingPersona&&editingPersona.id),this)">🕸️ Generate relationships</button>
+      </div>
+      <textarea class="fld" id="peRelGen" placeholder="Press “Generate relationships” to have this character work out who everyone in the universe is to them — father, ally, rival, stranger — how they address each other, pet names, who lives where, and their initial feelings. You can edit the result. It feeds into roleplay alongside your social-graph notes (your hand-written notes take priority). Re-runs automatically at End Day for bonds that shifted." style="min-height:90px"></textarea>
+      <div class="desc">Distinct from the numeric feeling tracker — this is durable social <i>fact</i>. First run uses only the character cards; later runs fold in how the long-term opinions have changed.</div>
+    </div>
     <div class="desc" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px">📍 <b>Where they live:</b> assign this character as a <b>resident</b> of a place in the <b>Universe → Locations</b> editor. They'll be found there (and nowhere else) unless you bring them into a scene manually.</div>
     <div class="row">
       <button class="btn danger sec small" id="peDelete" onclick="deletePersona()">Delete</button>
@@ -954,6 +1079,7 @@
   <button data-s="personas" onclick="show('personas')"><span class="ico">🎭</span>Characters</button>
   <button data-s="gallery" onclick="show('gallery')"><span class="ico">🖼️</span>Gallery</button>
   <button data-s="memory" onclick="show('memory')"><span class="ico">🧠</span>Memory</button>
+  <button data-s="diary" onclick="show('diary')"><span class="ico">📔</span>Diary</button>
   <button data-s="settings" onclick="show('settings')"><span class="ico">⚙️</span>Settings</button>
   <button data-s="debug" onclick="show('debug')"><span class="ico">🐞</span>Debug</button>
 </nav>
@@ -964,7 +1090,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",
   memModel:"sm_memmodel",memBuild:"sm_membuild",queryGen:"sm_querygen",ranker:"sm_ranker",
-  gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",baseInstruction:"sm_baseinstr",
+  gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
   routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
   sceneOn:"sm_sceneon",sceneSetup:"sm_scenesetup",sceneWriter:"sm_scenewriter",sceneMin:"sm_scenemin",sceneMax:"sm_scenemax",
   theme:"sm_theme",font:"sm_font",streamReveal:"sm_streamreveal",chats:"sm_chats",curChat:"sm_curchat",
@@ -2605,6 +2731,25 @@ Write it the way {{char}} would actually write — their personality should colo
 Respond ONLY with strict JSON:
 {"content":"the diary entry, first-person in {{char}}'s voice","location":"where the day was mostly spent","emotion":"dominant emotion","importance_score":0.0-1.0,"tags":["diary"],"type":"DIARY"}`;
 
+// ===== RELATIONSHIP GENERATOR =====
+// Writes the FACTUAL relationship sheet for one character toward everyone else in the universe
+// (and the player): kinship/role ties, forms of address & pet names, cohabitation, and initial
+// standing feelings. This is the "who is who to me" map that drives roleplay behaviour. It is
+// distinct from the per-axis numeric tracker: this is durable social fact, not momentary feeling.
+const DEFAULT_RELGEN=`You define {{char}}'s RELATIONSHIPS — who every other person in this world is TO them, as durable social fact, derived from the world setting and everyone's character cards.
+
+For EACH other character (and for {{user}}, the player), determine:
+- TIE: the concrete relationship — father, mother, sibling, spouse, child, cousin, friend, best friend, rival, enemy, ally, boss, subordinate, mentor, ex, stranger, etc. Use what the cards and world setting imply. If the cards give no basis for a tie, say so honestly (e.g. "an acquaintance from the same circle" or "a stranger").
+- ADDRESS: how {{char}} addresses them and how they address {{char}} back — names, titles, nicknames, pet names, or terms of respect/contempt. Note any asymmetry.
+- LIVING: whether they live together and where (use ONLY the provided locations). Omit if they don't.
+- STANDING: {{char}}'s initial feeling/stance toward them given who both are (warmth, wariness, loyalty, resentment, attraction, duty, indifference…). Keep it to the baseline their history would produce, not a momentary mood.
+
+SPECIAL CASE — {{user}}: If nothing in the cards or setting establishes that {{char}} already knows {{user}}, state plainly that {{char}} does NOT know them yet — they are a stranger, with no prior tie, address, or feeling. Do not invent a bond.
+
+If you are given EXISTING long-term opinions, treat them as the current truth and let them update the standing feelings (a bond that has soured, a stranger now known). On a first generation there will be none — work from the cards alone.
+
+Write from {{char}}'s point of view, in their frame. Be specific and grounded; never contradict the world setting. Output a concise but complete sheet, one short paragraph or line per person, plain text (no JSON, no numbered axes). This text will be shown to {{char}} during roleplay as their map of the people around them.`;
+
 /* ===== MULTI-CHARACTER TURN ROUTING (SkyrimAI-style) ===== */
 // ROUTER 1 — fires after the PLAYER speaks. Decides who the player addressed and who replies.
 const DEFAULT_ROUTER_PLAYER=`You are the conversation director for a multi-character roleplay. {{user}} (the player) just spoke. The characters in earshot are listed with short descriptions and their "hooks" (pressure points, motivations, secrets, rivalries).
@@ -3072,6 +3217,7 @@ function loadState(){
     sceneMin:+store.raw(K.sceneMin,3),
     sceneMax:+store.raw(K.sceneMax,8),
     daySummaryPrompt:store.raw(K.daySummaryPrompt,DEFAULT_DAY_SUMMARY),
+    relGenPrompt:store.raw(K.relGenPrompt,DEFAULT_RELGEN),
     baseInstruction:store.raw(K.baseInstruction,DEFAULT_BASE_INSTRUCTION),
     formatRules:store.raw(K.formatRules,DEFAULT_FORMAT_RULES),
     presencePrompt:store.raw(K.presencePrompt,DEFAULT_PRESENCE_TRACKER),
@@ -3417,6 +3563,7 @@ function show(s){
   document.getElementById('screen-'+s).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.s===s));
   if(s==='memory')renderMemory();
+  if(s==='diary')renderDiary();
   if(s==='personas')showUniverseGrid();
   if(s==='gallery')renderGallery();
   if(s==='debug')renderDebug();
@@ -3614,18 +3761,57 @@ function clearRevealQueue(){
 }
 
 /* ---- OpenRouter ---- */
+// Pull the usable text out of an OpenRouter chat response. Plain chat models put it in
+// message.content, but REASONING models (deepseek-*-pro, o-series, etc.) often return an
+// empty content with the real answer in message.reasoning / reasoning_content, or as an
+// array of content parts. We check all the known shapes so a reasoning model never silently
+// returns "" (which was the schedule-generator bug: content was empty, parseJSON failed,
+// and the empty catch hid it). Order: prefer real content, fall back to reasoning text.
+function extractCompletionText(d){
+  const msg=d&&d.choices&&d.choices[0]&&d.choices[0].message;
+  if(!msg)return "";
+  // content can be a string OR an array of {type:"text",text:""} parts
+  let c=msg.content;
+  if(Array.isArray(c)) c=c.map(p=>(p&&(p.text||p.content))||"").join("");
+  if(typeof c==="string" && c.trim()) return c;
+  // reasoning-model fallbacks
+  const r=msg.reasoning_content||msg.reasoning;
+  if(typeof r==="string" && r.trim()) return r;
+  // some providers stream the final answer into choices[0].text
+  if(typeof d.choices[0].text==="string" && d.choices[0].text.trim()) return d.choices[0].text;
+  return "";
+}
 async function chatCompletion(messages,model,opts={}){
   if(!state.key)throw{friendly:"No API key set. Add your OpenRouter key in Settings."};
   const body={model,messages,temperature:opts.temp??state.temp,max_tokens:opts.max??state.tokens};
   const entry=dbg(opts.dbg||"Chat / roleplay","OpenRouter",OR+"/chat/completions",body);
-  let res;
-  try{res=await fetch(OR+"/chat/completions",{method:"POST",
-    headers:{"Authorization":"Bearer "+state.key,"Content-Type":"application/json","HTTP-Referer":"https://storymind.app","X-Title":"StoryMind"},
-    body:JSON.stringify(body)});}
-  catch(e){dbgDone(entry,"error","Network error");throw{friendly:"Can't reach the internet. Check your connection."};}
-  if(!res.ok){dbgDone(entry,"error","HTTP "+res.status);throw{friendly:httpMsg(res.status)};}
-  const d=await res.json();const out=d.choices?.[0]?.message?.content??"";
-  dbgDone(entry,"ok",out);
+  // Retry transient failures (rate-limit 429 / 5xx) a couple of times with backoff. This is what
+  // turned a burst of schedule calls into "Network error" rows — too many requests at once.
+  const maxTry=(opts.retries!=null?opts.retries:2);
+  let res, lastStatus=0;
+  for(let attempt=0;attempt<=maxTry;attempt++){
+    try{res=await fetch(OR+"/chat/completions",{method:"POST",
+      headers:{"Authorization":"Bearer "+state.key,"Content-Type":"application/json","HTTP-Referer":"https://storymind.app","X-Title":"StoryMind"},
+      body:JSON.stringify(body)});}
+    catch(e){
+      if(attempt<maxTry){ await new Promise(r=>setTimeout(r,600*(attempt+1))); continue; }
+      dbgDone(entry,"error","Network error");throw{friendly:"Can't reach the internet. Check your connection."};
+    }
+    lastStatus=res.status;
+    if(res.ok)break;
+    // retry on rate-limit / server errors; fail fast on client errors (auth, bad model, etc.)
+    if((res.status===429||res.status>=500) && attempt<maxTry){
+      await new Promise(r=>setTimeout(r,800*(attempt+1)));
+      continue;
+    }
+    dbgDone(entry,"error","HTTP "+res.status);throw{friendly:httpMsg(res.status)};
+  }
+  if(!res||!res.ok){dbgDone(entry,"error","HTTP "+lastStatus);throw{friendly:httpMsg(lastStatus||0)};}
+  const d=await res.json();
+  const out=extractCompletionText(d);
+  // Surface an empty-but-OK response as a soft error in the log so it's diagnosable instead of
+  // looking like a success that did nothing (the old behaviour). The caller still gets "".
+  dbgDone(entry, out.trim()?"ok":"error", out.trim()?out:"(empty response — model returned no content)");
   return out;
 }
 async function imageCompletion(prompt,model,size){
@@ -4094,6 +4280,8 @@ const PROMPT_REGISTRY=[
    hint:"Writes the hidden nudge. Use {{user}} and {{reason}}."},
   {key:"daySummaryPrompt", label:"📔 End-of-day diary", def:()=>DEFAULT_DAY_SUMMARY, json:false,
    hint:"Each character writes a private diary entry at day's end. Use {{char}}, {{user}}."},
+  {key:"relGenPrompt", label:"🕸️ Relationship generator", def:()=>DEFAULT_RELGEN, json:false,
+   hint:"Writes a character's factual ties (kinship, address, cohabitation, standing) to everyone. Use {{char}}, {{user}}."},
   {key:"sceneSetup", label:"🧩 Scene Writer setup", def:()=>DEFAULT_SCENE_SETUP, json:true,
    hint:"Classifies a new event. Returns JSON."},
   {key:"sceneWriter", label:"✍️ Scene Writer advance", def:()=>DEFAULT_SCENE_WRITER, json:true,
@@ -4769,10 +4957,62 @@ async function attendPlan(id){
 
 function curTrackers(){ const u=curUniverseObj(); return (u&&Array.isArray(u.trackers))?u.trackers:[]; }
 function clampVal(v,t){ const lo=(t.min!=null?t.min:0), hi=(t.max!=null?t.max:100); return Math.max(lo,Math.min(hi,v)); }
-function trackerVal(chat,t){
+
+// ---- OWNERSHIP MODEL ----
+// Each tracker has t.owner: "__story__" (universe-wide, public to all characters), "__user__"
+// (the player; t.userVisibility = "public"|"private"), or a character id (visible only to that
+// character). Values are stored per-owner so e.g. a "Pregnancy" tracker can hold a separate
+// value for each character: chat.trackerVals[trackerId][ownerKey] = number.
+// The ownerKey is just t.owner (a character-owned tracker has exactly one owner).
+function trackerOwner(t){ return t.owner||"__story__"; }
+// Resolve a display/label name for an owner key.
+function ownerLabel(ownerKey){
+  if(ownerKey==="__story__")return "Story";
+  if(ownerKey==="__user__")return state.user||"You";
+  const p=state.personas.find(x=>x.id===ownerKey); return p?p.name:"(unknown)";
+}
+// Migrate an old FLAT trackerVals[id]=number into the new per-owner shape {owner:number}.
+// Idempotent: leaves already-migrated objects untouched.
+function _migrateTrackerVal(chat,t){
   if(!chat.trackerVals)chat.trackerVals={};
-  if(chat.trackerVals[t.id]==null)chat.trackerVals[t.id]=(t.start!=null?t.start:(t.min!=null?t.min:0));
-  return chat.trackerVals[t.id];
+  const cur=chat.trackerVals[t.id];
+  if(typeof cur==="number"){
+    // old flat value → attribute it to this tracker's current owner
+    chat.trackerVals[t.id]={[trackerOwner(t)]:cur};
+  }else if(cur==null||typeof cur!=="object"){
+    chat.trackerVals[t.id]={};
+  }
+}
+// Read (and lazily initialise) the value of tracker t for a specific owner key.
+function trackerVal(chat,t,ownerKey){
+  _migrateTrackerVal(chat,t);
+  const key=ownerKey||trackerOwner(t);
+  const bag=chat.trackerVals[t.id];
+  if(bag[key]==null)bag[key]=(t.start!=null?t.start:(t.min!=null?t.min:0));
+  return bag[key];
+}
+// Write the value of tracker t for an owner key (with clamp).
+function setTrackerValOwner(chat,t,ownerKey,v){
+  _migrateTrackerVal(chat,t);
+  const key=ownerKey||trackerOwner(t);
+  chat.trackerVals[t.id][key]=clampVal(v,t);
+}
+// Which owner keys does this tracker currently hold a value for? (story/user → just itself;
+// character-owned → the owning character, but we also surface any per-character values stored.)
+function trackerOwnerKeys(chat,t){
+  _migrateTrackerVal(chat,t);
+  const keys=new Set([trackerOwner(t)]);
+  Object.keys(chat.trackerVals[t.id]||{}).forEach(k=>keys.add(k));
+  return [...keys];
+}
+// Constrain a raw delta to the tracker's BEHAVIOR: "up" (increase-only), "down" (decrease-only),
+// "counter" (accumulate up only, same as up but semantically a tally), or "free" (both ways).
+function applyBehavior(t,delta){
+  const b=t.behavior||"free";
+  if(!delta)return 0;
+  if(b==="up"||b==="counter")   return delta>0?delta:0;
+  if(b==="down")               return delta<0?delta:0;
+  return delta; // free
 }
 // Find the active stage for a value: highest threshold (`at`) the value has reached.
 function activeStage(t,v){
@@ -4788,7 +5028,7 @@ function rollDice(spec){ // "1d3" -> total
 // Relationship pair key (order-independent) and helpers.
 // DIRECTED relationship key: how `fromId` feels about `toId` (not symmetric).
 function relDirKey(fromId,toId){ return fromId+">"+toId; }
-function blankRel(){ const o={}; REL_DIMS.forEach(d=>o[d.key]=0); o.desc=""; o.st={}; REL_FAST.forEach(k=>o.st[k]=0); o.episodes=[]; return o; }
+function blankRel(){ const o={}; REL_DIMS.forEach(d=>o[d.key]=0); o.desc=""; o.st={}; REL_FAST.forEach(k=>o.st[k]=0); o.episodes=[]; o.dayOpinions=[]; return o; }
 // Get (and lazily create) the multi-dimensional feeling object for from→to.
 function relObj(chat,fromId,toId){
   if(!chat.rel||typeof chat.rel!=="object")chat.rel={};
@@ -4801,6 +5041,7 @@ function relObj(chat,fromId,toId){
   if(!o.st||typeof o.st!=="object")o.st={};
   REL_FAST.forEach(k2=>{ if(typeof o.st[k2]!=="number")o.st[k2]=0; });
   if(!Array.isArray(o.episodes))o.episodes=[];
+  if(!Array.isArray(o.dayOpinions))o.dayOpinions=[];
   return o;
 }
 function clampRel(v){ return Math.max(-100,Math.min(100,v)); }
@@ -4899,22 +5140,56 @@ function relImpulseTension(o){
   return "";
 }
 
-// Build the STORY TRACKERS block (relationships are surfaced separately, per-character).
-function trackerContext(chat){
-  const c=chat||curChat(); if(!c)return "";
-  const parts=[];
-  // Freeform trackers with their current stage text.
-  if(state.trackOn){
-    const ts=curTrackers();
-    const lines=[];
-    for(const t of ts){
-      const v=trackerVal(c,t);
+// Build the TRACKER block for a given VIEWER (a character id, or null for the user's dashboard).
+// Visibility rules:
+//   - __story__ trackers  → seen by everyone (and the dashboard).
+//   - character-owned      → seen ONLY by that character (and the dashboard).
+//   - __user__ public      → seen by every character (and the dashboard).
+//   - __user__ private     → dashboard ONLY, never injected into a character payload.
+// `viewerId` = the character whose payload we're building; null/undefined = user dashboard view.
+function trackerContext(chat,viewerId){
+  const c=chat||curChat(); if(!c||!state.trackOn)return "";
+  const ts=curTrackers(); if(!ts.length)return "";
+  const isDashboard=(viewerId==null);            // user's own dashboard view (sees everything)
+  const isShared=(viewerId==="__shared__");        // a generic multi-char payload (no private, no per-char)
+  const forCharacter=!isDashboard && !isShared;    // a specific character's payload
+  const ownLines=[];     // this character's own private trackers
+  const sharedLines=[];  // story-wide + user-public trackers everyone sees
+  const dashLines=[];    // everything the user can see on their dashboard
+  for(const t of ts){
+    const owner=trackerOwner(t);
+    const render=(ownerKey)=>{
+      const v=trackerVal(c,t,ownerKey);
       const st=activeStage(t,v);
-      lines.push(`${t.name}: ${v}${t.max!=null?"/"+t.max:""}`+(st&&st.text?` — ${st.text}`:""));
+      const who=(owner==="__story__")?"":` (${ownerLabel(ownerKey)})`;
+      return `${t.name}${who}: ${v}${t.max!=null?"/"+t.max:""}`+(st&&st.text?` — ${st.text}`:"");
+    };
+    if(owner==="__story__"){
+      const line=render("__story__"); sharedLines.push(line); dashLines.push(line);
+    }else if(owner==="__user__"){
+      const line=render("__user__");
+      const isPublic=(t.userVisibility||"public")==="public";
+      if(isPublic)sharedLines.push(line);
+      dashLines.push(line+(isPublic?"":" [private]"));
+    }else{
+      // character-owned: render for the owning character (its own value)
+      const line=render(owner);
+      dashLines.push(line);
+      if(forCharacter && viewerId===owner)ownLines.push(line);
     }
-    if(lines.length)parts.push("STORY TRACKERS:\n"+lines.join("\n"));
   }
-  return parts.join("\n\n");
+  if(forCharacter){
+    const blocks=[];
+    if(sharedLines.length)blocks.push("STORY TRACKERS (known to all):\n"+sharedLines.join("\n"));
+    if(ownLines.length)blocks.push("YOUR PERSONAL TRACKERS (private to you — act on these, others don't see them):\n"+ownLines.join("\n"));
+    return blocks.join("\n\n");
+  }
+  if(isShared){
+    // generic multi-char payload: only the trackers everyone is allowed to know
+    return sharedLines.length?("STORY TRACKERS:\n"+sharedLines.join("\n")):"";
+  }
+  // dashboard / story-bar view: show everything
+  return dashLines.length?("STORY TRACKERS:\n"+dashLines.join("\n")):"";
 }
 // A written overview of how the present characters currently feel (toward the player and
 // each other), using the stored descriptions. Fed to the director engines and the story bar.
@@ -4934,18 +5209,21 @@ function relOverview(chat){
   return lines.length?lines.join("\n"):"";
 }
 
-// Day-tick: called from endDay. Applies per-day increments to trackers that have them.
+// Day-tick: called from endDay. Applies per-day increments to trackers that have them, per owner.
 function tickTrackersForDay(chat){
   if(!state.trackOn||!chat)return;
   let changed=false;
   for(const t of curTrackers()){
     if(t.perDay && Number(t.perDay)!==0){
-      // Only tick if the tracker has been "activated" (for pregnancy-style: only count once pregnant).
-      // Convention: if t.activateAt is set, only tick once value >= activateAt.
-      const v=trackerVal(chat,t);
-      if(t.activateAt!=null && v<t.activateAt) continue;
-      chat.trackerVals[t.id]=clampVal(v+Number(t.perDay),t);
-      changed=true;
+      // Tick every owner key this tracker holds a value for (so a per-character pregnancy counts
+      // independently for each pregnant character).
+      for(const ownerKey of trackerOwnerKeys(chat,t)){
+        const v=trackerVal(chat,t,ownerKey);
+        // Only tick if "activated" (pregnancy-style: only count once value >= activateAt).
+        if(t.activateAt!=null && v<t.activateAt) continue;
+        setTrackerValOwner(chat,t,ownerKey,v+Number(t.perDay));
+        changed=true;
+      }
     }
   }
   if(changed)persistChats();
@@ -4990,8 +5268,10 @@ function dayExchangeFor(dayMsgs,witnessId,fallbackName){
   return mapped.length>DAY_REL_CAP ? mapped.slice(-DAY_REL_CAP) : mapped;
 }
 // Evaluate every relationship a character witnessed today, once, over the full day.
-async function runDailyRelationships(chat,day){
-  const dayMsgs=messagesForCurrentDay(chat);
+// dayMsgsSnapshot: optional pre-captured day messages (End Day passes this BEFORE advancing the
+// day, so the new dayMarker it pushes can't blank out the window). Falls back to live read.
+async function runDailyRelationships(chat,day,dayMsgsSnapshot){
+  const dayMsgs=Array.isArray(dayMsgsSnapshot)?dayMsgsSnapshot:messagesForCurrentDay(chat);
   if(!dayMsgs.length)return;
   // Characters who actually SPOKE today (a silent bystander forms no new opinions worth scoring).
   const spokenNames=new Set(dayMsgs.filter(m=>m.role==='assistant'&&m.speaker&&!m.sysError)
@@ -5000,21 +5280,36 @@ async function runDailyRelationships(chat,day){
   if(!cast.length)return;
   const fallbackName=(cast[0]&&cast[0].name)||"Narrator";
   for(const fromP of cast){
-    // The day's conversation as THIS character witnessed it.
+    // The day's conversation as THIS character witnessed it — used ONLY to decide who they saw
+    // (the social wiring). The long-axis JUDGMENT itself is now driven by the day's MEMORIES, not
+    // the raw transcript (see evalRelationship).
     const exchange=dayExchangeFor(dayMsgs,fromP.id,fallbackName);
     if(!exchange.length) continue;
+    // The memories THIS character formed today (their own first-person record), excluding the
+    // same day's diary entry (a diary reflects on the day — feeding it back in is circular).
+    const dayMems=memoriesForDay(fromP.id,day,(chat&&chat.universeId)||state.curUniverse||null);
     // toward the player
-    try{ await evalRelationship(chat,fromP,"__user__",state.user,exchange); }catch(e){}
+    try{ await evalRelationship(chat,fromP,"__user__",state.user,exchange,dayMems,day); }catch(e){}
     // toward every OTHER character they actually witnessed speaking today
     for(const toP of cast){
       if(toP.id===fromP.id) continue;
       // did fromP witness toP speak today? (toP's lines must be in fromP's witnessed exchange)
       const sawThem=exchange.some(m=>m.role==='assistant' && m.name===sanitizeName(toP.name));
       if(!sawThem) continue;
-      try{ await evalRelationship(chat,fromP,toP.id,toP.name,exchange); }catch(e){}
+      try{ await evalRelationship(chat,fromP,toP.id,toP.name,exchange,dayMems,day); }catch(e){}
     }
   }
   persistChats();
+}
+// The experiential memories a character formed on a given day (this universe), EXCLUDING that
+// day's diary entry. This is the factual substrate the long-axis evaluator reasons over.
+function memoriesForDay(ownerId,day,uni){
+  return state.memory.filter(m=>
+    m.ownerId===ownerId &&
+    m.gameDay===day &&
+    m.source!=="diary" &&
+    (!m.universeId || !uni || m.universeId===uni)
+  );
 }
 // ---- SHORT-TERM emotional engine (fast axes: desire, comfort, fear, agitation) ----
 // Runs on an ADAPTIVE cadence: normally every N exchanges, but sooner when the recent scene is
@@ -5037,14 +5332,14 @@ async function runShortTermRel(chat){
   if(!state.relOn||!chat||!state.key)return;
   const present=presentCast(chat);
   if(!present.length)return;
-  // Adaptive cadence: base interval (configurable, default 5), shortened when the scene is charged.
-  const base=Math.max(2,state.stInterval||5);
+  // FAST AXIS CADENCE — fires after a fixed number of back-and-forth exchanges (your spec: 3).
+  // This is deliberately simple and SEPARATE from the slow/long axes: fast is reactive and cheap,
+  // slow is judged once per day from memories. stInterval is kept as an optional override.
+  const interval=Math.max(1, state.stInterval||3);
   chat._stCount=(chat._stCount||0)+1;
-  const exchange=recentExchangeMsgs(chat,6);
-  const charge=_sceneCharge(exchange);
-  const interval=Math.max(2, base-charge);   // charged scenes evaluate more often (down to every 2)
   if(chat._stCount<interval)return;
   chat._stCount=0;
+  const exchange=recentExchangeMsgs(chat,6);
 
   // Who actually spoke recently (don't read emotions for a silent bystander).
   const spokenNames=new Set(exchange.filter(m=>m.role==='assistant').map(m=>(m.name||"").toLowerCase()));
@@ -5080,6 +5375,18 @@ async function runShortTermRel(chat){
       if(touched){
         o.episodes.push({day:chat.gameDay||1, d:REL_FAST.map(k=>Math.round(o.st[k])), note:(j.note||"").slice(0,60)});
         if(o.episodes.length>40)o.episodes=o.episodes.slice(-40);
+        // Accumulate EVERY fast opinion generated during the day. The latest is what reaches the
+        // roleplay payload (via o.st), but the whole day's set is kept here and handed to the
+        // long-axis evaluation at End Day (as low-weight emotional colouring) and shown in the
+        // Story State tab. Cleared by evalRelationship once folded into the lasting view.
+        if(!Array.isArray(o.dayOpinions))o.dayOpinions=[];
+        o.dayOpinions.push({
+          day:chat.gameDay||1,
+          t:Date.now(),
+          note:(j.note||"").slice(0,80),
+          st:REL_FAST.reduce((acc,k)=>{acc[k]=Math.round(o.st[k]);return acc;},{})
+        });
+        if(o.dayOpinions.length>60)o.dayOpinions=o.dayOpinions.slice(-60);
       }
     }catch(e){/* best-effort */}
   }
@@ -5098,24 +5405,71 @@ function _fastBaseline(o,key){
   return 0;
 }
 // Evaluate, with ONE call, how character `fromP` now feels about target `toId`/`toName`,
-// across all relationship axes. Applies the deltas and stores the written description.
-async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs){
+// across all relationship axes. The LONG axes are now judged from the day's MEMORIES (the
+// character's own first-person record), filtered through the evaluator's BIO — not the raw
+// transcript. The day's accumulated FAST opinions are passed as low-weight emotional colouring.
+// `dayMems` is the array of that character's experiential memories for the day (may be empty).
+async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs,dayMems,day){
   const o=relObj(chat,fromP.id,toId);
   // Use the stored prompt only if it's the CURRENT multi-axis format (now including fear);
   // otherwise a returning user's older prompt would miss the fear axis — fall back to default.
   let sys=up("relPrompt");
   if(!(/affection/i.test(sys)&&/description/i.test(sys)&&/fear/i.test(sys)&&/familiarity/i.test(sys)&&/jealousy/i.test(sys)&&/agitation/i.test(sys))){ sys=DEFAULT_REL; }
-  const curLine=`Evaluating: how ${fromP.name} feels about ${toName}.\n`+
-    `Current axis values for ${fromP.name} → ${toName}:\n`+
-    REL_DIMS.map(d=>`- ${d.key}: ${o[d.key]||0}`).join("\n")+
+
+  // WHO IS JUDGING — the evaluator's own bio. Their personality/values colour how the same
+  // events land (a proud character reads a slight differently than an easygoing one).
+  const bioBits=[];
+  if(fromP.personality)bioBits.push(`Personality: ${fromP.personality}`);
+  if(fromP.backstory)bioBits.push(`Backstory: ${fromP.backstory}`);
+  const bioBlock=bioBits.length?`WHO YOU ARE (${fromP.name}) — judge through this lens:\n${bioBits.join("\n")}\n\n`:"";
+
+  // THE DAY'S MEMORIES — the factual substrate. Filter to memories that mention the target so the
+  // judgment is about THIS relationship, but keep a few general ones for context if none match.
+  const mems=Array.isArray(dayMems)?dayMems:[];
+  const tName=(toId==="__user__")?state.user:toName;
+  const tLow=(tName||"").toLowerCase();
+  const mentionsTarget=m=>{
+    if(toId==="__user__") return true; // player is the default subject of most memories
+    const txt=((m.content||"")+" "+(Array.isArray(m.tags)?m.tags.join(" "):"")).toLowerCase();
+    return tLow && txt.includes(tLow);
+  };
+  let relevant=mems.filter(mentionsTarget);
+  if(!relevant.length) relevant=mems.slice(-6); // fall back to recent context
+  const memBlock=relevant.length
+    ? `MEMORIES ${fromP.name} FORMED TODAY (their own first-person record — reason about how these shape the way they now see ${tName}):\n`+
+      relevant.map(m=>`- ${memText(m)}${m.emotion?` (felt: ${m.emotion})`:""}`).join("\n")
+    : `MEMORIES ${fromP.name} FORMED TODAY: (none recorded — base any change only on the day's standing context, and keep it small.)`;
+
+  // THE DAY'S FAST OPINIONS — momentary emotional reads accumulated during the day. LOW WEIGHT:
+  // these colour the long view but must not drive it (fast is always weaker than slow).
+  const dayOps=(o.dayOpinions||[]);
+  const fastBlock=dayOps.length
+    ? `\n\nFLEETING FEELINGS ${fromP.name} had toward ${tName} during the day (momentary, LOW WEIGHT — these only tint the lasting view, they do NOT determine it):\n`+
+      dayOps.slice(-8).map(x=>`- ${x.note||x.summary||"(a passing feeling)"}`).join("\n")
+    : "";
+
+  const curLine=`Current lasting axis values for ${fromP.name} → ${tName}:\n`+
+    REL_SLOW.map(k=>{const d=REL_DIMS.find(x=>x.key===k);return `- ${k}: ${o[k]||0}`;}).join("\n")+
     (o.desc?`\nCurrent description: ${o.desc}`:"");
-  const msgs=[{role:"system",content:sys}];
-  exchangeMsgs.forEach(m=>msgs.push(m));
-  msgs.push({role:"user",content:`${curLine}\n\nThe exchange above is the FULL day's interaction as ${fromP.name} witnessed it. Weigh the day as a whole and judge ALL axes HOLISTICALLY (they constrain each other — a spike in one is read in light of the others, and familiarity gates how deep trust/affection/respect can go). Return the JSON of per-axis deltas (a single, measured update reflecting the whole day — not an overreaction to any one line) and a fresh description for how ${fromP.name} feels about ${toName} now. ALSO: if the day revealed a DURABLE relational FACT about ${toName} that ${fromP.name} would now treat as known (a kinship/role/history tie — e.g. "${toName} is X's brother", "${toName} is my new boss", "${toName} betrayed Y"), include it as "social_fact" (one short sentence, from ${fromP.name}'s point of view). Omit social_fact if nothing durable was revealed — do NOT restate feelings there.`});
-  const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",340),dbg:"Daily relationship · "+fromP.name+" → "+toName});
+
+  const userMsg=`${bioBlock}${memBlock}${fastBlock}\n\n${curLine}\n\n`+
+    `Judge the LASTING relationship as a whole, reasoning from the MEMORIES above (the facts ${fromP.name} would actually carry forward), filtered through who ${fromP.name} is. Weigh all axes HOLISTICALLY (they constrain each other; familiarity gates how deep trust/affection/respect can go). The fleeting feelings are LOW WEIGHT — let them tint, not decide. Output a SINGLE, measured per-axis delta reflecting the whole day (not an overreaction to any one event) and a fresh 1-2 sentence description of how ${fromP.name} feels about ${tName} now. ALSO: if today established a DURABLE relational FACT about ${tName} that ${fromP.name} would treat as known (a kinship/role/history tie — e.g. "${tName} is X's brother", "${tName} is my new boss", "${tName} betrayed Y"), include it as "social_fact" (one short sentence from ${fromP.name}'s point of view). Omit social_fact if nothing durable was revealed — do NOT restate feelings there.`;
+
+  const out=await chatCompletion([
+    {role:"system",content:sys},
+    {role:"user",content:userMsg}
+  ],state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",340),dbg:"Daily relationship · "+fromP.name+" → "+toName});
   const j=parseJSON(out); if(!j||typeof j!=="object")return;
-  REL_DIMS.forEach(d=>{ if(typeof j[d.key]==="number")o[d.key]=clampRel((o[d.key]||0)+j[d.key]); });
+  let movedSlow=false;
+  REL_DIMS.forEach(d=>{ if(typeof j[d.key]==="number"){ if(d.tier==="slow"&&Math.abs(j[d.key])>=1)movedSlow=true; o[d.key]=clampRel((o[d.key]||0)+j[d.key]); } });
+  // Tag this relationship as having moved a long axis today, so End Day's auto relationship
+  // re-evaluation can target only the bonds that actually shifted (the dayOpinions log is cleared
+  // just below, so we can't rely on it afterward).
+  o.movedDay = movedSlow ? (day||chat.gameDay||0) : (o.movedDay||0);
   if(typeof j.description==="string"&&j.description.trim())o.desc=j.description.trim();
+  // The day's fast opinions have now been folded into the lasting view — clear them for the
+  // next day (they are stored in the per-day history below for the diary/visualisation).
+  o.dayOpinions=[];
   // Append a durable discovery to fromP's social graph — APPEND ONLY, never overwriting the
   // author's own text, deduped, capped so it can't grow without bound.
   if(typeof j.social_fact==="string" && j.social_fact.trim()){
@@ -5135,83 +5489,124 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs){
   }
 }
 
-// After-turn engine: judges relationship shifts (one call per present character) + freeform
-// tracker deltas/triggers; code applies dice / clamps / stages and surfaces stage-crossings.
+// After-turn engine: each tracker is evaluated INDEPENDENTLY, with ITS OWN prompt and ITS OWN
+// model, in the background (never blocks the reply — postTurn fires this non-awaited). A tracker
+// can be owned by the story (one shared value), the user, or a character (its own value, only
+// evaluated while that character is present). Behaviour (up/down/counter/free) constrains the
+// applied delta; breaking-point crossings surface as a quiet narrator beat.
 async function runTrackerEngine(chat){
-  if(!chat||!state.key)return;
-  if(!state.trackOn)return;   // relationships moved to end-of-day (runDailyRelationships); only freeform trackers run per-turn now
-  const present=presentCast(chat);
+  if(!chat||!state.key||!state.trackOn)return;
+  const ts=curTrackers(); if(!ts.length)return;
   const exchange=recentExchangeMsgs(chat,6);
+  if(!exchange.length)return;
+  const present=presentCast(chat);
+  const presentIdSet=new Set(present.map(p=>p.id));
+  const crossings=[];
 
-  // ---- Freeform trackers ---- (relationships are evaluated once per day at End Day, so the
-  // progression is stable and reflects the whole day rather than swinging after a few lines.)
-  if(state.trackOn){
-    const ts=curTrackers();
-    if(ts.length){
-      try{
-        const sys=up("trackPrompt");
-        const defs=ts.map(t=>{
-          let d=`id:${t.id} | name:${t.name} | range:${t.min!=null?t.min:0}..${t.max!=null?t.max:100} | current:${trackerVal(chat,t)} | mode:${t.updateMode||"llm"}`;
-          if(t.triggerPhrase)d+=` | TRIGGER PHRASE: "${t.triggerPhrase}"`;
-          return d;
-        }).join("\n");
-        const msgs=[{role:"system",content:sys}];
-        exchange.forEach(m=>msgs.push(m));
-        msgs.push({role:"user",content:`Trackers:\n${defs}\n\nBased ONLY on the exchange above, return the JSON array of tracker changes.`});
-        const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",220),dbg:"Story tracker"});
-        const arr=parseJSON(out)||[];
-        const byId={}; if(Array.isArray(arr))arr.forEach(x=>{if(x&&x.id)byId[x.id]=x;});
-        const crossings=[];
-        for(const t of ts){
-          const before=trackerVal(chat,t);
-          const beforeStage=activeStage(t,before);
-          let v=before;
-          const rep=byId[t.id]||{};
-          const mode=t.updateMode||"llm";
-          // soft delta (llm-judged)
-          if((mode==="llm"||mode==="both") && typeof rep.delta==="number") v+=rep.delta;
-          // trigger fired → dice (if any) decides; else apply triggerDelta
-          if((mode==="trigger"||mode==="both") && rep.triggered){
-            if(t.dice){
-              const roll=rollDice(t.dice);
-              const hit=(t.diceHit!=null)?(roll===Number(t.diceHit)):(roll!=null);
-              if(hit) v=clampVal((t.onHitSet!=null?t.onHitSet:(v+(t.triggerDelta||1))),t);
-            }else{
-              v=v+(t.triggerDelta!=null?t.triggerDelta:1);
-            }
-          }
-          v=clampVal(v,t);
-          chat.trackerVals[t.id]=v;
-          const afterStage=activeStage(t,v);
-          if(afterStage && afterStage!==beforeStage && afterStage.text){
-            crossings.push(`${t.name}: ${afterStage.text}`);
-          }
-        }
-        // Surface stage crossings as a quiet narrator beat (visible, in-scene).
-        if(crossings.length){
-          chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",narratorEvent:true,trackerBeat:true,
-            present:presentIds(chat).slice(),content:"— "+crossings.join(" · ")+" —",
-            img:null,imgState:"idle",vidState:"idle",video:null});
-          appendNewBubbles();
-        }
-      }catch(e){/* best-effort */}
+  // Build the list of (tracker, ownerKey) evaluations to run this turn.
+  const jobs=[];
+  for(const t of ts){
+    const owner=trackerOwner(t);
+    if(owner==="__story__"||owner==="__user__"){
+      jobs.push({t,ownerKey:owner});
+    }else{
+      // character-owned: only evaluate while that character is present in the scene.
+      if(presentIdSet.has(owner))jobs.push({t,ownerKey:owner});
     }
+  }
+  if(!jobs.length){ return; }
+
+  // Evaluate one (tracker, owner) with the tracker's own prompt + model. Returns a report or null.
+  const evalOne=async ({t,ownerKey})=>{
+    const sys=(t.prompt&&t.prompt.trim())?t.prompt:up("trackPrompt");
+    const model=(t.model&&t.model.trim())?t.model:state.memModel;
+    const mode=t.updateMode||"llm";
+    const ownerName=ownerLabel(ownerKey);
+    const subject=(ownerKey==="__story__")?"the story/world"
+                 :(ownerKey==="__user__")?`${state.user} (the player)`
+                 :`${ownerName} (a character)`;
+    const behaviorNote={
+      up:"This value only ever INCREASES (report a positive delta or 0).",
+      counter:"This is a tally that only INCREASES (report a positive delta or 0).",
+      down:"This value only ever DECREASES (report a negative delta or 0).",
+      free:"This value can go up or down."
+    }[t.behavior||"free"];
+    let def=`Tracker: "${t.name}" — tracks ${subject}.\n`+
+      `Range ${t.min!=null?t.min:0}..${t.max!=null?t.max:100}. Current value: ${trackerVal(chat,t,ownerKey)}.\n`+
+      `Behaviour: ${behaviorNote}\nMode: ${mode}.`;
+    if(t.desc&&t.desc.trim())def+=`\nWhat it means: ${t.desc.trim()}`;
+    if(t.triggerPhrase)def+=`\nTRIGGER PHRASE (report triggered:true only if this clearly happened): "${t.triggerPhrase}"`;
+    const ask=`${def}\n\nBased ONLY on the recent exchange above, decide how "${t.name}" for ${ownerName} should change. Return ONLY strict JSON: {"delta": <number, 0 if no change>, "triggered": <true|false>}. Most turns produce delta 0 — only move it on a clear in-scene reason.`;
+    try{
+      const msgs=[{role:"system",content:sys}];
+      exchange.forEach(m=>msgs.push(m));
+      msgs.push({role:"user",content:ask});
+      const out=await chatCompletion(msgs,model,{temp:fnTemp("mem",0.2),max:fnTok("mem",120),dbg:`Tracker · ${t.name} · ${ownerName}`});
+      const j=parseJSON(out);
+      return j&&typeof j==="object"?{t,ownerKey,rep:j}:null;
+    }catch(e){ return null; }
+  };
+
+  // Run all tracker evaluations in PARALLEL (independent; fast). Best-effort.
+  let results=[];
+  try{ results=await Promise.all(jobs.map(evalOne)); }catch(e){ results=[]; }
+
+  for(const r of results){
+    if(!r)continue;
+    const {t,ownerKey,rep}=r;
+    const mode=t.updateMode||"llm";
+    const before=trackerVal(chat,t,ownerKey);
+    const beforeStage=activeStage(t,before);
+    let v=before;
+    // soft delta (llm-judged), constrained by behaviour
+    if((mode==="llm"||mode==="both") && typeof rep.delta==="number"){
+      v+=applyBehavior(t,rep.delta);
+    }
+    // trigger fired → dice (if any) decides; else apply triggerDelta (also behaviour-constrained)
+    if((mode==="trigger"||mode==="both") && rep.triggered){
+      if(t.dice){
+        const roll=rollDice(t.dice);
+        const hit=(t.diceHit!=null)?(roll===Number(t.diceHit)):(roll!=null);
+        if(hit) v=(t.onHitSet!=null?t.onHitSet:(v+applyBehavior(t,(t.triggerDelta||1))));
+      }else{
+        v=v+applyBehavior(t,(t.triggerDelta!=null?t.triggerDelta:1));
+      }
+    }
+    setTrackerValOwner(chat,t,ownerKey,v);
+    const afterStage=activeStage(t,trackerVal(chat,t,ownerKey));
+    if(afterStage && afterStage!==beforeStage && afterStage.text){
+      const tag=(trackerOwner(t)==="__story__")?"":` (${ownerLabel(ownerKey)})`;
+      crossings.push(`${t.name}${tag}: ${afterStage.text}`);
+    }
+  }
+  // Surface stage crossings as a quiet narrator beat (visible, in-scene).
+  if(crossings.length){
+    chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",narratorEvent:true,trackerBeat:true,
+      present:presentIds(chat).slice(),content:"— "+crossings.join(" · ")+" —",
+      img:null,imgState:"idle",vidState:"idle",video:null});
+    appendNewBubbles();
   }
   persistChats();
 }
 
 // ===== Per-universe user profile =====
 function _ssClose(){ const m=document.getElementById('storyStateModal'); if(m)m.remove(); }
+let _ssExpanded=null;   // Set of character ids whose relationship panel is open (persists across re-renders)
+function ssToggleChar(id){
+  if(!_ssExpanded)_ssExpanded=new Set();
+  if(_ssExpanded.has(id))_ssExpanded.delete(id); else _ssExpanded.add(id);
+  openStoryState();   // re-render with the new expanded state
+}
 function openStoryState(){
   const chat=curChat(); if(!chat)return;
   _ssClose();
+  if(!_ssExpanded)_ssExpanded=new Set();
   const present=presentCast(chat);
+  const presentIdSet=new Set(present.map(p=>p.id));
   const ts=curTrackers();
   let rel="";
   if(state.relOn){
-    const cards=[];
-    // Render one axis row. For fast axes, `cur` is the live short-term value (o.st), shown next
-    // to its slow-supported resting baseline so the volatility is visible.
+    // Render one axis row.
     const axisRow=(label,v)=>{
       const pct=Math.round((v+100)/2);  // -100..100 → 0..100
       const col=v>=0?"var(--accent)":"#c0556b";
@@ -5221,37 +5616,114 @@ function openStoryState(){
     };
     const dimSlow=(o)=>REL_DIMS.filter(d=>d.tier==="slow").map(d=>axisRow(d.label,o[d.key]||0)).join("");
     const dimFast=(o)=>REL_FAST.map(k=>{const d=REL_DIMS.find(x=>x.key===k);return axisRow(d.label,(o.st&&o.st[k])||0);}).join("");
-    const addCard=(fromName,toName,o,persona)=>{
-      if(!relHasContent(o) && !(persona&&((persona.socialGraph||"").trim()||(persona.socialGraphAuto||"").trim())))return;
+    const oneCard=(toName,o)=>{
       const considered=relConsideredProse(o), momentary=relMomentaryProse(o);
-      const sgA=(persona&&persona.socialGraph||"").trim(), sgB=(persona&&persona.socialGraphAuto||"").trim();
-      const sg=[sgA,sgB?("<i>"+esc(sgB).replace(/\n/g,"<br>")+"</i>"):""].filter(Boolean);
-      cards.push(`<div class="relCard">
-        <div class="relWho">${esc(fromName)} → ${esc(toName)} <span class="relTag">${esc(relTag(o))}</span></div>
+      return `<div class="relCard">
+        <div class="relWho">→ ${esc(toName)} <span class="relTag">${esc(relTag(o))}</span></div>
         <div class="relDesc">${esc(relDescription(o))||"<span class='desc'>forming…</span>"}</div>
         <div class="relFacet"><span class="relFacetLbl">Considered (lasting)</span><span>${considered?esc(considered):"<span class='desc'>—</span>"}</span></div>
         <div class="relAxes">${dimSlow(o)}</div>
         <div class="relFacet"><span class="relFacetLbl">Right now (momentary)</span><span>${momentary?esc(momentary):"<span class='desc'>at rest</span>"}</span></div>
         <div class="relAxes">${dimFast(o)}</div>
-        ${sg.length?`<div class="relFacet"><span class="relFacetLbl">Social ties</span><span>${esc(sgA).replace(/\n/g,"<br>")}${sgA&&sgB?"<br>":""}${sgB?("<i>"+esc(sgB).replace(/\n/g,"<br>")+"</i>"):""}</span></div>`:""}
-      </div>`);
+      </div>`;
     };
-    for(let i=0;i<present.length;i++){
-      const persona=state.personas.find(p=>p.id===present[i].id);
-      addCard(present[i].name,state.user,relObj(chat,present[i].id,"__user__"),persona);
-      for(let j=0;j<present.length;j++){ if(i===j)continue; addCard(present[i].name,present[j].name,relObj(chat,present[i].id,present[j].id),null); }
+
+    // --- LEVEL 1: every character who has formed ANY relationship (fast or long) or has a
+    // generated/authored relationship sheet. Scan the whole rel map, not just who's present. ---
+    const cast=curCast();
+    const byId={}; cast.forEach(p=>byId[p.id]=p);
+    // Collect, per "from" character, the list of targets they have content toward.
+    const owners=new Map();   // fromId -> [{toId,toName,o}]
+    const noteTarget=(fromId,toId,toName)=>{
+      const o=relObj(chat,fromId,toId);
+      if(!relHasContent(o))return;
+      if(!owners.has(fromId))owners.set(fromId,[]);
+      owners.get(fromId).push({toId,toName,o});
+    };
+    for(const fromP of cast){
+      // toward the player
+      noteTarget(fromP.id,"__user__",state.user);
+      // toward every other character
+      for(const toP of cast){ if(toP.id===fromP.id)continue; noteTarget(fromP.id,toP.id,toP.name); }
     }
-    rel=cards.join("")||`<div class="desc">No relationships yet — they form on their own as characters interact.</div>`;
+    // Characters who have a generated/authored sheet but no numeric content yet still deserve a row.
+    for(const p of cast){
+      const hasSheet=((p.relationshipsGen||"").trim()||(p.socialGraph||"").trim()||(p.socialGraphAuto||"").trim());
+      if(hasSheet && !owners.has(p.id))owners.set(p.id,[]);
+    }
+
+    if(!owners.size){
+      rel=`<div class="desc">No relationships yet — they form on their own as characters interact.</div>`;
+    }else{
+      // Order: present characters first, then the rest, alphabetical within each.
+      const ids=[...owners.keys()].filter(id=>byId[id]);
+      ids.sort((a,b)=>{
+        const pa=presentIdSet.has(a)?0:1, pb=presentIdSet.has(b)?0:1;
+        if(pa!==pb)return pa-pb;
+        return (byId[a].name||"").localeCompare(byId[b].name||"");
+      });
+      rel=ids.map(fromId=>{
+        const p=byId[fromId];
+        const targets=owners.get(fromId)||[];
+        const open=_ssExpanded.has(fromId);
+        const here=presentIdSet.has(fromId);
+        const persona=state.personas.find(x=>x.id===fromId);
+        const count=targets.length;
+        const header=`<div class="relNameRow" onclick="ssToggleChar('${fromId}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:9px 10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-top:6px">
+          <span style="font-size:17px">${esc(p.avatar||"🎭")}</span>
+          <span style="flex:1;min-width:0">
+            <b>${esc(p.name)}</b>${here?` <span class="pill" style="font-size:9px">here now</span>`:""}
+            <span class="desc" style="display:block;font-size:11px">${count?`${count} relationship${count===1?"":"s"} tracked`:"relationship sheet only"}</span>
+          </span>
+          <span style="color:var(--muted);transform:rotate(${open?90:0}deg);transition:transform .15s">▸</span>
+        </div>`;
+        if(!open)return header;
+        // expanded body: their factual sheet (if any) + each tracked relationship
+        let body=`<div style="padding:4px 2px 8px 6px;border-left:2px solid var(--border);margin:2px 0 2px 12px">`;
+        const sgGen=(persona&&persona.relationshipsGen||"").trim();
+        const sgA=(persona&&persona.socialGraph||"").trim();
+        const sgB=(persona&&persona.socialGraphAuto||"").trim();
+        if(sgGen||sgA||sgB){
+          body+=`<div class="relFacet" style="margin:4px 0"><span class="relFacetLbl">Who they are to ${esc(p.name)}</span><span>`+
+            [sgA?esc(sgA).replace(/\n/g,"<br>"):"",
+             sgGen?("<span style='opacity:.92'>"+esc(sgGen).replace(/\n/g,"<br>")+"</span>"):"",
+             sgB?("<i style='opacity:.8'>"+esc(sgB).replace(/\n/g,"<br>")+"</i>"):""].filter(Boolean).join("<br><br>")+
+            `</span></div>`;
+        }
+        if(targets.length){
+          // player first, then alpha
+          targets.sort((x,y)=>{ if(x.toId==="__user__")return -1; if(y.toId==="__user__")return 1; return (x.toName||"").localeCompare(y.toName||""); });
+          body+=targets.map(t=>oneCard(t.toName,t.o)).join("");
+        }else{
+          body+=`<div class="desc" style="padding:6px 0">No tracked feelings yet — the sheet above is their starting map.</div>`;
+        }
+        body+=`</div>`;
+        return header+body;
+      }).join("");
+    }
   }
   let trk="";
   if(ts.length){
-    trk=ts.map(t=>{const v=trackerVal(chat,t);const st=activeStage(t,v);
-      return `<div class="kvline"><span>${esc(t.name)} <b>${v}${t.max!=null?"/"+t.max:""}</b>${st&&st.text?` <span class="desc">— ${esc(st.text)}</span>`:""}</span>
-        <span style="display:flex;gap:4px">
-          <button class="btn sec small" onclick="nudgeTracker('${t.id}',-1)">−1</button>
-          <button class="btn sec small" onclick="nudgeTracker('${t.id}',1)">+1</button>
-          <button class="btn sec small" onclick="setTrackerVal('${t.id}')">set</button>
-        </span></div>`;}).join("");
+    const rows=[];
+    for(const t of ts){
+      const owner=trackerOwner(t);
+      // which owner keys to show: story/user → itself; character-owned → every key with a value
+      const keys = (owner==="__story__"||owner==="__user__") ? [owner] : trackerOwnerKeys(chat,t);
+      for(const key of keys){
+        const v=trackerVal(chat,t,key);
+        const st=activeStage(t,v);
+        const ownerTag = owner==="__story__" ? "" :
+          owner==="__user__" ? ` <span class="pill" style="font-size:9px">${esc(state.user)}${(t.userVisibility||"public")==="private"?" · private":""}</span>` :
+          ` <span class="pill" style="font-size:9px">${esc(ownerLabel(key))}</span>`;
+        rows.push(`<div class="kvline"><span>${esc(t.name)}${ownerTag} <b>${v}${t.max!=null?"/"+t.max:""}</b>${st&&st.text?` <span class="desc">— ${esc(st.text)}</span>`:""}</span>
+          <span style="display:flex;gap:4px">
+            <button class="btn sec small" onclick="nudgeTracker('${t.id}',-1,'${key}')">−1</button>
+            <button class="btn sec small" onclick="nudgeTracker('${t.id}',1,'${key}')">+1</button>
+            <button class="btn sec small" onclick="setTrackerVal('${t.id}','${key}')">set</button>
+          </span></div>`);
+      }
+    }
+    trk=rows.join("")||`<div class="desc">No tracker values yet.</div>`;
   }else{ trk=`<div class="desc">No trackers defined. Add them in the Universe editor.</div>`; }
   const m=document.createElement('div'); m.id="storyStateModal"; m.className="modal show";
   m.innerHTML=`<button class="x" onclick="_ssClose()">×</button>
@@ -5264,8 +5736,8 @@ function openStoryState(){
   m.addEventListener('click',e=>{if(e.target===m)_ssClose();});
   document.body.appendChild(m);
 }
-function nudgeTracker(id,d){ const chat=curChat(); const t=curTrackers().find(x=>x.id===id); if(!t)return; chat.trackerVals[id]=clampVal(trackerVal(chat,t)+d,t); persistChats(); openStoryState(); updateChatHeader(); }
-function setTrackerVal(id){ const chat=curChat(); const t=curTrackers().find(x=>x.id===id); if(!t)return; const v=prompt(`Set ${t.name} to:`,String(trackerVal(chat,t))); if(v===null||v.trim()==="")return; chat.trackerVals[id]=clampVal(+v,t); persistChats(); openStoryState(); updateChatHeader(); }
+function nudgeTracker(id,d,ownerKey){ const chat=curChat(); const t=curTrackers().find(x=>x.id===id); if(!t)return; const key=ownerKey||trackerOwner(t); setTrackerValOwner(chat,t,key,trackerVal(chat,t,key)+d); persistChats(); openStoryState(); updateChatHeader(); }
+function setTrackerVal(id,ownerKey){ const chat=curChat(); const t=curTrackers().find(x=>x.id===id); if(!t)return; const key=ownerKey||trackerOwner(t); const v=prompt(`Set ${t.name}${key!=="__story__"?" ("+ownerLabel(key)+")":""} to:`,String(trackerVal(chat,t,key))); if(v===null||v.trim()==="")return; setTrackerValOwner(chat,t,key,+v); persistChats(); openStoryState(); updateChatHeader(); }
 
 // Optional: flag clearly out-of-character lines (subtle quality signal). Best-effort, off by
 // default since it costs one small call per reply. Marks the message so the bubble can show a hint.
@@ -5350,15 +5822,22 @@ function editUniverse(id){
 }
 // ---- Tracker editor (works on a draft copy until the universe is saved) ----
 let _ueTrackers=[];
+function _trackerOwnerSummary(t){
+  const o=t.owner||"__story__";
+  if(o==="__story__")return "🌍 Story";
+  if(o==="__user__")return "🧑 You"+((t.userVisibility||"public")==="private"?" · private":" · public");
+  const p=state.personas.find(x=>x.id===o); return "🎭 "+(p?p.name:"(character)");
+}
 function renderTrackerEditor(){
   const el=document.getElementById('ueTrackerList'); if(!el)return; el.innerHTML="";
   if(!_ueTrackers.length){ el.innerHTML=`<div class="desc">No trackers yet.</div>`; return; }
   _ueTrackers.forEach((t,i)=>{
     const row=document.createElement('div'); row.className="card"; row.style.padding="8px";
     const stages=(t.stages||[]).length;
+    const beh={up:"⬆️ up only",down:"⬇️ down only",counter:"🔢 counter",free:"↕️ free"}[t.behavior||"free"];
     row.innerHTML=`<div class="kvline" style="padding:0">
       <div style="min-width:0"><b>${esc(t.name||"(unnamed)")}</b>
-        <div class="desc">${t.min!=null?t.min:0}–${t.max!=null?t.max:100} · start ${t.start!=null?t.start:0} · ${esc(t.updateMode||"llm")}${t.triggerPhrase?` · trigger`:""}${t.dice?` · ${esc(t.dice)}`:""}${t.perDay?` · +${t.perDay}/day`:""} · ${stages} stage${stages===1?"":"s"}</div>
+        <div class="desc">${esc(_trackerOwnerSummary(t))} · ${t.min!=null?t.min:0}–${t.max!=null?t.max:100} · start ${t.start!=null?t.start:0} · ${beh}${t.model?` · ${esc(t.model.split('/').pop())}`:""}${t.prompt?` · own prompt`:""}${t.perDay?` · +${t.perDay}/day`:""} · ${stages} point${stages===1?"":"s"}</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button class="btn sec small" type="button" data-edit>Edit</button>
@@ -5370,49 +5849,110 @@ function renderTrackerEditor(){
   });
 }
 function addTracker(){
-  _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"New tracker",min:0,max:100,start:0,updateMode:"llm",stages:[]});
+  _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"New tracker",owner:"__story__",userVisibility:"public",
+    min:0,max:100,start:0,behavior:"free",updateMode:"llm",prompt:"",model:"",stages:[]});
   editTracker(_ueTrackers.length-1);
 }
 function addTrackerPreset(kind){
   if(kind==='love'){
-    _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"Love",min:0,max:100,start:0,updateMode:"llm",
+    _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"Love",owner:"__story__",min:0,max:100,start:0,behavior:"free",updateMode:"llm",prompt:"",model:"",
       stages:[{at:0,text:"indifferent"},{at:20,text:"curious, warming up"},{at:45,text:"clearly attracted"},{at:70,text:"in love, affectionate"},{at:90,text:"devoted, can't hide it"}]});
   }else if(kind==='pregnancy'){
-    _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"Pregnancy",min:0,max:280,start:0,updateMode:"trigger",
+    _ueTrackers.push({id:"trk_"+Date.now().toString(36),name:"Pregnancy",owner:"__story__",min:0,max:280,start:0,behavior:"up",updateMode:"trigger",prompt:"",model:"",
       triggerPhrase:"the character is creampied / ejaculated inside",dice:"1d3",diceHit:3,onHitSet:1,activateAt:1,perDay:1,
       stages:[{at:1,text:"newly conceived (unaware)"},{at:30,text:"first signs — nausea, fatigue"},{at:90,text:"visibly showing"},{at:180,text:"heavily pregnant"},{at:270,text:"due any day"}]});
   }
   renderTrackerEditor();
 }
+
+// ---- Modal-driven tracker editor ----
+let _teIndex=null, _teStages=[], _teVis="public";
+function _teOwnerOptions(){
+  // Story, You, then every character in the universe being edited.
+  const opts=[`<option value="__story__">🌍 The whole story (shared)</option>`,
+              `<option value="__user__">🧑 You (the player)</option>`];
+  const uid=editingUniverse?editingUniverse.id:state.curUniverse;
+  state.personas.filter(p=>!uid||p.universeId===uid).forEach(p=>{
+    opts.push(`<option value="${p.id}">🎭 ${esc(p.name)}</option>`);
+  });
+  return opts.join("");
+}
+function teOwnerChanged(){
+  const owner=document.getElementById('teOwner').value;
+  document.getElementById('teUserVisRow').style.display=(owner==="__user__")?"block":"none";
+}
+function teSetVis(v){
+  _teVis=(v==="private")?"private":"public";
+  document.querySelectorAll('#teUserVis button').forEach(b=>b.classList.toggle('on',b.dataset.vis===_teVis));
+}
+function teModeChanged(){
+  const mode=document.getElementById('teMode').value;
+  document.getElementById('teTriggerRow').style.display=(mode==="trigger"||mode==="both")?"block":"none";
+}
+function _teRenderStages(){
+  const el=document.getElementById('teStagesList'); if(!el)return; el.innerHTML="";
+  if(!_teStages.length){ el.innerHTML=`<div class="desc">No breaking points. Add one to inject text when the value crosses a threshold.</div>`; return; }
+  _teStages.sort((a,b)=>(a.at||0)-(b.at||0));
+  _teStages.forEach((s,i)=>{
+    const row=document.createElement('div'); row.style.cssText="display:flex;gap:6px;align-items:flex-start";
+    row.innerHTML=`<input type="number" class="fld" style="max-width:80px" value="${s.at!=null?s.at:0}" data-at>
+      <input type="text" class="fld" style="flex:1" placeholder="text injected at/above this value" value="${esc(s.text||"")}" data-text>
+      <button class="btn danger sec small" type="button" data-del>✕</button>`;
+    row.querySelector('[data-at]').onchange=e=>{ s.at=+e.target.value||0; };
+    row.querySelector('[data-text]').onchange=e=>{ s.text=e.target.value; };
+    row.querySelector('[data-del]').onclick=()=>{ _teStages.splice(i,1); _teRenderStages(); };
+    el.appendChild(row);
+  });
+}
+function teAddStage(){ _teStages.push({at:0,text:""}); _teRenderStages(); }
 function editTracker(i){
   const t=_ueTrackers[i]; if(!t)return;
-  const name=prompt("Tracker name:",t.name||""); if(name===null)return; t.name=name.trim()||t.name;
-  const rng=prompt("Range as min-max (e.g. 0-100):",`${t.min!=null?t.min:0}-${t.max!=null?t.max:100}`);
-  if(rng!==null){ const m=/(-?\d+)\s*-\s*(-?\d+)/.exec(rng); if(m){t.min=+m[1];t.max=+m[2];} }
-  const start=prompt("Starting value:",String(t.start!=null?t.start:0)); if(start!==null&&start.trim()!=="")t.start=+start;
-  const mode=prompt("Update mode — type one of: llm (AI judges from scene), trigger (fires on an event/dice), both:",t.updateMode||"llm");
-  if(mode!==null){const mm=mode.trim().toLowerCase(); if(["llm","trigger","both"].includes(mm))t.updateMode=mm;}
-  if(t.updateMode==="trigger"||t.updateMode==="both"){
-    const tp=prompt("Trigger phrase (plain English — what the AI watches for):",t.triggerPhrase||""); if(tp!==null)t.triggerPhrase=tp.trim();
-    const dice=prompt("Dice on trigger (e.g. 1d3), or blank for none:",t.dice||""); if(dice!==null)t.dice=dice.trim();
-    if(t.dice){ const dh=prompt(`Value rolled that counts as a HIT (for ${t.dice}):`,String(t.diceHit!=null?t.diceHit:t.dice.split('d')[1])); if(dh!==null)t.diceHit=+dh;
-      const os=prompt("On a hit, SET the value to:",String(t.onHitSet!=null?t.onHitSet:1)); if(os!==null)t.onHitSet=+os; }
-    else { const td=prompt("On trigger, change value by:",String(t.triggerDelta!=null?t.triggerDelta:1)); if(td!==null)t.triggerDelta=+td; }
-    const pd=prompt("Per-day change once active (e.g. 1 to count days; blank=none):",String(t.perDay!=null?t.perDay:"")); if(pd!==null)t.perDay=pd.trim()===""?0:+pd;
-    const aa=prompt("Only start per-day counting once value reaches (blank=immediately):",String(t.activateAt!=null?t.activateAt:"")); if(aa!==null)t.activateAt=aa.trim()===""?null:+aa;
-  }
-  // Stages
-  if(confirm("Edit stages now? (thresholds → text shown to the AI)")){
-    editTrackerStages(t);
-  }
-  renderTrackerEditor();
+  _teIndex=i;
+  _teStages=Array.isArray(t.stages)?JSON.parse(JSON.stringify(t.stages)):[];
+  _teVis=(t.userVisibility||"public");
+  const g=(id,v)=>{const e=document.getElementById(id); if(e)e.value=(v==null?"":v);};
+  document.getElementById('teOwner').innerHTML=_teOwnerOptions();
+  g('teName',t.name); g('teDesc',t.desc);
+  document.getElementById('teOwner').value=t.owner||"__story__";
+  g('teStart',t.start!=null?t.start:0); g('teMin',t.min!=null?t.min:0); g('teMax',t.max!=null?t.max:100);
+  g('teBehavior',t.behavior||"free");
+  g('teMode',t.updateMode||"llm");
+  g('teTriggerPhrase',t.triggerPhrase); g('teDice',t.dice); g('teDiceHit',t.diceHit);
+  g('teOnHitSet',t.onHitSet); g('teTriggerDelta',t.triggerDelta);
+  g('tePerDay',t.perDay); g('teActivateAt',t.activateAt);
+  g('tePrompt',t.prompt); g('teModel',t.model);
+  document.getElementById('teBehavior').value=t.behavior||"free";
+  document.getElementById('teMode').value=t.updateMode||"llm";
+  teSetVis(_teVis); teOwnerChanged(); teModeChanged(); _teRenderStages();
+  openModal('trackerEditModal');
 }
-function editTrackerStages(t){
-  if(!Array.isArray(t.stages))t.stages=[];
-  const cur=t.stages.map(s=>`${s.at}: ${s.text}`).join("\n");
-  const txt=prompt("One stage per line as  threshold: text\n(e.g.\n0: indifferent\n45: attracted\n70: in love\n)",cur);
-  if(txt===null)return;
-  t.stages=txt.split("\n").map(l=>{ const m=/^\s*(-?\d+)\s*:\s*(.+)$/.exec(l); return m?{at:+m[1],text:m[2].trim()}:null; }).filter(Boolean);
+function saveTrackerEdit(){
+  if(_teIndex==null)return;
+  const t=_ueTrackers[_teIndex]; if(!t){closeModal('trackerEditModal');return;}
+  const gv=id=>{const e=document.getElementById(id);return e?e.value:"";};
+  const num=(id,def)=>{const v=gv(id).trim(); return v===""?def:(+v);};
+  t.name=gv('teName').trim()||t.name;
+  t.desc=gv('teDesc').trim();
+  t.owner=gv('teOwner')||"__story__";
+  t.userVisibility=_teVis;
+  t.start=num('teStart',0); t.min=num('teMin',0); t.max=num('teMax',100);
+  if(t.min>t.max){ const tmp=t.min; t.min=t.max; t.max=tmp; }
+  t.behavior=gv('teBehavior')||"free";
+  t.updateMode=gv('teMode')||"llm";
+  t.triggerPhrase=gv('teTriggerPhrase').trim();
+  t.dice=gv('teDice').trim();
+  t.diceHit=gv('teDiceHit').trim()===""?null:num('teDiceHit',null);
+  t.onHitSet=gv('teOnHitSet').trim()===""?null:num('teOnHitSet',null);
+  t.triggerDelta=gv('teTriggerDelta').trim()===""?null:num('teTriggerDelta',1);
+  t.perDay=gv('tePerDay').trim()===""?0:num('tePerDay',0);
+  t.activateAt=gv('teActivateAt').trim()===""?null:num('teActivateAt',null);
+  t.prompt=gv('tePrompt').trim();
+  t.model=gv('teModel').trim();
+  // commit stages (drop empty-text rows)
+  t.stages=_teStages.filter(s=>s&&(s.text||"").trim()!=="").map(s=>({at:+s.at||0,text:(s.text||"").trim()}));
+  closeModal('trackerEditModal');
+  renderTrackerEditor();
+  toast("Tracker saved ✓ — Save the universe to keep");
 }
 // ---- Location editor (draft copy until the universe is saved) ----
 let _ueLocs=[];
@@ -5489,11 +6029,20 @@ async function genAllSchedules(){
   const cast=state.personas.filter(p=>p.universeId===uni.id);
   if(!cast.length){ toast("No characters in this universe"); return; }
   toast(`Generating ${cast.length} schedules…`);
-  let done=0;
+  let done=0, failed=0, lastErr="";
   for(const p of cast){
-    try{ const sc=await generateSchedule(p,p.routine,uni); if(sc){p.schedule=sc;done++;persistPersonas();} }catch(e){}
+    try{
+      const sc=await generateSchedule(p,p.routine,uni);
+      if(sc){p.schedule=sc;done++;persistPersonas();}
+      else{ failed++; lastErr="empty result"; }
+    }catch(e){ failed++; lastErr=(e&&e.friendly)||"error"; }
+    // Small gap between calls so a big cast doesn't trip OpenRouter's rate limit (which showed
+    // up as "Network error" rows in the debug log when 9 fired back-to-back).
+    await new Promise(r=>setTimeout(r,350));
   }
-  toast(done?`Schedules generated for ${done} character${done===1?"":"s"} ✓`:"⚠️ Couldn't generate — check API key & model");
+  if(done && !failed) toast(`Schedules generated for ${done} character${done===1?"":"s"} ✓`);
+  else if(done && failed) toast(`✓ ${done} done · ⚠️ ${failed} failed (${lastErr})`);
+  else toast(`⚠️ Couldn't generate schedules — ${lastErr||"check API key & model"}`);
 }
 let _leIndex=null, _leType="poi";
 function leSetType(t){
@@ -5855,6 +6404,9 @@ function editPersona(id){
    const auto=document.getElementById('peSocialAuto');
    if(auto){ const a=(p.socialGraphAuto||"").trim();
      auto.style.display=a?"block":"none"; auto.textContent=a?("Discovered in play: "+a):""; }}
+  {const rg=document.getElementById('peRelGen'); if(rg)rg.value=p.relationshipsGen||"";
+   const wrap=document.getElementById('peRelGenWrap'); if(wrap)wrap.style.display="block";
+   const rgBtn=document.getElementById('peRelGenBtn'); if(rgBtn)rgBtn.disabled=!id; }   // need a saved id to target
   renderPeLocations(p);
   // Reset the Create-with-AI box for each open.
   {const panel=document.getElementById('peAiPanel');if(panel)panel.classList.add('hide');const brief=document.getElementById('peAiBrief');if(brief)brief.value="";}
@@ -6002,6 +6554,141 @@ Use EXACT location names from the list. No commentary.`;
   }
   return Object.keys(sched).length?sched:null;
 }
+
+// ===== RELATIONSHIP GENERATOR =====
+// Build the factual relationship sheet for ONE character toward everyone else in their universe
+// (and the player). Payload = universe setting + this character's own card + every other card +
+// the player card + the most-recent LONG-AXIS opinions this character holds (empty on first run).
+// Writes the result to persona.relationshipsGen (a NEW field — it never overwrites the author's
+// hand-written socialGraph). Returns the text, or null on failure.
+async function generateRelationshipsFor(persona,forUniverse){
+  if(!persona||!state.key)return null;
+  const uni=forUniverse||universeById(persona.universeId)||curUniverseObj();
+  if(!uni)return null;
+  const cast=state.personas.filter(p=>p.universeId===uni.id);
+  const others=cast.filter(p=>p.id!==persona.id);
+  const locs=Array.isArray(uni.locations)?uni.locations:[];
+
+  // A compact card for one character (kept tight so a big cast still fits the context).
+  const card=(p,label)=>{
+    const bits=[`${label}: ${p.name}`];
+    if(p.personality)bits.push(`  Personality: ${p.personality}`);
+    if(p.backstory)bits.push(`  Backstory: ${p.backstory}`);
+    if(p.look)bits.push(`  Appearance: ${p.look}`);
+    // where they live, from locations
+    const home=locs.find(l=>Array.isArray(l.residents)&&l.residents.includes(p.id));
+    if(home)bits.push(`  Lives at: ${home.name}`);
+    // their own authored social notes, if any (helps anchor ties)
+    if(p.socialGraph&&p.socialGraph.trim())bits.push(`  Their own notes: ${p.socialGraph.trim()}`);
+    return bits.join("\n");
+  };
+
+  // The player card.
+  const userBits=[`THE PLAYER: ${state.user}`];
+  if(state.userBio&&state.userBio.trim())userBits.push(`  Background: ${state.userBio.trim()}`);
+  if(state.userLook&&state.userLook.trim())userBits.push(`  Appearance: ${state.userLook.trim()}`);
+
+  // Most-recent LONG-AXIS opinions this character currently holds (from the live chat's rel map).
+  // On first generation this is typically empty — then the sheet is built from cards alone.
+  const chat=chatForUniverse(uni.id)||curChat();
+  const opinionLines=[];
+  if(chat&&chat.rel){
+    const add=(toId,toName)=>{
+      const o=chat.rel[relDirKey(persona.id,toId)];
+      if(o){ const d=relDescription(o); if(d&&d.trim())opinionLines.push(`- toward ${toName}: ${d.trim()}`); }
+    };
+    add("__user__",state.user);
+    others.forEach(p=>add(p.id,p.name));
+  }
+  const opinionBlock=opinionLines.length
+    ? `\n\nEXISTING LONG-TERM OPINIONS ${persona.name} currently holds (treat as current truth; let them update the standing feelings):\n`+opinionLines.join("\n")
+    : `\n\nEXISTING LONG-TERM OPINIONS: (none yet — this is a first generation; work from the cards and setting alone.)`;
+
+  const locBlock=locs.length?`\n\nLOCATIONS in this world (use ONLY these for "lives together / where"):\n`+locs.map(l=>`- ${l.name}${l.type==='home'?' (a home)':''}`).join("\n"):"";
+
+  const sys=fillTpl(up("relGenPrompt"),{char:persona.name,user:state.user});
+  const userMsg=
+    `WORLD SETTING:\n${uni.setting||"(none given)"}\n\n`+
+    `${card(persona,"YOU ARE")}\n\n`+
+    `EVERYONE ELSE IN THIS WORLD:\n${others.length?others.map(p=>card(p,"—")).join("\n\n"):"(no other characters yet)"}\n\n`+
+    `${userBits.join("\n")}`+
+    locBlock+
+    opinionBlock+
+    `\n\nNow write ${persona.name}'s relationship sheet toward every person above (including ${state.user}).`;
+
+  let out;
+  try{
+    out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:userMsg}
+    ],state.bioModel,{temp:fnTemp("mem",0.5),max:fnTok("mem",1100),dbg:"Relationship generator · "+persona.name});
+  }catch(e){ return null; }
+  const text=(out||"").trim();
+  if(!text)return null;
+  persona.relationshipsGen=text;
+  persona.relationshipsGenAt=Date.now();
+  persistPersonas();
+  return text;
+}
+
+// Manual trigger from the character editor. Generates (or re-generates) this character's sheet.
+async function genRelationshipsForCharacter(id,btn){
+  const p=state.personas.find(x=>x.id===id)||editingPersona;
+  if(!p){ toast("Save the character first"); return; }
+  if(!state.key){ toast("Add your API key first"); return; }
+  // If this is the character open in the editor, fold the current (possibly unsaved) field values
+  // in first so the sheet reflects what the user is looking at — and persist so it isn't lost.
+  if(editingPersona && editingPersona.id===p.id){
+    const gv=id2=>{const e=document.getElementById(id2);return e?e.value.trim():undefined;};
+    const set=(k,v)=>{if(v!==undefined)p[k]=v;};
+    set('name',gv('peName')); set('personality',gv('pePersonality')); set('backstory',gv('peBackstory'));
+    set('look',gv('peLook')); set('socialGraph',gv('peSocialGraph'));
+    persistPersonas();
+  }
+  const old=btn?btn.textContent:""; if(btn){btn.disabled=true;btn.textContent="🕸️ Generating…";}
+  try{
+    const txt=await generateRelationshipsFor(p,universeById(p.universeId));
+    if(txt){
+      // reflect into the open editor if this is the character being edited
+      const box=document.getElementById('peRelGen');
+      if(box && editingPersona && editingPersona.id===p.id){ box.value=txt; box.parentElement&&(box.parentElement.style.display="block"); }
+      const wrap=document.getElementById('peRelGenWrap'); if(wrap)wrap.style.display="block";
+      toast("Relationships generated ✓");
+    } else toast("⚠️ Couldn't generate — check API key & model");
+  }catch(e){ toast("🕸️ "+(e&&e.friendly||"Couldn't generate")); }
+  finally{ if(btn){btn.disabled=false;btn.textContent=old;} }
+}
+
+// AUTO re-evaluation at End Day: regenerate the factual sheet for characters whose long axes
+// shifted materially today (so kinship/address/standing track how the bonds actually evolved).
+// Gated to movers to keep cost down. Runs off the day snapshot's speakers.
+async function reEvaluateRelationshipsForDay(chat,day,daySnapshot){
+  if(!state.key||!chat)return;
+  const uni=universeById((chat&&chat.universeId)||state.curUniverse);
+  if(!uni)return;
+  const speakerNames=new Set((daySnapshot||[]).filter(m=>m.role==='assistant'&&m.speaker&&!m.sysError).map(m=>m.speaker));
+  const cast=state.personas.filter(p=>p.universeId===uni.id && speakerNames.has(p.name));
+  // Only re-evaluate characters who ALREADY have a generated sheet (don't auto-create from nothing
+  // — first generation is a deliberate manual action) AND who moved a long axis today.
+  for(const p of cast){
+    if(!p.relationshipsGen) continue;
+    const moved=relMovedToday(chat,p.id,day);
+    if(!moved) continue;
+    try{ await generateRelationshipsFor(p,uni); }catch(e){}
+    await new Promise(r=>setTimeout(r,300));
+  }
+}
+// True if any of this character's long (slow) axes toward anyone changed today — set by
+// evalRelationship via o.movedDay. Reliable even after dayOpinions has been cleared.
+function relMovedToday(chat,fromId,day){
+  if(!chat||!chat.rel)return false;
+  for(const key in chat.rel){
+    if(!key.startsWith(fromId+">"))continue;
+    if((chat.rel[key].movedDay||0)===day)return true;
+  }
+  return false;
+}
+
 // Generate a set of locations for a universe from its setting + cast. Returns an array of
 // location objects (with residents linked by name) or null. Used as a fallback in the
 // universe generator and by the "Generate locations" button for existing universes.
@@ -6161,6 +6848,9 @@ function savePersona(){
     // overwritten by the save — preserved from the existing persona).
     socialGraph:(document.getElementById('peSocialGraph')?document.getElementById('peSocialGraph').value.trim():((editingPersona&&editingPersona.socialGraph)||"")),
     socialGraphAuto:(editingPersona&&editingPersona.socialGraphAuto)||"",
+    // Generated relationship sheet (editable in the character page). Preserve/read-back.
+    relationshipsGen:(document.getElementById('peRelGen')?document.getElementById('peRelGen').value.trim():((editingPersona&&editingPersona.relationshipsGen)||"")),
+    relationshipsGenAt:(editingPersona&&editingPersona.relationshipsGenAt)||null,
     routine:(editingPersona&&editingPersona.routine)||_peRoutine||"",
     // Location frequenting was removed from the character editor (residence is set in the
     // Universe → Locations editor instead). Preserve any existing value rather than wiping it.
@@ -6297,8 +6987,9 @@ function buildSystemPrompt(injectedMemories){
   // 9) CURRENT SCENE
   {const ss=sceneStateLine();if(ss)blocks.push(`# ${ss}`);}
 
-  // 10) TRACKER STATE (+ calendar)
-  {const tc=trackerContext();if(tc)blocks.push(`# TRACKER STATE\n${tc}`);}
+  // 10) TRACKER STATE (+ calendar) — multi-char legacy path: show only the shared (story-wide
+  // + user-public) trackers, since this prompt isn't built for one specific character.
+  {const tc=trackerContext(chat,"__shared__");if(tc)blocks.push(`# TRACKER STATE\n${tc}`);}
   {const cl=calendarContextLine();if(cl)blocks.push(`# ${cl}`);}
 
   // 11) MEMORIES
@@ -6353,9 +7044,10 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   blocks.push(rb);
 
   // SOCIAL GRAPH — who the people in this world are TO this character (kinship, hierarchy,
-  // rivalry, jealousy, allegiances). Author text + any LLM-discovered ties, combined.
-  {const sgA=(p.socialGraph||"").trim(), sgB=(p.socialGraphAuto||"").trim();
-   const sg=[sgA,sgB].filter(Boolean).join("\n");
+  // rivalry, jealousy, allegiances). Author text (wins) + the generated relationship sheet +
+  // any LLM-discovered ties, combined.
+  {const sgA=(p.socialGraph||"").trim(), sgGen=(p.relationshipsGen||"").trim(), sgB=(p.socialGraphAuto||"").trim();
+   const sg=[sgA,sgGen,sgB].filter(Boolean).join("\n\n");
    if(sg)blocks.push(`# YOUR RELATIONSHIPS (who these people are to you)\nThis is your map of the people in your world — act on these ties. Let kinship, rank, debts, rivalries, jealousy, and loyalties shape how you treat each person:\n${sg}`);}
 
   if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
@@ -6982,7 +7674,15 @@ function stampStatus(chat,msg){
   if(!chat||!msg)return;
   const trk=[];
   try{
-    if(state.trackOn){ for(const t of curTrackers()){ trk.push({name:t.name,val:trackerVal(chat,t)}); } }
+    if(state.trackOn){
+      for(const t of curTrackers()){
+        const owner=trackerOwner(t);
+        // Only show broadly-relevant trackers in the compact scene strip: story-wide, or
+        // user-public. Character-owned and user-private stay out of the global header.
+        if(owner==="__story__"){ trk.push({name:t.name,val:trackerVal(chat,t,"__story__")}); }
+        else if(owner==="__user__" && (t.userVisibility||"public")==="public"){ trk.push({name:t.name,val:trackerVal(chat,t,"__user__")}); }
+      }
+    }
   }catch(e){}
   msg.status={day:chat.gameDay||1,period:chatPeriod(chat),location:chat.location||"",trackers:trk};
 }
@@ -7975,79 +8675,36 @@ function fillTpl(s,map){return s.replace(/\{\{(\w+)\}\}/g,(m,k)=>map[k]!==undefi
 async function endDay(){
   const chat=curChat();
   const day=chat.gameDay||1;
-  if(!confirm(`End Day ${day}? This advances the story to Day ${day+1}. Characters who were here and have memories will write a private diary entry about today.`))return;
-  // Characters who actually appeared in the conversation AND already have memories of their own
-  // (in this universe) write a diary entry. A character with no memories has nothing to reflect
-  // on, so they're skipped — the diary is a continuation of an existing inner life, not a cold start.
-  const speakerNames=new Set(chat.messages.filter(m=>m.role==='assistant'&&m.speaker&&!m.sysError).map(m=>m.speaker));
+  if(!confirm(`End Day ${day}? This advances the story to Day ${day+1}. Characters who were here today will write a private diary, and their relationships will be re-evaluated — both happen in the background, so the new day starts right away.`))return;
+
   const uni=(chat&&chat.universeId)||state.curUniverse||null;
-  const hasMemories=(id)=>state.memory.some(m=>m.ownerId===id && (!m.universeId || !uni || m.universeId===uni));
-  const cast=curCast().filter(c=>speakerNames.has(c.name) && hasMemories(c.id));
-  const fallbackName=(cast[0]&&cast[0].name)||"Narrator";
-  // Build a diary memory per participating character (best-effort), from what THEY witnessed.
-  if(state.mem && state.key && cast.length){
-    for(const c of cast){
-      try{
-        // Only the messages this character was present for — their diary can't mention what
-        // they never saw (ties into the witness rules).
-        const witnessed=chat.messages.filter(m=>{
-          if(m.role==='system'||m.sysError)return false;
-          if(Array.isArray(m.present))return m.present.includes(c.id);
-          return true;
-        }).slice(-40);
-        const convo=witnessed.map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
-        if(!convo.trim()) continue;
-        const sys=fillTpl(up("daySummaryPrompt"),{char:c.name,user:state.user})+
-          (cast.length>1?`\n\nWrite strictly from ${c.name}'s own perspective. Only what ${c.name} personally experienced and would remember.`:"");
-        const out=await chatCompletion([
-          {role:"system",content:sys},
-          {role:"user",content:`Day ${day} — ${c.name}'s diary about what they experienced today (with ${state.user}):\n\n${convo}`}
-        ],state.memModel,{temp:fnTemp("mem",0.5),max:fnTok("mem",500),dbg:"Diary · "+c.name});
-        const j=parseJSON(out);
-        if(j&&j.content){
-          state.memory.push({
-            id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
-            content:String(j.content).trim(),location:j.location||"",emotion:j.emotion||"neutral",
-            importance:typeof j.importance_score==="number"?j.importance_score:0.7,
-            tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):["diary"],
-            type:j.type||"DIARY",ownerId:c.id,character:c.name,
-            date:Date.now(),gameDay:day,source:"diary",
-            universeId:(chat&&chat.universeId)||state.curUniverse||null, chatId:(chat&&chat.id)||state.curChat||null
-          });
-        }
-      }catch(e){/* best-effort per character */}
-    }
-    persistMemory();
-    if(document.getElementById('screen-memory').classList.contains('active'))renderMemory();
-  }
-  // ---- DAILY RELATIONSHIP EVALUATION ----
-  // Relationships now update ONCE per day (here), not after every exchange. For each character
-  // who participated today, we evaluate — over the WHOLE day's conversation they witnessed — how
-  // they feel toward the player and toward every OTHER character they actually saw today. This
-  // makes progression stable and logical: a day of interaction nudges a relationship once, rather
-  // than swinging it after a couple of lines.
-  if(state.relOn && state.key){
-    try{ await runDailyRelationships(chat,day); }catch(e){/* best-effort */}
-  }
-  // Generate a short narration of how the day ends, based on the last beat.
+  const fallbackName=(curCast()[0]&&curCast()[0].name)||"Narrator";
+
+  // ---- SNAPSHOT THE DAY *BEFORE* ADVANCING ----
+  // Critical: diaries and the long-axis relationship pass both read "today's messages" via the
+  // last dayMarker. Advancing the day pushes a NEW dayMarker, which would blank that window out.
+  // So we capture everything the day needs here, then hand the snapshot to the background jobs.
+  const daySnapshot=messagesForCurrentDay(chat).slice();
+
+  // 1) TRANSITION NARRATION — quick, and the player is waiting on it, so we DO await this one.
   let narration=`The day draws to a close.`;
   if(state.key){
     try{
-      const lastMsgs=chat.messages.filter(m=>m.role!=='system'&&!m.sysError&&!m.dayMarker).slice(-6)
+      const lastMsgs=daySnapshot.filter(m=>m.role!=='system'&&!m.sysError&&!m.dayMarker).slice(-6)
         .map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
       const nsys=`You write a brief, evocative transition that closes out a day in an ongoing roleplay and eases into nightfall/sleep, then hints the next day is beginning. 2-3 sentences, second person or ambient narration. No dialogue, no character names in quotes. End on the new day dawning.`;
       const nout=await chatCompletion([
         {role:"system",content:nsys},
-        {role:"user",content:`The scene so far (Day ${day}):\n${lastMsgs}\n\nWrite the day-ending transition into Day ${day+1}.`}
+        {role:"user",content:`The scene so far (Day ${day}):\n${lastMsgs||"(a quiet day)"}\n\nWrite the day-ending transition into Day ${day+1}.`}
       ],state.model,{temp:0.8,max:160,dbg:"Day transition narration"});
       if(nout&&nout.trim())narration=nout.trim().replace(/^["']|["']$/g,"");
     }catch(e){/* keep default */}
   }
-  // Advance the day and drop an in-scene narration marker.
+
+  // 2) ADVANCE THE DAY IMMEDIATELY — the player is unblocked here; everything below runs after.
   chat.gameDay=day+1;
   chat.period="Morning"; chat.timeOfDay="Morning";   // a new day starts in the morning
   tickTrackersForDay(chat);   // apply per-day tracker increments (e.g. pregnancy day count)
-  // New period → re-resolve who is where, and refresh who's at the player's current location.
   if(chat.locationId){
     resolveWorldPositions(chat,true);
     const here=charactersAtLocation(chat,chat.locationId);
@@ -8059,6 +8716,80 @@ async function endDay(){
     img:null,imgState:"idle",vidState:"idle",video:null});
   persistChats();appendNewBubbles();updateChatHeader();
   toast(`Day ${day} ended → now Day ${day+1}`);
+
+  // 3) BACKGROUND JOBS — diaries, then long-axis relationships, then auto relationship re-eval.
+  // These run off the SNAPSHOT (not live chat.messages), so the advanced day can't corrupt them.
+  // Fired without await so the player can keep playing; they land a moment later.
+  endDayBackground(chat,day,uni,daySnapshot,fallbackName).catch(()=>{});
+}
+
+// Everything End Day does AFTER the day has visibly advanced. Runs in the background.
+// Order matters: diaries are written from the day's experiential memories first, THEN the
+// long-axis relationship pass runs (it deliberately excludes the diary it just wrote). They are
+// independent of each other's *output* but we sequence them so cost/rate-limit stays sane.
+async function endDayBackground(chat,day,uni,daySnapshot,fallbackName){
+  // ---- DIARIES ---- one private entry per participating character, from the day's MEMORIES.
+  // Diaries and the relationship pass don't depend on each other, so we kick the relationship
+  // pass off in parallel and let diaries run alongside it.
+  const relJob = (state.relOn && state.key)
+    ? runDailyRelationships(chat,day,daySnapshot).catch(()=>{})
+    : Promise.resolve();
+
+  if(state.mem && state.key){
+    await writeDayDiaries(chat,day,uni,daySnapshot,fallbackName);
+  }
+  await relJob;
+
+  // ---- AUTO RELATIONSHIP RE-EVALUATION ---- regenerate the factual relationship sheet for
+  // characters whose long axes shifted today (so kinship/role/address stays in sync with how
+  // the bonds actually evolved). Gated to those who moved, to keep it cheap.
+  if(state.key){
+    try{ await reEvaluateRelationshipsForDay(chat,day,daySnapshot); }catch(e){}
+  }
+
+  // Refresh any open views that show this data.
+  if(document.getElementById('screen-memory')&&document.getElementById('screen-memory').classList.contains('active'))renderMemory();
+  const diaryScreen=document.getElementById('screen-diary');
+  if(diaryScreen&&diaryScreen.classList.contains('active'))renderDiary();
+}
+
+// Write one diary entry per participating character, sourced from the memories they formed today
+// (not the raw transcript). A character with no memories of the day has nothing to reflect on.
+async function writeDayDiaries(chat,day,uni,daySnapshot,fallbackName){
+  // Who actually spoke today (from the snapshot).
+  const speakerNames=new Set(daySnapshot.filter(m=>m.role==='assistant'&&m.speaker&&!m.sysError).map(m=>m.speaker));
+  const cast=curCast().filter(c=>speakerNames.has(c.name));
+  if(!cast.length)return;
+  let wrote=false;
+  for(const c of cast){
+    try{
+      // The memories THIS character formed today — the substance of a real diary. Exclude any
+      // existing diary memory for the day (don't summarize a summary).
+      const dayMems=memoriesForDay(c.id,day,uni);
+      if(!dayMems.length) continue;   // nothing experienced today → no entry (continuation, not cold start)
+      const memList=dayMems.map(m=>`- ${memText(m)}${m.location?` [${m.location}]`:""}${m.emotion?` (felt: ${m.emotion})`:""}`).join("\n");
+      const sys=fillTpl(up("daySummaryPrompt"),{char:c.name,user:state.user})+
+        `\n\nWrite strictly from ${c.name}'s own perspective, grounded ONLY in the memories below — the things ${c.name} personally experienced and would actually record. Never reference events ${c.name} did not witness.`;
+      const out=await chatCompletion([
+        {role:"system",content:sys},
+        {role:"user",content:`Day ${day} — ${c.name}'s diary. The memories ${c.name} formed today:\n\n${memList}`}
+      ],state.memModel,{temp:fnTemp("mem",0.5),max:fnTok("mem",500),dbg:"Diary · "+c.name});
+      const j=parseJSON(out);
+      if(j&&j.content){
+        state.memory.push({
+          id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
+          content:String(j.content).trim(),location:j.location||"",emotion:j.emotion||"neutral",
+          importance:typeof j.importance_score==="number"?j.importance_score:0.7,
+          tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):["diary"],
+          type:"DIARY",ownerId:c.id,character:c.name,
+          date:Date.now(),gameDay:day,source:"diary",
+          universeId:uni, chatId:(chat&&chat.id)||state.curChat||null
+        });
+        wrote=true;
+      }
+    }catch(e){/* best-effort per character */}
+  }
+  if(wrote)persistMemory();
 }
 
 /* ===== GAMEMASTER ===== invisible director: judge staleness, then nudge ===== */
@@ -8726,7 +9457,7 @@ function renderMemory(){
     const owner=m.ownerId?`${ownerAvatar(m.ownerId)} ${ownerName(m.ownerId)}`:(m.character||"⚠️ unassigned");
     c.innerHTML=`<div style="font-size:12px;color:var(--accent);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span class="pill" style="border-color:var(--accent);color:var(--accent)">${esc(owner)}</span>
-        <span>${m.source==='auto'?'🤖 remembered':m.source==='day-summary'?'🌙 day':m.source==='condenser'?'🗜️ condensed'+(m.condensedFrom?' ×'+m.condensedFrom:''):'✍️ added'} · ${esc(m.type||"EXPERIENCE")} · ${esc(m.emotion||"neutral")}${m.location?" · "+esc(m.location):""} · Day ${m.gameDay||1}</span>
+        <span>${m.source==='auto'?'🤖 remembered':m.source==='diary'?'📔 diary':m.source==='day-summary'?'🌙 day':m.source==='condenser'?'🗜️ condensed'+(m.condensedFrom?' ×'+m.condensedFrom:''):'✍️ added'} · ${esc(m.type||"EXPERIENCE")} · ${esc(m.emotion||"neutral")}${m.location?" · "+esc(m.location):""} · Day ${m.gameDay||1}</span>
       </div>
       <div>${esc(memText(m))}</div>
       ${m.importance!==undefined?`<div class="desc">importance ${imp}%</div>`:""}
@@ -8736,6 +9467,100 @@ function renderMemory(){
   });
 }
 function delMemory(id){if(!confirm("Delete this memory?"))return;state.memory=state.memory.filter(m=>m.id!==id);persistMemory();renderMemory();}
+
+/* ===== DIARIES =====
+   A per-character bookshelf for the current universe. Each character with diary entries gets a
+   book (cover image optional). Tapping it opens a reader with one handwritten page per day. */
+function renderDiary(){
+  const el=document.getElementById('diaryList'); if(!el)return; el.innerHTML="";
+  const uni=curUniverseObj();
+  const title=document.getElementById('diaryHeaderTitle');
+  if(title)title.textContent=uni?`📔 ${uni.name} — Diaries`:"Diaries";
+  if(!uni){ el.innerHTML=`<div class="empty"><div class="big">📔</div><div>Open a universe first to see its diaries.</div></div>`; return; }
+  // diary memories in THIS universe, grouped by owner
+  const entries=state.memory.filter(m=>m.source==="diary" && (!m.universeId || m.universeId===uni.id));
+  if(!entries.length){
+    el.innerHTML=`<div class="empty"><div class="big">📔</div><div>No diary entries yet.<br>Characters write a private diary when you press <b>End Day</b> — for whatever they actually experienced that day.</div></div>`;
+    return;
+  }
+  const byOwner=new Map();
+  entries.forEach(m=>{ if(!byOwner.has(m.ownerId))byOwner.set(m.ownerId,[]); byOwner.get(m.ownerId).push(m); });
+  const grid=document.createElement('div'); grid.className="bookGrid";
+  // order by name
+  const owners=[...byOwner.keys()].map(id=>({id,p:state.personas.find(x=>x.id===id)}))
+    .filter(o=>o.p).sort((a,b)=>(a.p.name||"").localeCompare(b.p.name||""));
+  owners.forEach(({id,p})=>{
+    const list=byOwner.get(id);
+    const days=new Set(list.map(m=>m.gameDay||1));
+    const card=document.createElement('div'); card.className="bookCard";
+    card.onclick=()=>openDiaryReader(id);
+    const cover=p.diaryCover||p.image||null;
+    card.innerHTML=`
+      <div class="bk-spine"></div>
+      ${cover?`<img class="bk-img" src="${cover}" alt="">`:`<div class="bk-emoji">${esc(p.avatar||"📖")}</div>`}
+      <div class="bk-grad"></div>
+      <div class="bk-info">
+        <div class="bk-name">${esc(p.name)}</div>
+        <div class="bk-sub">${days.size} day${days.size===1?"":"s"} · ${list.length} entr${list.length===1?"y":"ies"}</div>
+      </div>`;
+    grid.appendChild(card);
+  });
+  el.appendChild(grid);
+  const hint=document.createElement('div'); hint.className="desc"; hint.style.cssText="margin-top:14px;text-align:center";
+  hint.textContent="Tap a book to read it. Each day is its own page.";
+  el.appendChild(hint);
+}
+let _diaryReaderDay=null;
+function _diaryClose(){ const m=document.getElementById('diaryReaderModal'); if(m)m.remove(); _diaryReaderDay=null; }
+function openDiaryReader(ownerId,day){
+  const p=state.personas.find(x=>x.id===ownerId); if(!p)return;
+  const uni=curUniverseObj();
+  const entries=state.memory.filter(m=>m.source==="diary" && m.ownerId===ownerId && (!m.universeId || !uni || m.universeId===uni.id));
+  if(!entries.length)return;
+  // group by day; one page per day (concatenate if a day somehow has >1 entry)
+  const days=[...new Set(entries.map(m=>m.gameDay||1))].sort((a,b)=>a-b);
+  if(day==null) day=_diaryReaderDay!=null && days.includes(_diaryReaderDay) ? _diaryReaderDay : days[days.length-1];
+  _diaryReaderDay=day;
+  const dayEntries=entries.filter(m=>(m.gameDay||1)===day);
+  const bodyText=dayEntries.map(m=>memText(m)).join("\n\n");
+  const emo=dayEntries[0]&&dayEntries[0].emotion;
+  const loc=dayEntries[0]&&dayEntries[0].location;
+  _diaryClose();
+  const tabs=days.map(d=>`<button class="diaryDayTab ${d===day?"on":""}" onclick="openDiaryReader('${ownerId}',${d})">Day ${d}</button>`).join("");
+  const coverBtn=(state.key)?`<button class="btn sec small" style="width:auto;padding:6px 10px" onclick="genDiaryCover('${ownerId}',this)">🎨 ${p.diaryCover?"Redo cover":"Make cover"}</button>`:"";
+  const m=document.createElement('div'); m.id="diaryReaderModal"; m.className="modal show";
+  m.innerHTML=`<button class="x" onclick="_diaryClose()">×</button>
+    <div class="diaryReader">
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;color:#fff">
+        <span style="font-size:24px">${esc(p.avatar||"📖")}</span>
+        <b style="font-size:17px">${esc(p.name)}'s Diary</b>
+      </div>
+      <div style="display:flex;justify-content:center;margin-bottom:10px">${coverBtn}</div>
+      <div class="diaryDayTabs">${tabs}</div>
+      <div class="paperPage">
+        <div class="pp-date">Day ${day}${loc?` · ${esc(loc)}`:""}</div>
+        <div class="pp-body">${esc(bodyText)}</div>
+        ${emo?`<div class="pp-meta">— feeling ${esc(emo)}</div>`:""}
+      </div>
+    </div>`;
+  m.addEventListener('click',e=>{if(e.target===m)_diaryClose();});
+  document.body.appendChild(m);
+}
+// Generate a book-cover image for a character's diary (best-effort; uses the look/personality).
+async function genDiaryCover(ownerId,btn){
+  const p=state.personas.find(x=>x.id===ownerId); if(!p)return;
+  if(!state.key){ toast("Add your API key first"); return; }
+  const old=btn?btn.textContent:""; if(btn){btn.disabled=true;btn.textContent="🎨 Generating…";}
+  try{
+    const desc=[p.look,p.personality].filter(Boolean).join(", ");
+    const prompt=`A closed personal diary / leather journal book cover that belongs to ${p.name}. ${desc?("Evoking: "+desc+". "):""}Worn cover, embossed detail, moody lighting, no text, no readable letters, book closed, object only.`;
+    let url=null;
+    if(typeof generatePicForLook==="function"){ url=await generatePicForLook(prompt); }
+    if(url){ p.diaryCover=url; persistPersonas(); openDiaryReader(ownerId,_diaryReaderDay); renderDiary(); toast("Cover ready ✓"); }
+    else toast("⚠️ Couldn't generate cover");
+  }catch(e){ toast("🎨 "+(e&&e.friendly||"Couldn't generate cover")); }
+  finally{ if(btn){btn.disabled=false;btn.textContent=old;} }
+}
 function addMemoryManual(){const t=prompt("Remember that…");if(t&&t.trim()){const owner=presentCast()[0]||curCast()[0];if(!owner){toast("Bring a character nearby first");return;}const _ch=curChat();state.memory.push({id:"m_"+Date.now(),content:t.trim(),location:"",emotion:"neutral",importance:0.6,tags:[],type:"EXPERIENCE",ownerId:owner.id,character:owner.name,date:Date.now(),gameDay:curGameDay(),source:"manual",universeId:(_ch&&_ch.universeId)||state.curUniverse||null,chatId:(_ch&&_ch.id)||state.curChat||null});persistMemory();renderMemory();show('memory');toast("Added to "+owner.name+"'s memory ✓");}}
 
 /* ---- settings ---- */
