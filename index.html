@@ -384,7 +384,7 @@
           <div><label>Model</label><input type="text" id="setModel" list="modelList" placeholder="anthropic/claude-3.5-sonnet"><datalist id="modelList"></datalist></div>
           <div><label>Creativity (temperature): <span id="tempVal">0.85</span></label><input type="range" id="setTemp" min="0" max="1" step="0.05" value="0.85"></div>
           <div><label>Max tokens: <span id="tokVal">1200</span></label><input type="range" id="setTokens" min="500" max="4000" step="100" value="1200"></div>
-          <div class="desc">This is the base creativity &amp; length. Other functions fall back to these when set to Auto.</div>
+          <div class="desc">This is the base creativity &amp; length. Other functions fall back to these when set to Auto. <b>Using a reasoning model</b> (e.g. deepseek-v4-pro)? Keep this at 1200+ — reasoning models spend hidden tokens thinking before they answer, and a low limit can make them return nothing.</div>
         </div>
 
         <div class="card">
@@ -3948,10 +3948,32 @@ async function chatCompletion(messages,model,opts={}){
   }
   if(!res||!res.ok){dbgDone(entry,"error","HTTP "+lastStatus);throw{friendly:httpMsg(lastStatus||0)};}
   const d=await res.json();
-  const out=extractCompletionText(d);
+  let out=extractCompletionText(d);
+  // EMPTY-RESPONSE RESCUE. Reasoning models (e.g. deepseek-v4-pro) spend hidden reasoning tokens
+  // BEFORE the answer. If max_tokens is small (or the prompt is thin, like a bare arrival note),
+  // the model can burn the whole budget on reasoning and return EMPTY content (finish_reason
+  // "length"). One automatic retry with a generous ceiling almost always recovers a real reply.
+  // Gated so it only fires once and only when we actually got nothing.
+  if(!out.trim() && !opts._emptyRetry){
+    const fin=d&&d.choices&&d.choices[0]&&d.choices[0].finish_reason;
+    const bumped=Math.max(1600, (body.max_tokens||0)*3);
+    try{
+      const res2=await fetch(OR+"/chat/completions",{method:"POST",
+        headers:{"Authorization":"Bearer "+state.key,"Content-Type":"application/json","HTTP-Referer":"https://storymind.app","X-Title":"StoryMind"},
+        body:JSON.stringify(Object.assign({},body,{max_tokens:bumped}))});
+      if(res2.ok){
+        const d2=await res2.json();
+        const out2=extractCompletionText(d2);
+        if(out2.trim()){
+          dbgDone(entry,"ok",out2+"\n\n[recovered after empty response — retried with max_tokens="+bumped+(fin?", first finish_reason="+fin:"")+"]");
+          return out2;
+        }
+      }
+    }catch(e){/* fall through to the soft-error below */}
+  }
   // Surface an empty-but-OK response as a soft error in the log so it's diagnosable instead of
   // looking like a success that did nothing (the old behaviour). The caller still gets "".
-  dbgDone(entry, out.trim()?"ok":"error", out.trim()?out:"(empty response — model returned no content)");
+  dbgDone(entry, out.trim()?"ok":"error", out.trim()?out:"(empty response — model returned no content; if using a reasoning model, raise the token limit in Settings)");
   return out;
 }
 async function imageCompletion(prompt,model,size){
@@ -8518,6 +8540,12 @@ async function sendMessage(){
     }
     const reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply"});
     typing.remove();
+    // Empty reply even after the token-bump retry — surface a clear hint instead of a blank bubble.
+    if(!reply||!reply.trim()){
+      document.getElementById('sendBtn').disabled=false;
+      toast("⚠️ Empty reply — try raising Max tokens in Settings (reasoning models need headroom)");
+      return;
+    }
     const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     // BACKGROUND (does not wait on screen): persist, fire the image pipeline the instant text is
@@ -8778,6 +8806,9 @@ async function playCharacterTurn(chat,p,addressed){
     // strip a leading "Name:" prefix if the model added one (regex-safe)
     const prefix=p.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
     const cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
+    // Empty reply (model returned nothing even after the token-bump retry) — don't push a blank
+    // bubble or run image/voice on nothing. Skip this character's turn cleanly.
+    if(!cleaned){ toast("⚠️ "+p.name+": empty reply (try raising Max tokens in Settings)"); return false; }
     const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     // BACKGROUND: persist + fire image pipeline immediately (text is ready) + voice check. The
