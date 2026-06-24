@@ -382,6 +382,7 @@
         <div class="card">
           <h3>🎭 Roleplay (main character replies)</h3>
           <div><label>Model</label><input type="text" id="setModel" list="modelList" placeholder="anthropic/claude-3.5-sonnet"><datalist id="modelList"></datalist></div>
+          <div><label>🪶 Auto-RP model <span class="desc" style="display:inline">(narrates your turns; blank = roleplay model)</span></label><input type="text" id="setPlayerNarrateModel" list="modelList" placeholder="(uses roleplay model)"></div>
           <div><label>Creativity (temperature): <span id="tempVal">0.85</span></label><input type="range" id="setTemp" min="0" max="1" step="0.05" value="0.85"></div>
           <div><label>Max tokens: <span id="tokVal">1200</span></label><input type="range" id="setTokens" min="500" max="4000" step="100" value="1200"></div>
           <div class="desc">This is the base creativity &amp; length. Other functions fall back to these when set to Auto. <b>Using a reasoning model</b> (e.g. deepseek-v4-pro)? Keep this at 1200+ — reasoning models spend hidden tokens thinking before they answer, and a low limit can make them return nothing.</div>
@@ -536,9 +537,7 @@
             <div class="desc">Builds each character's factual relationship sheet (tie + prose) toward everyone. Returns JSON. Use {{char}} and {{user}}.</div></details>
           <details class="acc"><summary>🪶 Auto-RP player narrator prompt</summary>
             <textarea class="fld" id="setPlayerNarratePrompt" style="min-height:160px"></textarea>
-            <div class="desc">Rewrites your terse input into a short, in-voice player turn (when Auto-RP is on). Use {{user}}, {{player_profile}}, {{scene}}.</div>
-            <div><label>Model <span class="desc" style="display:inline">(blank = roleplay model — speed matters here)</span></label>
-              <input type="text" class="fld" id="setPlayerNarrateModel" list="modelList" placeholder="(uses roleplay model)"></div></details>
+            <div class="desc">Rewrites your terse input into a short, in-voice player turn (when Auto-RP is on). Use {{user}}, {{player_profile}}, {{scene}}. (Set the model in the Roleplay section above.)</div></details>
           <details class="acc"><summary>📊 Freeform tracker prompt</summary>
             <textarea class="fld" id="setTrackPrompt" style="min-height:160px"></textarea>
             <div class="desc">Judges soft deltas and detects trigger phrases. Dice/day-counting handled by the app.</div></details>
@@ -7506,14 +7505,13 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   {const loc=charLocationLine(p,chat);if(loc)rb+=`\n${loc}`;}
   blocks.push(rb);
 
-  // RELATIONSHIPS — right after the bio: scoped to the people actually present (others in the
-  // scene) + the player, plus any author-written notes (which win). Keeps the payload lean.
+  // RELATIONSHIPS — right after the bio: ONLY this character's ties to the people actually present
+  // (others in the scene) + the player, from the scoped JSON sheet (which falls back to prose if a
+  // character has no JSON yet). The full unscoped social-graph blobs are deliberately NOT dumped
+  // here — a speaker should only carry their relationships with who's nearby, not the whole roster.
   {const otherIds=(others||[]).map(o=>o.id).filter(id=>id&&id!==p.id);
    const sheet=relSheetBlockFor(p,otherIds);
-   const author=(p.socialGraph||"").trim();
-   const discovered=(p.socialGraphAuto||"").trim();
-   const combined=[sheet,author,discovered].filter(Boolean).join("\n\n");
-   if(combined)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these nearby people are to you)\nThis is who the people currently around you are to you — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${combined}`);}
+   if(sheet)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these nearby people are to you)\nThis is who the people currently around you are to you — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${sheet}`);}
 
   if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
 
@@ -8000,13 +7998,15 @@ function manualPresence(id){
   if(chat.presentIds.includes(id)){
     chat.presentIds=chat.presentIds.filter(x=>x!==id);
     notePresence(chat,[],[p.name]);
-    persistChats();renderChat();updateChatHeader();openCast();
+    persistChats();appendNewBubbles();updateChatHeader();openCast();
   }else{
     chat.presentIds.push(id);
     notePresence(chat,[p.name],[]);
-    persistChats();renderChat();updateChatHeader();openCast();
-    // let them enter naturally
-    playCharacterTurn(chat,p,"arriving").then(()=>{persistChats();renderChat();});
+    persistChats();appendNewBubbles();updateChatHeader();openCast();
+    // SILENT ARRIVAL: they enter the scene (announced by the presence note above) but do NOT
+    // auto-speak. People come and go without announcing themselves — and staying silent keeps them
+    // a bystander (gist memory), which is what feeds the gossip system. They'll speak when the
+    // player addresses them or the turn router picks them.
   }
 }
 // Cap on rendered DOM nodes for a single chat. Long sessions only ever keep the
@@ -8070,9 +8070,17 @@ function renderChat(){ return perf("renderChat",()=>{
   const start=Math.max(0,msgs.length-RENDER_WINDOW);
   for(let i=start;i<msgs.length;i++){ const m=msgs[i]; if(!m.mid) m.mid=newMid(); if(_presentPendingMids.has(m.mid)) continue; const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); }
   _renderedCount=msgs.length-start;
-  // A full rebuild happens on chat-open/switch/restart — landing at the latest line is expected.
+  // A full rebuild happens on chat-open/switch/restart/arrival — land at the latest line. Do it
+  // now, then again on the next frame and once more shortly after: freshly-built bubbles (avatars,
+  // images, wrapped text) lay out AFTER this synchronous pass, so scrollHeight is too small right
+  // now and a single scroll lands partway up — the "rebuild jumps toward the top" bug. Re-pinning
+  // after layout settles keeps the newest line in view. Only re-pin if we're still meant to follow.
   setScrollTop(list,list.scrollHeight);
   hideNewMsgPill();
+  const _pin=()=>{ const el=document.getElementById('chatList'); if(el && _renderedChatId===state.curChat){ setScrollTop(el,el.scrollHeight); } };
+  requestAnimationFrame(_pin);
+  setTimeout(_pin,60);
+  setTimeout(_pin,200);
 }); }
 // Incremental render — append only messages not yet in the DOM. Falls back to a full
 // rebuild if the rendered chat changed underneath us (e.g. chat-switch) so callers can
@@ -8584,8 +8592,7 @@ function handleOOC(chat,text){
     chat.presentIds.push(p.id);
     notePresence(chat,[p.name],[]);
     persistChats();appendNewBubbles();updateChatHeader();
-    // let them greet/enter
-    playCharacterTurn(chat,p,"arriving").then(()=>{persistChats();appendNewBubbles();});
+    // SILENT ARRIVAL — see manualPresence(): announced by the presence note, no forced entrance line.
   }else if(cmd==="leave"||cmd==="send"||cmd==="dismiss"||cmd==="remove"){
     if(!arg){toast("Usage: /leave Name");return;}
     const p=findByName(arg)||(chat.tempChars||[]).find(t=>t.name.toLowerCase().includes(arg.toLowerCase()));
@@ -8927,14 +8934,16 @@ async function runPresenceTracker(chat){
       persistChats();appendNewBubbles();updateChatHeader();
       result.exited.push(p);result.lastBeat=p;
     }
-    // ENTRIES: note the arrival first, THEN the character speaks once now that they're present.
+    // ENTRIES: announce the arrival with a presence note. The character arrives SILENTLY — they do
+    // NOT auto-speak. People enter rooms without announcing themselves; staying silent also keeps
+    // them a bystander (forming a gist memory, not a full participant transcript), which is what the
+    // gossip system feeds on. They speak when the player engages them or the router picks them.
     for(const p of enter){
       applyPresence(chat,[p.name],[]);
       notePresence(chat,[p.name],[]);
       if(chat.worldPositions&&chat.locationId)chat.worldPositions[p.id]=chat.locationId; // now here
       persistChats();appendNewBubbles();updateChatHeader();
-      await playCharacterTurn(chat,p,"arriving");   // they speak on entry (this IS their turn)
-      result.entered.push(p);result.lastBeat=p;
+      result.entered.push(p);   // present now, but SILENT — not a "beat", so don't set lastBeat
     }
   }catch(e){/* best-effort, never blocks the scene */}
   return result;
