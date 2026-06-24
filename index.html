@@ -2112,34 +2112,38 @@ Include 5-10 lowercase tags (names, locations, actions, objects, emotional theme
 // They did NOT hear the words. They form a low-fidelity impression of the SOCIAL SHAPE only:
 // who was talking to whom, and the emotional read (close/flirtatious, tense/arguing, secretive,
 // warm, cold, ordinary). This is deliberately fuzzy — an outside observer's read, not a transcript.
-const DEFAULT_GIST_BUILD=`You create a BYSTANDER's memory. {{char}} was present in the same place but was NOT part of the conversation — they were across the room, busy, or simply nearby. {{char}} did NOT hear what was actually said.
+const DEFAULT_GIST_BUILD=`{{char}} is in the same place as {{user}} but is NOT part of the conversation — across the room, occupied, out of earshot. {{char}} CANNOT hear the words. Record only what {{char}} could plausibly catch with a glance.
 
-From {{char}}'s outside vantage point, record only what they could plausibly OBSERVE about {{user}} and the person {{user}} was talking with: body language, tone, closeness, the emotional SHAPE of the exchange — NOT the words or specifics, which {{char}} did not hear.
+Write {{char}}'s passing impression of {{user}} and whoever {{user}} is with.
 
-## Instructions
-1. First person, present-tense, from {{char}} as an outside observer ("I notice {{user}} and ___ talking in the corner…").
-2. Capture the SOCIAL READ only: were they close/flirtatious, tense/arguing, secretive/conspiratorial, warm, cold, formal, or unremarkable? Use hedged, observational language ("looks like", "seems", "the way they…").
-3. Do NOT invent specific dialogue, facts, names of topics, or details {{char}} could not have overheard. No quotes. If you don't know who the other person is, describe them.
-4. Keep it to 1-2 sentences. This is a glance, not a study.
-5. Most exchanges are unremarkable — if nothing stood out, say so plainly and score charge low.
+## Hard rules
+- ONE or TWO sentences. A glance, not a report. Shorter is better.
+- First person, present tense, as an outside observer: "I catch sight of…", "across the room, {{user}} and…".
+- Record ONLY observable surface: who {{user}} is with, body language, distance, tone of voice (loud/hushed), the overall MOOD. Nothing about WHAT was said.
+- NEVER invent dialogue, topics, names of subjects discussed, plans, or any specific {{char}} could not have overheard. No quotes. No "they discussed…", no "arguing about…".
+- Use hedged, uncertain language — "seems", "looks like", "something about". {{char}} is guessing from the outside.
+- If nothing about it stood out, say so plainly in a few words and set charge low. Most glances are forgettable; don't manufacture drama.
+- Do NOT editorialize with literary similes. Plain, what-I-saw observation only.
 
-## Response Format
-Respond ONLY with a JSON object, no other text:
+## Read the SHAPE, not the script
+Decide the social shape from body language and tone alone: close/intimate, flirtatious, tense, an argument, secretive/hushed, warm, cold, formal, or ordinary.
+
+## Respond ONLY with JSON, nothing else:
 {
-  "content": "1-2 sentence outside-observer impression. No overheard words. Hedged and visual.",
-  "location": "Where it happened (short phrase)",
+  "content": "1-2 plain sentences. Outside view. No overheard words, no invented specifics.",
+  "location": "where (short phrase)",
   "emotion": "neutral|curious|amused|suspicious|disapproving|concerned|indifferent",
-  "gist": "one short phrase for the social shape, e.g. 'a close, flirtatious-looking talk' / 'a tense argument' / 'a secretive, head-together exchange' / 'an ordinary chat'",
+  "gist": "short phrase for the shape, e.g. 'standing very close, flirtatious' / 'a tense, hushed argument' / 'heads together, secretive' / 'an ordinary chat'",
   "charge": 0.0-1.0,
   "importance_score": 0.0-1.0,
-  "tags": ["name","place","social-shape"],
-  "type": "OBSERVATION"
+  "tags": ["who","where","shape"]
 }
 
-## Charge guide (how gossip-worthy the SHAPE looked — used later by the world)
-0.7-1.0: visibly intimate/flirtatious, a heated argument, something furtive or secretive — the kind of thing people talk about.
-0.4-0.6: notably warm or notably cold, an emotional moment, an odd pairing.
-0.0-0.3: ordinary, unremarkable, routine — nothing worth mentioning.`;
+## charge = how gossip-worthy the SHAPE looked (used later by the world)
+0.7-1.0: visibly intimate or flirtatious, a real argument, something furtive — people would talk.
+0.4-0.6: notably warm, notably cold, an odd pairing, a charged moment.
+0.0-0.3: ordinary, dull, routine — not worth a mention. (Most glances land here.)
+importance_score tracks charge: keep it low unless the shape was striking.`;
 
 const DEFAULT_QUERYGEN=`You generate a short semantic SEARCH QUERY used to retrieve a character's most relevant past memories for the current moment in a roleplay.
 
@@ -3464,7 +3468,22 @@ function loadState(){
     }
   });
   try{persistUniverses&&persistUniverses();}catch(e){}
-  // One-time upgrade: add the "HOW TO END A REPLY" anti-question-hook guidance to
+  // One-time upgrade: the first bystander-gist prompt produced over-long, over-literary memories
+  // and let the model name discussion specifics. If the stored prompt is still that v1 default
+  // (carries its distinctive "You create a BYSTANDER's memory." opening), replace it with the
+  // tightened version. Custom gist prompts won't match the marker and are left untouched.
+  if(typeof state.gistBuild==="string"
+     && state.gistBuild.indexOf("You create a BYSTANDER's memory.")!==-1){
+    state.gistBuild=DEFAULT_GIST_BUILD;
+    store.setRaw(K.gistBuild,state.gistBuild);
+  }
+  (state.universes||[]).forEach(u=>{
+    if(u&&u.prompts&&typeof u.prompts.gistBuild==="string"
+       && u.prompts.gistBuild.indexOf("You create a BYSTANDER's memory.")!==-1){
+      delete u.prompts.gistBuild;
+    }
+  });
+  try{persistUniverses&&persistUniverses();}catch(e){}
   // installs still running the stock base instruction. We only touch it when it still
   // looks like the unedited default (carries the stable PUSH AND PULL marker) AND the
   // new section isn't present yet — so user-customized instructions are never overwritten.
@@ -3843,7 +3862,11 @@ function appendOneBubble(m){
   while(nodes.length>RENDER_WINDOW){ const first=nodes[0]; removedH+=first.getBoundingClientRect().height; list.removeChild(first); nodes=list.querySelectorAll('[data-mid]'); }
   if(removedH>0){ setScrollTop(list,Math.max(0,list.scrollTop-removedH)); }
   _renderedCount=Math.min(curChat().messages.length,RENDER_WINDOW);
-  if(wasAtBottom||_followAfterSend){ setScrollTop(list,list.scrollHeight); hideNewMsgPill(); }
+  // While the presentation queue is actively rolling a turn (or the user just sent), keep the
+  // newest line in view. Without this, an appended bubble starts near-zero-height and grows as it
+  // types; if the follow intent was lost, the rolling text ends up below the fold and the user has
+  // to scroll down manually — the "jumps away from the latest message" bug.
+  if(wasAtBottom||_followAfterSend||_presentPlaying){ setScrollTop(list,list.scrollHeight); hideNewMsgPill(); }
   else { showNewMsgPill(); }
 }
 
@@ -8010,6 +8033,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   const list=chatScrollEl();
   if(list)list.addEventListener('scroll',()=>{
     if(_isProgrammaticScroll()) return;        // ignore our own scrollTop writes (trim, follow, snap)
+    if(_presentPlaying) return;                 // during an active turn roll, ignore layout-induced scrolls
     if(isNearBottom(list)){hideNewMsgPill();} else {_followAfterSend=false;}
   });
 });
@@ -8051,6 +8075,12 @@ function appendNewBubbles(){ return perf("appendNewBubbles",()=>{
   let appended=0;
   for(let i=firstNew;i<msgs.length;i++){ const m=msgs[i]; if(!m.mid) m.mid=newMid();
     if(_presentPendingMids.has(m.mid)) continue;   // committed to state but not yet its turn to show
+    // The presentation queue owns any message still flagged _reveal (it was just pushed to state but
+    // hasn't reached enqueuePresent yet, or is mid-roll). Rendering it here would paste it on screen
+    // ahead of / on top of the line currently rolling — the "everything dumps at once" bug. Skip it;
+    // the queue will append + roll it in strict order. (Already-on-screen check below is the guard
+    // for messages whose reveal has completed.)
+    if(m._reveal && !list.querySelector('[data-mid="'+m.mid+'"]')) continue;
     const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); appended++; }
   if(appended){
     // Trim the front of the DOM to keep within the window (state is untouched). Removing nodes
@@ -9407,14 +9437,14 @@ async function playGamemasterBeat(chat,nudge){
     chat.pendingGmNudge=null;
     // Post the event as a NARRATOR line everyone present can see.
     const msg={mid:newMid(),role:"assistant",speaker:"Narrator",gmBeat:true,narratorEvent:true,
-      present:presentIds(chat).slice(),content:text,
+      present:presentIds(chat).slice(),content:text,_reveal:true,
       img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();
     if(state.autoImg) illustrate(msg.mid,text);
     // Show the event in order via the presentation queue — it won't jump ahead of a line that's
     // still rolling, and it won't yank the viewport if the user has scrolled up to read.
-    msg._reveal=true; enqueuePresent(msg.mid);
+    enqueuePresent(msg.mid);
 
     // If the Scene Writer is enabled, classify this event and make it ACTIVE.
     if(state.sceneOn){
@@ -9532,11 +9562,11 @@ async function runSceneWriter(chat){
     // Post the writer's beat as a narrator-event line (same rendering as the Gamemaster).
     if(beat){
       const nm={mid:newMid(),role:"assistant",speaker:"Narrator",narratorEvent:true,sceneBeat:true,
-        present:presentIds(chat).slice(),content:beat,
+        present:presentIds(chat).slice(),content:beat,_reveal:true,
         img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
       chat.messages.push(nm);persistChats();
       if(state.autoImg) illustrate(nm.mid,nm.content);
-      nm._reveal=true; enqueuePresent(nm.mid);
+      enqueuePresent(nm.mid);
     }
     // Bring an approaching character into the room when the writer says so — or when
     // the player directly addressed them (forceBringIn), regardless of the model output.
