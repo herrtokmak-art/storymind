@@ -3824,9 +3824,31 @@ function loadState(){
     }
   });
   try{persistUniverses&&persistUniverses();}catch(e){}
-  // installs still running the stock base instruction. We only touch it when it still
-  // looks like the unedited default (carries the stable PUSH AND PULL marker) AND the
-  // new section isn't present yet — so user-customized instructions are never overwritten.
+  // One-time upgrade: the character-bio prompt gained "traits" (five-factor sketch) and "goals"
+  // fields. Installs that saved the earlier default still hold a prompt that never asks for them, so
+  // generated cards come back missing those sections. If the stored prompt is one of OUR earlier
+  // defaults (carries the stable "character-card writer for an adult roleplay app" opening) but lacks
+  // the new "traits" key, refresh it. A hand-customized prompt won't match the opening and is kept.
+  const _bioIsOurOldDefault=s=>typeof s==="string" &&
+    s.indexOf("character-card writer for an adult roleplay app")!==-1;
+  const _bioIsNew=s=>typeof s==="string" && s.indexOf('"traits"')!==-1 && s.indexOf('"goals"')!==-1;
+  if(_bioIsOurOldDefault(state.bioPrompt) && !_bioIsNew(state.bioPrompt)){
+    state.bioPrompt=DEFAULT_BIO;
+    store.setRaw(K.bioPrompt,state.bioPrompt);
+  }
+  // Same upgrade for the universe generator: its per-character schema gained "traits" and "goals".
+  // Refresh a stored prompt that is our earlier default (stable "world-builder for an adult roleplay
+  // app" opening) but lacks the new "traits" key. Hand-customized prompts won't match and are kept.
+  const _univIsOurOldDefault=s=>typeof s==="string" &&
+    s.indexOf("world-builder for an adult roleplay app")!==-1;
+  const _univIsNew=s=>typeof s==="string" && s.indexOf('"traits"')!==-1 && s.indexOf('"goals"')!==-1;
+  if(_univIsOurOldDefault(state.univPrompt) && !_univIsNew(state.univPrompt)){
+    state.univPrompt=DEFAULT_UNIV;
+    store.setRaw(K.univPrompt,state.univPrompt);
+  }
+  // One-time upgrade: refresh the stock base instruction for installs still running the older one.
+  // We only touch it when it still looks like the unedited default (carries the stable PUSH AND PULL
+  // and PACING markers) AND the new section isn't present yet — custom instructions are never lost.
   if(state.baseInstruction
      && state.baseInstruction.indexOf("HOW TO END A REPLY")===-1
      && state.baseInstruction.indexOf("PUSH AND PULL")!==-1
@@ -7322,10 +7344,13 @@ async function generateBio(brief,context){
     out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:user}
-    ],authoringModel(),{temp:fnTemp("mem",0.9),max:fnTok("mem",800),dbg:"Character bio generator"});
+    ],authoringModel(),{temp:fnTemp("mem",0.9),max:Math.max(2000,fnTok("mem",800)),dbg:"Character bio generator"});
   }catch(e){ return null; }
   const j=parseJSON(out);
-  if(!j||typeof j!=="object") return null;
+  if(!j||typeof j!=="object"){
+    try{ console.warn("[bio] could not parse model output. Raw was:\n", String(out||"").slice(0,1200)); }catch(e){}
+    return null;
+  }
   const clean=s=>typeof s==="string"?s.trim():"";
   return {
     name:clean(j.name),
@@ -7653,14 +7678,20 @@ async function generateUniverse(brief,count){
   const n=Math.max(1,Math.min(9,count||3));
   const user=`USER BRIEF:\n${brief||"(none — invent a fitting world)"}\n\nNUMBER OF CHARACTERS TO CREATE: ${n}`;
   let out;
+  // The per-character schema grew (traits + goals), so the JSON for a full cast is large. Scale the
+  // budget with the character count instead of a flat cap, or the JSON truncates and won't parse.
+  const uniTok=Math.max(fnTok("mem",2200), 1000 + n*900);
   try{
     out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:user}
-    ],authoringModel(),{temp:fnTemp("mem",0.9),max:fnTok("mem",2200),dbg:"Universe generator"});
+    ],authoringModel(),{temp:fnTemp("mem",0.9),max:uniTok,dbg:"Universe generator"});
   }catch(e){ return null; }
   const j=parseJSON(out);
-  if(!j||typeof j!=="object") return null;
+  if(!j||typeof j!=="object"){
+    try{ console.warn("[universe] could not parse model output. Raw was:\n", String(out||"").slice(0,1500)); }catch(e){}
+    return null;
+  }
   const clean=s=>typeof s==="string"?s.trim():"";
   const chars=Array.isArray(j.characters)?j.characters.slice(0,9).map(c=>({
     name:clean(c.name), avatar:clean(c.avatar)||"🎭",
