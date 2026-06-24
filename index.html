@@ -29,6 +29,23 @@
     --ai:#FFFFFF; --accent:#4F6FD8; --text:#1A1E2E; --muted:#6B7280;
     --danger:#D92D20; --good:#15803D; --border:#E2E5EE;
   }
+  /* Inline line-icon system: thin monochrome SVGs that inherit text color & font size, so they sit
+     in headers, buttons and labels like a glyph. Replaces emoji chrome for a cleaner look. */
+  .ic{width:1em;height:1em;display:inline-block;vertical-align:-0.125em;flex:none;
+      stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;fill:none;}
+  .ic-lg{width:1.25em;height:1.25em;}
+  h3 .ic,.subhead .ic,.modal h3 .ic{margin-right:.5em;opacity:.85;}
+  button .ic{margin-right:.4em;}
+  .ic-accent{color:var(--accent);}
+  .ic-danger{color:var(--danger);}
+  .ic-good{color:var(--good);}
+  /* Avatar chip: presents a character/universe avatar (still emoji data) as an intentional, sized
+     circular token rather than a bare cheap-looking emoji floating in text. */
+  .avatarChip{display:inline-flex;align-items:center;justify-content:center;
+      width:2em;height:2em;border-radius:50%;background:var(--surface);
+      border:1px solid var(--border);font-size:1em;line-height:1;flex:none;overflow:hidden;}
+  .avatarChip.lg{width:2.6em;height:2.6em;font-size:1.15em;}
+  .avatarChip img{width:100%;height:100%;object-fit:cover;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;overflow:hidden;}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100dvh;font-size:16px;}
@@ -218,6 +235,53 @@
 </style>
 </head>
 <body data-theme="dark">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><line x1="3" y1="3" x2="3" y2="21"/><line x1="3" y1="21" x2="21" y2="21"/><rect x="7" y="11" width="3" height="7"/><rect x="13" y="7" width="3" height="11"/></symbol>
+<symbol id="i-masks" viewBox="0 0 24 24"><path d="M3 5h8v6a4 4 0 0 1-8 0z"/><path d="M13 9h8v6a4 4 0 0 1-8 0z" opacity=".55"/></symbol>
+<symbol id="i-scale" viewBox="0 0 24 24"><line x1="12" y1="3" x2="12" y2="21"/><line x1="7" y1="21" x2="17" y2="21"/><path d="M6 7h12"/><path d="M6 7l-3 6h6z"/><path d="M18 7l-3 6h6z"/></symbol>
+<symbol id="i-brain" viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 1 4 3 3 0 0 0 3 4 2 2 0 0 0 3-1.7V5.7A2 2 0 0 0 9 4z"/><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-1 4 3 3 0 0 1-3 4 2 2 0 0 1-3-1.7V5.7A2 2 0 0 1 15 4z" opacity=".55"/></symbol>
+<symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 14l.7 1.8 1.8.7-1.8.7L19 19l-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+<symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="4" x2="9" y2="20"/><line x1="15" y1="4" x2="15" y2="20"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></symbol>
+<symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10"/></symbol>
+<symbol id="i-card" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+<symbol id="i-tools" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2z"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="6"/><line x1="16" y1="3" x2="16" y2="6"/></symbol>
+<symbol id="i-map" viewBox="0 0 24 24"><polygon points="3 6 9 4 15 6 21 4 21 18 15 20 9 18 3 20"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.3 7-11a7 7 0 0 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></symbol>
+<symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><line x1="12" y1="13" x2="12" y2="9"/><line x1="9" y1="2" x2="15" y2="2"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v17H6a2 2 0 0 0-2 2z"/><line x1="4" y1="19" x2="19" y2="19"/></symbol>
+<symbol id="i-speech" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-4a8 8 0 1 1 18-7z"/></symbol>
+<symbol id="i-feather" viewBox="0 0 24 24"><path d="M20 4a6 6 0 0 0-8 0L4 12v6h6l8-8a6 6 0 0 0 2-6z"/><line x1="4" y1="20" x2="13" y2="11"/></symbol>
+<symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="6" y2="17"/><line x1="12" y1="7" x2="18" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.4-7 10-7 10z"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><polygon points="13 2 4 14 11 14 10 22 20 9 13 9"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14A8 8 0 0 1 10 4a7 7 0 1 0 10 10z"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 6"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="4"/><path d="M11 11l9 9"/><path d="M16 16l2-2"/><path d="M18 18l2-2"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></symbol>
+<symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a3 3 0 0 1 0 6"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2s-.5-1.5 0-2 1.5-.5 2.5-.5A4 4 0 0 0 21 12 9 9 0 0 0 12 3z"/><circle cx="8" cy="10" r="1"/><circle cx="12" cy="7" r="1"/><circle cx="16" cy="10" r="1"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h7V3"/><rect x="8" y="13" width="8" height="5"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8" y1="11" x2="16" y2="7"/><line x1="8" y1="13" x2="16" y2="17"/></symbol>
+<symbol id="i-dna" viewBox="0 0 24 24"><path d="M7 3c0 5 10 7 10 12a5 5 0 0 1-5 5"/><path d="M17 3c0 5-10 7-10 12a5 5 0 0 0 5 5"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="17" x2="16" y2="17"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+<symbol id="i-bug" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="11" rx="4"/><line x1="12" y1="4" x2="12" y2="8"/><line x1="3" y1="11" x2="8" y2="11"/><line x1="16" y1="11" x2="21" y2="11"/><line x1="3" y1="17" x2="8" y2="16"/><line x1="16" y1="16" x2="21" y2="17"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-3-6z"/></symbol>
+<symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><line x1="14" y1="6" x2="18" y2="10"/></symbol>
+<symbol id="i-puzzle" viewBox="0 0 24 24"><path d="M10 4a2 2 0 0 1 4 0v2h3a1 1 0 0 1 1 1v3h-2a2 2 0 0 0 0 4h2v3a1 1 0 0 1-1 1h-3v-2a2 2 0 0 0-4 0v2H7a1 1 0 0 1-1-1v-3H4a2 2 0 0 1 0-4h2V7a1 1 0 0 1 1-1h3z"/></symbol>
+</defs></svg>
 
 <!-- ===== ONBOARDING ===== -->
 <div id="onboard">
@@ -264,25 +328,26 @@
       </div>
     </div>
     <div class="chatActions">
-      <button class="btn sec small" onclick="openCalendar()" style="position:relative" title="Calendar">📅<span id="calBadge" class="calBadge" style="display:none"></span></button>
-      <button class="btn sec small" onclick="openTravel()" title="Travel">🗺️</button>
+      <button class="btn sec small" onclick="openCalendar()" style="position:relative" title="Calendar"><svg class="ic"><use href="#i-calendar"/></svg><span id="calBadge" class="calBadge" style="display:none"></span></button>
+      <button class="btn sec small" onclick="openTravel()" title="Travel"><svg class="ic"><use href="#i-map"/></svg></button>
       <button class="btn sec small" onclick="toggleChatMenu(event)" title="More">⋯</button>
     </div>
     <div id="chatMenu" class="chatMenu hide">
-      <button onclick="forceGamemaster();closeChatMenu()">🎬 Nudge the story (Gamemaster)</button>
-      <button onclick="endDay();closeChatMenu()">🌙 End Day</button>
-      <button onclick="openStoryState();closeChatMenu()">📊 Story State</button>
-      <button onclick="openCast();closeChatMenu()">🎭 Nearby characters</button>
-      <button onclick="setSceneState();closeChatMenu()">🕐 Set time / place</button>
+      <button onclick="forceGamemaster();closeChatMenu()"><svg class="ic"><use href="#i-film"/></svg> Nudge the story (Gamemaster)</button>
+      <button onclick="manualConfront();closeChatMenu()"><svg class="ic"><use href="#i-scale"/></svg> Trigger a confrontation</button>
+      <button onclick="endDay();closeChatMenu()"><svg class="ic"><use href="#i-moon"/></svg> End Day</button>
+      <button onclick="openStoryState();closeChatMenu()"><svg class="ic"><use href="#i-chart"/></svg> Story State</button>
+      <button onclick="openCast();closeChatMenu()"><svg class="ic"><use href="#i-masks"/></svg> Nearby characters</button>
+      <button onclick="setSceneState();closeChatMenu()"><svg class="ic"><use href="#i-clock"/></svg> Set time / place</button>
       <button onclick="restartScene();closeChatMenu()">↺ Restart scene</button>
     </div>
   </header>
   <div id="recapBanner" class="hide"></div>
   <div id="chatList"></div>
   <div class="inputBar">
-    <button class="iconBtn" id="autoRpBtn" onclick="toggleAutoRp()" title="Auto-narrate my turns — type a short action or line and the app writes it out in your voice">🪶</button>
+    <button class="iconBtn" id="autoRpBtn" onclick="toggleAutoRp()" title="Auto-narrate my turns — type a short action or line and the app writes it out in your voice"><svg class="ic"><use href="#i-feather"/></svg></button>
     <textarea id="chatInput" rows="1" placeholder="Say or do something…  (/bring Name to call someone in)"></textarea>
-    <button class="iconBtn" id="sendBtn" onclick="sendMessage()">➤</button>
+    <button class="iconBtn" id="sendBtn" onclick="sendMessage()"><svg class="ic"><use href="#i-send"/></svg></button>
   </div>
 </div>
 
@@ -301,21 +366,21 @@
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:30px" id="uvAv">🌌</span>
           <h3 id="uvName" style="flex:1;min-width:0">Universe</h3>
-          <button class="btn sec small" style="width:auto" onclick="editUniverse(currentUniverseId())">✎ Edit</button>
+          <button class="btn sec small" style="width:auto" onclick="editUniverse(currentUniverseId())"><svg class="ic"><use href="#i-edit"/></svg> Edit</button>
         </div>
-        <div><label>🌍 Universe setting — added to every roleplay in this universe</label>
+        <div><label><svg class="ic"><use href="#i-globe"/></svg> Universe setting — added to every roleplay in this universe</label>
           <textarea class="fld" id="uvSetting" placeholder="The shared world all these characters live in: era, place, rules, tone, ongoing situation… e.g. A neon-soaked cyberpunk megacity in 2099 where megacorps rule the streets and old magic is quietly returning." style="min-height:90px"></textarea>
           <div class="desc">This text is injected into the system prompt for any story whose lead character belongs to this universe.</div>
         </div>
         <button class="btn small" style="width:auto;align-self:flex-start" onclick="saveUniverseSetting()">Save setting</button>
         <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:12px">
-          <label>🖼️ Universe picture</label>
+          <label><svg class="ic"><use href="#i-image"/></svg> Universe picture</label>
           <div id="uvImgPreview" class="avatarPreview" style="width:100%;height:180px;border-radius:16px;font-size:54px">🌌</div>
           <label style="margin-top:10px">Picture prompt</label>
           <textarea class="fld" id="uvImgPrompt" placeholder="Describe the establishing shot of this world: e.g. a sprawling neon cyberpunk megacity at night, rain-slicked streets, towering holographic ads, flying cars between skyscrapers, wide cinematic landscape" style="min-height:70px"></textarea>
           <div class="desc">Generated with ModelsLab <b>juggernaut-xl-9</b> + the <b>background-outdoor-world-city-v2-0</b> LoRA. Write your own prompt.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-            <button class="btn sec small" id="uvGenPic" style="width:auto" onclick="generateUniversePic()">✨ Generate picture</button>
+            <button class="btn sec small" id="uvGenPic" style="width:auto" onclick="generateUniversePic()"><svg class="ic"><use href="#i-sparkle"/></svg> Generate picture</button>
             <button class="btn sec small" style="width:auto" onclick="clearUniversePic()">Clear</button>
             <button class="btn small" style="width:auto" onclick="saveUniversePic()">Save picture</button>
           </div>
@@ -336,7 +401,7 @@
 
 <!-- ===== MEMORY ===== -->
 <div class="screen" id="screen-memory">
-  <header><div>Story Memory</div><div style="display:flex;gap:6px"><button class="btn sec small" onclick="condenseAllNow()">🗜️ Condense</button><button class="btn sec small" onclick="addMemoryManual()">＋ Add</button></div></header>
+  <header><div>Story Memory</div><div style="display:flex;gap:6px"><button class="btn sec small" onclick="condenseAllNow()"><svg class="ic"><use href="#i-tools"/></svg> Condense</button><button class="btn sec small" onclick="addMemoryManual()">＋ Add</button></div></header>
   <div class="pad" id="memoryList"></div>
 </div>
 
@@ -353,14 +418,14 @@
 
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
-      <summary><span class="sg-ico">🔑</span><span class="sg-meta">API Keys<div class="sg-sub">OpenRouter (text) · ModelsLab (image &amp; video)</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico"><svg class="ic"><use href="#i-key"/></svg></span><span class="sg-meta">API Keys<div class="sg-sub">OpenRouter (text) · ModelsLab (image &amp; video)</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
           <div><label>OpenRouter API Key (chat + prompt rewriters + routers)</label><input type="password" id="setKey" placeholder="sk-or-v1-…"></div>
           <div><label>ModelsLab API Key (image + video)</label><input type="password" id="setSegKey" placeholder="your ModelsLab key"></div>
           <div><label>AtlasCloud API Key (image + video)</label><input type="password" id="setAtlasKey" placeholder="your AtlasCloud key"></div>
           <button class="btn sec" id="testBtn" onclick="testConnection()">Test OpenRouter</button>
-          <div class="desc">⚠️ ModelsLab's API may block direct browser calls (CORS). If images/videos fail here, they'll work from the packaged mobile app or through a small proxy.</div>
+          <div class="desc"><svg class="ic"><use href="#i-warn"/></svg> ModelsLab's API may block direct browser calls (CORS). If images/videos fail here, they'll work from the packaged mobile app or through a small proxy.</div>
         </div>
         <div class="card">
           <h3>You (global defaults)</h3>
@@ -375,67 +440,102 @@
 
     <!-- ============ 2 · LLMs ============ -->
     <details class="sgroup">
-      <summary><span class="sg-ico">🧠</span><span class="sg-meta">LLMs<div class="sg-sub">Pick a model per function · per-function creativity &amp; token limits</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico"><svg class="ic"><use href="#i-brain"/></svg></span><span class="sg-meta">LLMs<div class="sg-sub">Pick a model per function · per-function creativity &amp; token limits</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="desc">Every job below runs on an OpenRouter model you choose. Leave <b>Creativity</b> or <b>Max tokens</b> on <b>Auto</b> to use the smart default tuned for that job. <button class="btn sec small" style="width:auto;display:inline-block;padding:4px 10px" onclick="loadModels(true)">↻ Refresh model list</button></div>
 
         <div class="card">
-          <h3>🎭 Roleplay (main character replies)</h3>
+          <h3><svg class="ic"><use href="#i-masks"/></svg> Roleplay (main character replies)</h3>
           <div><label>Model</label><input type="text" id="setModel" list="modelList" placeholder="anthropic/claude-3.5-sonnet"><datalist id="modelList"></datalist></div>
-          <div><label>🪶 Auto-RP model <span class="desc" style="display:inline">(narrates your turns; blank = roleplay model)</span></label><input type="text" id="setPlayerNarrateModel" list="modelList" placeholder="(uses roleplay model)"></div>
+          <div><label><svg class="ic"><use href="#i-feather"/></svg> Auto-RP model <span class="desc" style="display:inline">(narrates your turns; blank = roleplay model)</span></label><input type="text" id="setPlayerNarrateModel" list="modelList" placeholder="(uses roleplay model)"></div>
           <div><label>Creativity (temperature): <span id="tempVal">0.85</span></label><input type="range" id="setTemp" min="0" max="1" step="0.05" value="0.85"></div>
           <div><label>Max tokens: <span id="tokVal">1200</span></label><input type="range" id="setTokens" min="500" max="4000" step="100" value="1200"></div>
           <div class="desc">This is the base creativity &amp; length. Other functions fall back to these when set to Auto. <b>Using a reasoning model</b> (e.g. deepseek-v4-pro)? Keep this at 1200+ — reasoning models spend hidden tokens thinking before they answer, and a low limit can make them return nothing.</div>
         </div>
 
         <div class="card">
-          <h3>✍️ Prompt Rewriter</h3>
+          <h3><svg class="ic"><use href="#i-feather"/></svg> Prompt Rewriter</h3>
           <div class="desc">Turns each reply into image &amp; video generation prompts.</div>
           <div><label>Model</label><input type="text" id="setRewriter" list="modelList" placeholder="openai/gpt-4o-mini"></div>
           <div class="ovr"><div data-ovr="rewriter" data-kind="temp"></div><div data-ovr="rewriter" data-kind="tok"></div></div>
         </div>
 
         <div class="card">
-          <h3>🧠 Memory (builder · query · ranker)</h3>
+          <h3><svg class="ic"><use href="#i-brain"/></svg> Memory (builder · query · ranker)</h3>
           <div><label>Model</label><input type="text" id="setMemModel" list="modelList" value="deepseek/deepseek-v3.2"></div>
           <div class="ovr"><div data-ovr="mem" data-kind="temp"></div><div data-ovr="mem" data-kind="tok"></div></div>
         </div>
 
         <div class="card">
-          <h3>🗜️ Memory Condenser</h3>
+          <h3><svg class="ic"><use href="#i-tools"/></svg> Memory Condenser</h3>
           <div class="desc">Summarizes a character's oldest, low-importance memories into compact recollections once they pile up — bounds growth over long sessions and sharpens retrieval. Uses the Memory model above.</div>
           <div class="kvline"><span>Enable condenser</span>
             <label class="switchLbl"><input type="checkbox" id="setCondenseOn" checked><span class="sl"></span></label></div>
           <div><label>Condense when a character exceeds (memories)</label><input type="number" id="setCondenseThreshold" min="10" step="5" value="40"></div>
           <div><label>Keep verbatim if importance ≥ (0–1)</label><input type="number" id="setCondenseKeep" min="0" max="1" step="0.05" value="0.8"></div>
           <div><label>Memories merged per pass</label><input type="number" id="setCondenseBatch" min="3" step="1" value="15"></div>
-          <div class="desc" style="margin-top:8px">🧠 <b>Two-tier recall.</b> Each turn the app injects a few <b>recent</b> (sharp, verbatim) memories and a few <b>distant</b> (condensed, fuzzier) ones under separate headings. Condensed memories become the distant pool.</div>
+          <div class="desc" style="margin-top:8px"><svg class="ic"><use href="#i-brain"/></svg> <b>Two-tier recall.</b> Each turn the app injects a few <b>recent</b> (sharp, verbatim) memories and a few <b>distant</b> (condensed, fuzzier) ones under separate headings. Condensed memories become the distant pool.</div>
           <div><label>Recent memories per turn</label><input type="number" id="setMemRecentCount" min="0" max="10" step="1" value="3"></div>
           <div><label>Distant memories per turn</label><input type="number" id="setMemDistantCount" min="0" max="10" step="1" value="2"></div>
         </div>
 
         <div class="card">
-          <h3>🎬 Gamemaster</h3>
+          <h3><svg class="ic"><use href="#i-globe"/></svg> Living Universe (gossip)</h3>
+          <div class="desc">When characters are present but not in your conversation, they catch a vague impression of who you were with and how it looked. At <b>End Day</b>, charged glimpses (flirtation, arguments, secrecy) can travel through the relationship graph to people who'd care — planted as a vague rumor and an open suspicion in their head, which colors your next scene with them. Most glimpses spread to no one.</div>
+          <div class="kvline"><span>Enable gossip</span>
+            <label class="switchLbl"><input type="checkbox" id="setGossipOn" checked><span class="sl"></span></label></div>
+          <div><label>Only gossip if charge ≥ (0–1)</label><input type="number" id="setGossipThreshold" min="0" max="1" step="0.05" value="0.6"></div>
+          <div><label>Max gossip items per day</label><input type="number" id="setGossipMaxPerDay" min="0" max="10" step="1" value="3"></div>
+          <div><label>Model <span class="desc" style="display:inline">(blank = memory model)</span></label><input type="text" id="setGossipModel" list="modelList" placeholder="(uses memory model)"></div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-speech"/></svg> Gossip propagation prompt</summary>
+            <textarea class="fld" id="setGossipPrompt" style="min-height:160px"></textarea>
+            <div class="desc">Decides who tells whom, and as what. Returns JSON. Use {{user}}, {{witness}}, {{impression}}, {{charge}}, {{location}}, {{witness_ties}}, {{candidates}}.</div></details>
+          <div class="kvline" style="margin-top:10px"><span>Confrontations (gossip → someone comes to settle it)</span>
+            <label class="switchLbl"><input type="checkbox" id="setConfrontOn" checked><span class="sl"></span></label></div>
+          <div class="desc">When a character holds a strong, unresolved suspicion about you, they may arrive to confront you. The Scene Writer runs it as a winnable social check: a hidden conviction the evidence sets a floor on, that your excuses, consistency, and honesty move — while their personality decides how movable they are.</div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-scale"/></svg> Confrontation judge prompt</summary>
+            <textarea class="fld" id="setConfrontJudge" style="min-height:160px"></textarea>
+            <div class="desc">The unbiased referee — scores your last turn into a conviction delta (it writes no dialogue, decides no ending). Returns JSON. Use {{user}}, {{accuser}}, {{intent}}, {{evidence}}, {{accuser_nature}}, {{conviction}}, {{floor}}, {{ceiling}}, {{player_turn}}.</div></details>
+          <div class="kvline" style="margin-top:10px"><span>Offstage agency (characters form grudges/ambitions & act on them)</span>
+            <label class="switchLbl"><input type="checkbox" id="setIntentOn" checked><span class="sl"></span></label></div>
+          <div class="desc">Characters who are wronged, tempted, or see an opening form private motives — a grievance, ambition, scheme — and pursue them offstage between days: festering, recruiting allies who share the sentiment. When one is ready, it comes back as a confrontation. You insult someone; days later they return, and not always alone.</div>
+          <div><label>Max active motives per story</label><input type="number" id="setIntentMax" min="0" max="12" step="1" value="4"></div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-target"/></svg> Intent formation prompt</summary>
+            <textarea class="fld" id="setIntentForm" style="min-height:140px"></textarea>
+            <div class="desc">At End Day, decides whether a character now holds a charged motive. Returns JSON. Use {{user}}, {{char}}, {{nature}}, {{day_memories}}, {{roster}}.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-target"/></svg> Intent tick prompt (fester & recruit)</summary>
+            <textarea class="fld" id="setIntentTick" style="min-height:140px"></textarea>
+            <div class="desc">Each End Day, develops a live motive. Returns JSON. Use {{holder}}, {{nature}}, {{kind}}, {{target}}, {{aim}}, {{trigger}}, {{strength}}, {{allies}}, {{candidates}}.</div></details>
+        </div>
+
+        <div class="card">
+          <h3><svg class="ic"><use href="#i-film"/></svg> Gamemaster</h3>
           <div><label>Model</label><input type="text" id="setGmModel" list="modelList" value="deepseek/deepseek-v3.2"></div>
           <div class="ovr"><div data-ovr="gm" data-kind="temp"></div><div data-ovr="gm" data-kind="tok"></div></div>
         </div>
 
         <div class="card">
-          <h3>🎭 Multi-Character Director</h3>
+          <h3><svg class="ic"><use href="#i-masks"/></svg> Multi-Character Director</h3>
           <div><label>Model</label><input type="text" id="setMcModel" list="modelList" value="deepseek/deepseek-v3.2"></div>
           <div class="ovr"><div data-ovr="mc" data-kind="temp"></div><div data-ovr="mc" data-kind="tok"></div></div>
         </div>
 
         <div class="card">
-          <h3>🧭 Image/Video Router</h3>
+          <h3><svg class="ic"><use href="#i-compass"/></svg> Image/Video Router</h3>
           <div class="desc">Reads each scene and picks which image/video model rule to use.</div>
           <div><label>Model</label><input type="text" id="setRouterModel" list="modelList" value="openai/gpt-4o-mini"></div>
           <div class="ovr"><div data-ovr="router" data-kind="temp"></div><div data-ovr="router" data-kind="tok"></div></div>
         </div>
 
         <div class="card">
-          <h3>🪪 Character Generator</h3>
-          <div class="desc">Powers "✨ Create with AI" in the character editor and auto-creates cards for characters the Gamemaster introduces.</div>
+          <h3><svg class="ic"><use href="#i-sparkle"/></svg> Authoring model (world & prompt building)</h3>
+          <div class="desc">The strong model used for the rare, high-leverage generation jobs that shape everything downstream: building universes, writing character bios, authoring each world's director notes, and tuning the Living-Universe prompts to fit a world. It runs only a handful of times per universe — not per message — so a top-tier model here is cheap and pays off across the whole playthrough. A capable model is strongly recommended.</div>
+          <div><label>Model</label><input type="text" id="setAuthorModel" list="modelList" placeholder="anthropic/claude-sonnet-4"></div>
+        </div>
+
+        <div class="card">
+          <h3><svg class="ic"><use href="#i-card"/></svg> Character Generator</h3>
+          <div class="desc">Powers "<svg class="ic"><use href="#i-sparkle"/></svg> Create with AI" in the character editor and auto-creates cards for characters the Gamemaster introduces.</div>
           <div><label>Model</label><input type="text" id="setBioModel" list="modelList" value="deepseek/deepseek-v3.2"></div>
           <div class="kvline"><span>Auto-create introduced characters</span>
             <label class="switchLbl"><input type="checkbox" id="setAutoCharOn" checked><span class="sl"></span></label></div>
@@ -444,7 +544,7 @@
         </div>
 
         <div class="card">
-          <h3>✂️ History Compaction</h3>
+          <h3><svg class="ic"><use href="#i-tools"/></svg> History Compaction</h3>
           <div><label>Messages of history sent per reply</label><input type="number" id="setHistTurns" min="2" max="200" step="1" value="20"></div>
           <div class="desc">How many of the most recent messages go into each roleplay request. Lower = cheaper &amp; faster, but the AI remembers less of the immediate scene (older facts are still covered by Memory). Default 20.</div>
           <div class="desc" style="margin-top:10px">Below: trims <i>*narration*</i> and stage directions from OLDER messages <i>within</i> that window to save tokens. Recent messages are always sent in full. Applies only to roleplay replies — memory, image and director engines are unaffected.</div>
@@ -454,7 +554,7 @@
         </div>
 
         <div class="card">
-          <h3>📊 Story Systems</h3>
+          <h3><svg class="ic"><use href="#i-chart"/></svg> Story Systems</h3>
           <div class="kvline"><span>Relationship tracking</span>
             <label class="switchLbl"><input type="checkbox" id="setRelOn" checked><span class="sl"></span></label></div>
           <div class="desc">Characters build feelings (-100…+100) toward each other and you, fed back into the story.</div>
@@ -463,14 +563,14 @@
           <div class="desc">Per-universe values (love, pregnancy, trust…) with staged consequences. Define them in the Universe editor.</div>
           <div class="kvline"><span>Voice consistency check</span>
             <label class="switchLbl"><input type="checkbox" id="setVoiceCheckOn"><span class="sl"></span></label></div>
-          <div class="desc">Flags clearly out-of-character replies with a ⚠ hint. Costs one extra small call per reply.</div>
+          <div class="desc">Flags clearly out-of-character replies with a <svg class="ic"><use href="#i-warn"/></svg> hint. Costs one extra small call per reply.</div>
           <div class="kvline"><span>Scene recap on resume</span>
             <label class="switchLbl"><input type="checkbox" id="setRecapOn" checked><span class="sl"></span></label></div>
           <div class="desc">Shows a “Previously…” line when you reopen a chat after a break.</div>
         </div>
 
         <div class="card">
-          <h3>🗺️ World & Time</h3>
+          <h3><svg class="ic"><use href="#i-map"/></svg> World & Time</h3>
           <div><label>Location image model (optional — a scenery-tuned model id)</label><input type="text" id="setLocModel" list="modelList" placeholder="(uses your image model if blank)"></div>
           <div><label>Default travel time (periods)</label><input type="number" id="setTravelTime" min="0" max="5" step="1" value="1"></div>
           <div class="desc">How much in-game time a trip costs by default. Each location can override this.</div>
@@ -483,98 +583,104 @@
 
     <!-- ============ 3 · PROMPTS ============ -->
     <details class="sgroup">
-      <summary><span class="sg-ico">📜</span><span class="sg-meta">Prompts<div class="sg-sub">Every system prompt the app sends, in one place</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico"><svg class="ic"><use href="#i-book"/></svg></span><span class="sg-meta">Prompts<div class="sg-sub">Every system prompt the app sends, in one place</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
-          <h3>🌍 Global Base Instruction</h3>
+          <h3><svg class="ic"><use href="#i-globe"/></svg> Global Base Instruction</h3>
           <div class="desc">Applied to <b>every</b> character, before their individual details. The universal roleplay principles live here.</div>
           <textarea class="fld" id="setBaseInstruction" style="min-height:220px"></textarea>
           <button class="btn sec small" onclick="resetBaseInstruction()" style="margin-top:6px">Reset to default</button>
         </div>
         <div class="card">
-          <h3>✍️ Response Format Rules</h3>
+          <h3><svg class="ic"><use href="#i-feather"/></svg> Response Format Rules</h3>
           <div class="desc"><b>*asterisks*</b> → <strong>bold</strong> (narration/action), <b>_underscores_</b> → <em>italics</em> (thoughts), "quotes" → spoken dialogue.</div>
           <textarea class="fld" id="setFormatRules" style="min-height:150px"></textarea>
           <button class="btn sec small" onclick="resetFormatRules()" style="margin-top:6px">Reset to default</button>
         </div>
         <div class="card">
-          <div class="subhead">🧠 Memory</div>
-          <details class="acc"><summary>🛠️ Memory builder prompt (every 10 messages)</summary>
+          <div class="subhead"><svg class="ic"><use href="#i-brain"/></svg> Memory</div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-tools"/></svg> Memory builder prompt (every 10 messages)</summary>
             <textarea class="fld" id="setMemBuild" style="min-height:160px"></textarea>
             <div class="desc">Produces a structured JSON memory. Use {{char}} and {{user}}.</div></details>
-          <details class="acc"><summary>👁️ Bystander gist prompt (perception tiers)</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-eye"/></svg> Bystander gist prompt (perception tiers)</summary>
             <textarea class="fld" id="setGistBuild" style="min-height:160px"></textarea>
             <div class="desc">When a character is present but NOT in the conversation, they form a fuzzy outside impression (the social shape) instead of a verbatim memory — they don't hear the words. Use {{char}}, {{user}}.</div></details>
-          <details class="acc"><summary>🔍 Query generator prompt (each message)</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-eye"/></svg> Query generator prompt (each message)</summary>
             <textarea class="fld" id="setQueryGen" style="min-height:120px"></textarea>
             <div class="desc">Turns the current moment into a search query over stored memories.</div></details>
-          <details class="acc"><summary>📊 Memory ranker prompt (each message)</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-chart"/></svg> Memory ranker prompt (each message)</summary>
             <textarea class="fld" id="setRanker" style="min-height:120px"></textarea>
             <div class="desc">Picks the most relevant memories. Use {{maxCount}}.</div></details>
-          <details class="acc"><summary>🗜️ Memory condenser prompt (distant memories)</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-tools"/></svg> Memory condenser prompt (distant memories)</summary>
             <textarea class="fld" id="setCondensePrompt" style="min-height:160px"></textarea>
             <div class="desc">Merges old low-importance memories into durable summaries. Use {{char}} and {{user}}.</div></details>
         </div>
         <div class="card">
-          <div class="subhead">🪪 Character</div>
-          <details class="acc"><summary>🪪 Character bio generator prompt</summary>
+          <div class="subhead"><svg class="ic"><use href="#i-card"/></svg> Character</div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-card"/></svg> Character bio generator prompt</summary>
             <textarea class="fld" id="setBioPrompt" style="min-height:200px"></textarea>
             <div class="desc">Turns a brief (or conversation context) into a full character card as JSON. Used by "Create with AI" and auto-character.</div></details>
           <details class="acc"><summary>🌌 Universe generator prompt</summary>
             <textarea class="fld" id="setUnivPrompt" style="min-height:200px"></textarea>
             <div class="desc">Turns a brief + character count into a full universe (setting, your background, and a cast) as JSON.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-masks"/></svg> Director-notes author prompt</summary>
+            <textarea class="fld" id="setDirectorAuthor" style="min-height:160px"></textarea>
+            <div class="desc">When a universe is generated, writes its "how drama works here" notes from the setting + cast — fed to the Gamemaster & Scene Writer so events fit the genre. Use {{setting}}, {{cast}}, {{user}}, {{user_bio}}.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-tools"/></svg> Per-universe prompt tuner</summary>
+            <textarea class="fld" id="setPromptTuner" style="min-height:160px"></textarea>
+            <div class="desc">Takes a working Living-Universe prompt and lightly adjusts it to a world's genre — structure, format, and all {{placeholders}} preserved (validated; falls back to the default if anything's off). Use {{setting}}, {{directing}}, {{base}}.</div></details>
         </div>
         <div class="card">
-          <div class="subhead">📊 Story Systems</div>
-          <details class="acc"><summary>❤️ Relationship tracker prompt</summary>
+          <div class="subhead"><svg class="ic"><use href="#i-chart"/></svg> Story Systems</div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-heart"/></svg> Relationship tracker prompt</summary>
             <textarea class="fld" id="setRelPrompt" style="min-height:160px"></textarea>
             <div class="desc">Long-term (slow axes): re-judges feelings at End Day from the day's memories. Returns JSON deltas.</div></details>
-          <details class="acc"><summary>⚡ Short-term feelings prompt (fast axes)</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-bolt"/></svg> Short-term feelings prompt (fast axes)</summary>
             <textarea class="fld" id="setRelShortPrompt" style="min-height:160px"></textarea>
             <div class="desc">Momentary feelings, scored every few exchanges. Returns JSON deltas for desire/comfort/fear/agitation.</div></details>
-          <details class="acc"><summary>🕸️ Relationship generator prompt</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-network"/></svg> Relationship generator prompt</summary>
             <textarea class="fld" id="setRelGenPrompt" style="min-height:160px"></textarea>
             <div class="desc">Builds each character's factual relationship sheet (tie + prose) toward everyone. Returns JSON. Use {{char}} and {{user}}.</div></details>
-          <details class="acc"><summary>🪶 Auto-RP player narrator prompt</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-feather"/></svg> Auto-RP player narrator prompt</summary>
             <textarea class="fld" id="setPlayerNarratePrompt" style="min-height:160px"></textarea>
             <div class="desc">Rewrites your terse input into a short, in-voice player turn (when Auto-RP is on). Use {{user}}, {{player_profile}}, {{scene}}. (Set the model in the Roleplay section above.)</div></details>
-          <details class="acc"><summary>📊 Freeform tracker prompt</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-chart"/></svg> Freeform tracker prompt</summary>
             <textarea class="fld" id="setTrackPrompt" style="min-height:160px"></textarea>
             <div class="desc">Judges soft deltas and detects trigger phrases. Dice/day-counting handled by the app.</div></details>
-          <details class="acc"><summary>⚠️ Voice consistency prompt</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-warn"/></svg> Voice consistency prompt</summary>
             <textarea class="fld" id="setVoiceCheckPrompt" style="min-height:120px"></textarea>
             <div class="desc">Flags out-of-character replies. Returns {ok, note}.</div></details>
-          <details class="acc"><summary>🗺️ Travel narration prompt</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-map"/></svg> Travel narration prompt</summary>
             <textarea class="fld" id="setTravelPrompt" style="min-height:140px"></textarea>
             <div class="desc">Narrates the journey from one place to another. Use {{user}}.</div></details>
-          <details class="acc"><summary>🗓️ Future-events detector prompt</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-calendar"/></svg> Future-events detector prompt</summary>
             <textarea class="fld" id="setCalPrompt" style="min-height:140px"></textarea>
             <div class="desc">Extracts meetings, promises &amp; conditionals from conversation as JSON.</div></details>
         </div>
         <div class="card">
-          <div class="subhead">🎬 Gamemaster</div>
-          <details class="acc"><summary>⚖️ Staleness judge prompt (stage 1)</summary>
+          <div class="subhead"><svg class="ic"><use href="#i-film"/></svg> Gamemaster</div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-scale"/></svg> Staleness judge prompt (stage 1)</summary>
             <textarea class="fld" id="setGmJudge" style="min-height:150px"></textarea>
             <div class="desc">Returns JSON {stale, reason, energy}. Use {{user}} and {{sensitivity}}.</div></details>
-          <details class="acc"><summary>✍️ Event author prompt (stage 2)</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-feather"/></svg> Event author prompt (stage 2)</summary>
             <textarea class="fld" id="setGmAuthor" style="min-height:150px"></textarea>
             <div class="desc">Writes the hidden nudge. Use {{user}} and {{reason}}.</div></details>
-          <details class="acc"><summary>🌙 Day-summary prompt (End Day button)</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-moon"/></svg> Day-summary prompt (End Day button)</summary>
             <textarea class="fld" id="setDaySummary" style="min-height:130px"></textarea>
             <div class="desc">Condenses a finished day into one memory. Use {{char}} and {{user}}.</div></details>
         </div>
         <div class="card">
-          <div class="subhead">🎬 Scene Writer</div>
-          <details class="acc"><summary>🧩 Event setup prompt</summary>
+          <div class="subhead"><svg class="ic"><use href="#i-film"/></svg> Scene Writer</div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-puzzle"/></svg> Event setup prompt</summary>
             <textarea class="fld" id="setSceneSetup" style="min-height:150px"></textarea>
             <div class="desc">Classifies a new event. Returns JSON.</div></details>
-          <details class="acc"><summary>✍️ Scene advance prompt</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-feather"/></svg> Scene advance prompt</summary>
             <textarea class="fld" id="setSceneWriter" style="min-height:170px"></textarea>
             <div class="desc">Returns JSON. Use {{user}}, {{summary}}, {{turn}}, {{min}}, {{max}}.</div></details>
         </div>
         <div class="card">
-          <div class="subhead">🎭 Multi-Character Director</div>
-          <details class="acc"><summary>🗣️ Router 1 — after the player speaks</summary>
+          <div class="subhead"><svg class="ic"><use href="#i-masks"/></svg> Multi-Character Director</div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-speech"/></svg> Router 1 — after the player speaks</summary>
             <textarea class="fld" id="setRouterPlayer" style="min-height:140px"></textarea>
             <div class="desc">Returns JSON {addressed, responders}. Use {{user}}.</div></details>
           <details class="acc"><summary>↔️ Router 2 — after a character speaks</summary>
@@ -585,14 +691,14 @@
             <div class="desc">Detects entrances/exits. Returns JSON {exit, enter}. Use {{user}}.</div></details>
         </div>
         <div class="card">
-          <div class="subhead">🖼️ Image &amp; Video</div>
-          <details class="acc"><summary>🖼️ Image-prompt rewriter instructions</summary>
+          <div class="subhead"><svg class="ic"><use href="#i-image"/></svg> Image &amp; Video</div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-image"/></svg> Image-prompt rewriter instructions</summary>
             <textarea class="fld" id="setRewritePrompt" style="min-height:110px"></textarea>
             <div class="desc">Turns each roleplay reply into a vivid image-generation prompt.</div></details>
-          <details class="acc"><summary>🎬 Video-prompt rewriter instructions</summary>
+          <details class="acc"><summary><svg class="ic"><use href="#i-film"/></svg> Video-prompt rewriter instructions</summary>
             <textarea class="fld" id="setVidPrompt" style="min-height:110px"></textarea>
-            <div class="desc">Turns a still scene into a motion prompt when you tap 🎬 Animate.</div></details>
-          <details class="acc"><summary>🧭 Router instructions (image/video model picker)</summary>
+            <div class="desc">Turns a still scene into a motion prompt when you tap <svg class="ic"><use href="#i-film"/></svg> Animate.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-compass"/></svg> Router instructions (image/video model picker)</summary>
             <textarea class="fld" id="setRouterPrompt" style="min-height:120px"></textarea></details>
         </div>
       </div>
@@ -600,7 +706,7 @@
 
     <!-- ============ 4 · IMAGE GENERATION ============ -->
     <details class="sgroup">
-      <summary><span class="sg-ico">🖼️</span><span class="sg-meta">Image Generation<div class="sg-sub">Provider, model rules (drag-order), style &amp; ratio</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico"><svg class="ic"><use href="#i-image"/></svg></span><span class="sg-meta">Image Generation<div class="sg-sub">Provider, model rules (drag-order), style &amp; ratio</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
           <div><label>Default provider</label>
@@ -616,7 +722,7 @@
             <div><label>Sampling steps (ModelsLab): <span id="stepsVal">25</span></label>
               <input type="range" id="setSteps" min="10" max="50" step="1" value="25">
               <div class="desc">Higher = more detail but slower &amp; more credits. 20–30 is a good phone-scale range.</div></div>
-            <div class="kvline"><span>🧠 Smart routing — let an LLM pick the rule per scene</span>
+            <div class="kvline"><span><svg class="ic"><use href="#i-brain"/></svg> Smart routing — let an LLM pick the rule per scene</span>
               <label class="switchLbl"><input type="checkbox" id="setRouteOn" checked><span class="sl"></span></label></div>
             <div class="desc">When on, the router reads each scene and chooses a rule below. When off, the first enabled rule is always used. (Router model lives in the LLMs section.)</div>
             <label style="margin-top:6px">Image model rules — top to bottom = priority. Use ▲▼ to reorder. Each rule picks its own provider &amp; model.</label>
@@ -629,7 +735,7 @@
 
     <!-- ============ 5 · VIDEO GENERATION ============ -->
     <details class="sgroup">
-      <summary><span class="sg-ico">🎥</span><span class="sg-meta">Video Generation<div class="sg-sub">Provider, model rules (drag-order), length &amp; sound</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico"><svg class="ic"><use href="#i-video"/></svg></span><span class="sg-meta">Video Generation<div class="sg-sub">Provider, model rules (drag-order), length &amp; sound</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
           <div><label>Default provider</label>
@@ -650,7 +756,7 @@
           <div style="height:1px;background:var(--border);margin:6px 0"></div>
           <div><label>Video length</label><div class="seg" id="durSeg"></div></div>
           <div style="margin-top:6px"><label>Video resolution</label><div class="seg" id="resSeg"></div><div class="desc">AtlasCloud WAN i2v supports 480p, 720p, 1080p. Higher resolution costs more and takes longer.</div></div>
-          <div class="kvline"><span>🔊 Generate sound (WAN audio)</span>
+          <div class="kvline"><span><svg class="ic"><use href="#i-volume"/></svg> Generate sound (WAN audio)</span>
             <label class="switchLbl"><input type="checkbox" id="setVidSound"><span class="sl"></span></label></div>
           <div class="desc">When supported by the video model (e.g. WAN 2.x i2v), requests audio along with the clip.</div>
         </div>
@@ -659,10 +765,10 @@
 
     <!-- ============ 6 · FUNCTIONS ============ -->
     <details class="sgroup">
-      <summary><span class="sg-ico">⚙️</span><span class="sg-meta">Functions<div class="sg-sub">Gamemaster · Scene Writer · Multi-Character · Auto-Illustration · Memory</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico"><svg class="ic"><use href="#i-settings"/></svg></span><span class="sg-meta">Functions<div class="sg-sub">Gamemaster · Scene Writer · Multi-Character · Auto-Illustration · Memory</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
-          <h3>🎬 Gamemaster</h3>
+          <h3><svg class="ic"><use href="#i-film"/></svg> Gamemaster</h3>
           <div class="desc">An invisible director. Every few messages it checks whether the scene has gone stale and, if so, slips the character a hidden cue to act on.</div>
           <div class="kvline"><span>Enable Gamemaster</span>
             <label class="switchLbl"><input type="checkbox" id="setGmOn" checked><span class="sl"></span></label></div>
@@ -672,7 +778,7 @@
           <div class="desc">Model &amp; prompts for this function live in the LLMs and Prompts sections.</div>
         </div>
         <div class="card">
-          <h3>🎬 Scene Writer</h3>
+          <h3><svg class="ic"><use href="#i-film"/></svg> Scene Writer</h3>
           <div class="desc">After the Gamemaster triggers an event, the Scene Writer drives it to a real resolution — escalating if ignored and bringing approaching characters in at the right moment.</div>
           <div class="kvline"><span>Enable Scene Writer</span>
             <label class="switchLbl"><input type="checkbox" id="setSceneOn" checked><span class="sl"></span></label></div>
@@ -684,7 +790,7 @@
           </div>
         </div>
         <div class="card">
-          <h3>🎭 Multi-Character Director</h3>
+          <h3><svg class="ic"><use href="#i-masks"/></svg> Multi-Character Director</h3>
           <div class="desc">Active whenever 2+ characters are in earshot. Decides who responds to you and lets characters talk to each other.</div>
           <div><label>Auto-chain cap: up to <span id="mcCapVal">4</span> turns before it waits for you</label>
             <input type="range" id="setMcCap" min="1" max="8" step="1" value="4"></div>
@@ -694,21 +800,21 @@
           <div class="desc">When a character clearly leaves or arrives, they exit/enter the scene automatically.</div>
         </div>
         <div class="card">
-          <h3>🖼️ Auto-Illustration</h3>
+          <h3><svg class="ic"><use href="#i-image"/></svg> Auto-Illustration</h3>
           <div class="kvline"><span>Auto-generate scene image each reply</span>
             <label class="switchLbl"><input type="checkbox" id="setAutoImg" checked><span class="sl"></span></label></div>
-          <div class="desc">On = every reply is illustrated automatically. Off = each reply shows a 🖼️ Generate image button.</div>
+          <div class="desc">On = every reply is illustrated automatically. Off = each reply shows a <svg class="ic"><use href="#i-image"/></svg> Generate image button.</div>
           <div><label>Image style</label><div class="seg" id="styleSeg"></div></div>
           <div><label>Aspect ratio</label><div class="seg" id="ratioSeg"></div></div>
         </div>
         <div class="card">
-          <h3>🧠 Story Memory</h3>
+          <h3><svg class="ic"><use href="#i-brain"/></svg> Story Memory</h3>
           <div class="kvline"><span>Enable memory system</span>
             <label class="switchLbl"><input type="checkbox" id="setMem" checked><span class="sl"></span></label></div>
           <div class="desc">Builds memories every 10 messages, then retrieves the most relevant ones each turn. Model &amp; prompts live in the LLMs and Prompts sections.</div>
         </div>
         <div class="card">
-          <h3>🎨 Appearance</h3>
+          <h3><svg class="ic"><use href="#i-palette"/></svg> Appearance</h3>
           <div><label>Theme</label>
             <div class="seg" id="themeSeg">
               <button data-t="dark" class="on">Dark</button><button data-t="light">Light</button><button data-t="system">System</button>
@@ -723,35 +829,35 @@
 
     <!-- ============ 7 · DATA ============ -->
     <details class="sgroup">
-      <summary><span class="sg-ico">💾</span><span class="sg-meta">Data<div class="sg-sub">Backup, import, export &amp; clear</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico"><svg class="ic"><use href="#i-save"/></svg></span><span class="sg-meta">Data<div class="sg-sub">Backup, import, export &amp; clear</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
           <h3>Storage &amp; Cleanup</h3>
           <div class="kvline"><span>Storage used</span><span id="storageUsed" class="pill">—</span></div>
-          <button id="installBtn" class="btn small" style="display:none" onclick="installApp()">📲 Install app</button>
+          <button id="installBtn" class="btn small" style="display:none" onclick="installApp()"><svg class="ic"><use href="#i-share"/></svg> Install app</button>
 
           <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)">Full backup</div>
-          <button class="btn small" onclick="exportAll()">⬇️ Export everything (backup)</button>
-          <button class="btn sec small" onclick="importPick('all')">⬆️ Import everything (restore)</button>
+          <button class="btn small" onclick="exportAll()"><svg class="ic"><use href="#i-download"/></svg> Export everything (backup)</button>
+          <button class="btn sec small" onclick="importPick('all')"><svg class="ic"><use href="#i-arrow-up"/></svg> Import everything (restore)</button>
 
-          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)">🎭 Roleplay <span style="font-weight:400">(this universe's chats + memories)</span></div>
-          <button class="btn sec small" onclick="exportRoleplay()">⬇️ Export roleplay</button>
-          <button class="btn sec small" onclick="importPick('roleplay')">⬆️ Import roleplay</button>
+          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)"><svg class="ic"><use href="#i-masks"/></svg> Roleplay <span style="font-weight:400">(this universe's chats + memories)</span></div>
+          <button class="btn sec small" onclick="exportRoleplay()"><svg class="ic"><use href="#i-download"/></svg> Export roleplay</button>
+          <button class="btn sec small" onclick="importPick('roleplay')"><svg class="ic"><use href="#i-arrow-up"/></svg> Import roleplay</button>
 
-          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)">🌍 Universes <span style="font-weight:400">(worlds + characters, no chats)</span></div>
-          <button class="btn sec small" onclick="exportUniverses()">⬇️ Export universes</button>
-          <button class="btn sec small" onclick="importPick('universes')">⬆️ Import universes</button>
+          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)"><svg class="ic"><use href="#i-globe"/></svg> Universes <span style="font-weight:400">(worlds + characters, no chats)</span></div>
+          <button class="btn sec small" onclick="exportUniverses()"><svg class="ic"><use href="#i-download"/></svg> Export universes</button>
+          <button class="btn sec small" onclick="importPick('universes')"><svg class="ic"><use href="#i-arrow-up"/></svg> Import universes</button>
 
-          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)">⚙️ Prompts &amp; settings <span style="font-weight:400">(prompt pack)</span></div>
-          <button class="btn sec small" onclick="exportPrompts()">⬇️ Export prompts</button>
-          <button class="btn sec small" onclick="importPick('prompts')">⬆️ Import prompts</button>
+          <div class="desc" style="margin-top:10px;font-weight:600;color:var(--accent)"><svg class="ic"><use href="#i-settings"/></svg> Prompts &amp; settings <span style="font-weight:400">(prompt pack)</span></div>
+          <button class="btn sec small" onclick="exportPrompts()"><svg class="ic"><use href="#i-download"/></svg> Export prompts</button>
+          <button class="btn sec small" onclick="importPick('prompts')"><svg class="ic"><use href="#i-arrow-up"/></svg> Import prompts</button>
 
           <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importDispatch(this.files[0]); this.value='';">
 
           <div class="desc" style="margin-top:12px;font-weight:600;color:var(--danger)">Danger zone</div>
           <button class="btn danger small" onclick="confirmClear('chats')">Clear all chats</button>
           <button class="btn danger small" onclick="confirmClear('memory')">Clear all memories</button>
-          <button class="btn danger small" onclick="wipeUniverseMemory()">🧠 Wipe this universe's memories</button>
+          <button class="btn danger small" onclick="wipeUniverseMemory()"><svg class="ic"><use href="#i-brain"/></svg> Wipe this universe's memories</button>
           <button class="btn danger small" onclick="confirmClear('images')">Clear gallery</button>
         </div>
       </div>
@@ -765,7 +871,7 @@
 <div class="screen" id="screen-debug">
   <header><div>Debug — AI payloads</div>
     <div style="display:flex;gap:6px">
-      <button class="btn sec small" onclick="exportDebug()">⬇ Export</button>
+      <button class="btn sec small" onclick="exportDebug()"><svg class="ic"><use href="#i-download"/></svg> Export</button>
       <button class="btn sec small" onclick="clearDebug()">Clear</button>
     </div>
   </header>
@@ -779,13 +885,13 @@
 <div class="modal" id="universeGenModal">
   <button class="x" onclick="closeModal('universeGenModal')">×</button>
   <div class="card editCard">
-    <h3>✨ Generate Universe</h3>
+    <h3><svg class="ic"><use href="#i-sparkle"/></svg> Generate Universe</h3>
     <div class="desc">Describe the world you want. The AI builds the setting, your character's background, and a ready-to-play cast. Pictures aren't generated — add them per character afterward.</div>
     <div><label>Brief</label><textarea class="fld" id="ugBrief" placeholder="e.g. a neon cyberpunk megacity ruled by rival corporations; I'm a freelance fixer with a debt to pay. Include a hacker ally, a corpo handler, and a dangerous rival." style="min-height:110px"></textarea></div>
     <div><label>How many characters (1–9)</label><input type="number" id="ugCount" min="1" max="9" step="1" value="4"></div>
     <div class="row">
       <button class="btn sec" onclick="closeModal('universeGenModal')">Cancel</button>
-      <button class="btn" id="ugGo" onclick="runUniverseGenerator()">✨ Generate universe</button>
+      <button class="btn" id="ugGo" onclick="runUniverseGenerator()"><svg class="ic"><use href="#i-sparkle"/></svg> Generate universe</button>
     </div>
   </div>
 </div>
@@ -797,6 +903,9 @@
     <div><label>Name</label><input type="text" id="ueName" placeholder="Neo-Tokyo 2099"></div>
     <div><label>Icon (emoji)</label><input type="text" id="ueAvatar" placeholder="🌌" maxlength="4"></div>
     <div><label>Universe setting (world prompt)</label><textarea class="fld" id="ueSetting" placeholder="Era, place, rules, tone, ongoing situation shared by everyone in this universe…" style="min-height:100px"></textarea></div>
+    <div style="margin-top:6px"><label><svg class="ic"><use href="#i-masks"/></svg> Director notes <span class="desc">(how drama, grudges & schemes work in this world — fed to the Gamemaster & Scene Writer)</span></label>
+      <textarea class="fld" id="ueDirectingNotes" placeholder="Auto-written when a universe is AI-generated. Describes the genre's tensions, what events fit, how characters act on grudges/ambitions, and the tone of confrontation." style="min-height:90px"></textarea>
+      <button type="button" class="btn sec small" id="ueDirGenBtn" onclick="regenDirectingNotes()" style="margin-top:4px"><svg class="ic"><use href="#i-sparkle"/></svg> Write from world & cast</button></div>
     <div class="subhead" style="margin-top:10px">🧑 Your character in this universe</div>
     <div class="desc">Leave blank to use your global defaults from Settings.</div>
     <div><label>Your name (this universe)</label><input type="text" id="ueUserName" placeholder="(global default)"></div>
@@ -804,26 +913,26 @@
     <div><label>Your personality (this universe)</label><textarea class="fld" id="ueUserPersonality" placeholder="how you tend to act: confident, dry-humoured, guarded, reckless… — used by Auto-RP to narrate your turns in your voice" style="min-height:56px"></textarea></div>
     <div><label>Your speech style (this universe)</label><textarea class="fld" id="ueUserStyle" placeholder="how you talk: terse, sarcastic, warm, formal, lots of slang… — used by Auto-RP" style="min-height:56px"></textarea></div>
     <div><label>Your background (this universe)</label><textarea class="fld" id="ueUserBio" placeholder="who you are here: history, role, ties to this world — used by the Gamemaster & Scene Writer" style="min-height:72px"></textarea></div>
-    <div class="subhead" style="margin-top:10px">📊 Trackers</div>
+    <div class="subhead" style="margin-top:10px"><svg class="ic"><use href="#i-chart"/></svg> Trackers</div>
     <div class="desc">Named numeric values the story tracks (suspicion, intoxication, a power budget, pregnancy…). Each can belong to the whole story, a single character (private to them), or you the player (public or private). Each tracker has its own behaviour, its own AI prompt &amp; model, and breaking points. Values start fresh in each chat.</div>
     <div id="ueTrackerList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn sec small" type="button" onclick="addTracker()">＋ New tracker</button>
-      <button class="btn sec small" type="button" onclick="addTrackerPreset('love')">❤️ Love <span class="desc">(AI)</span></button>
+      <button class="btn sec small" type="button" onclick="addTrackerPreset('love')"><svg class="ic"><use href="#i-heart"/></svg> Love <span class="desc">(AI)</span></button>
       <button class="btn sec small" type="button" onclick="addTrackerPreset('suspicion')">🚓 Heat <span class="desc">(AI)</span></button>
-      <button class="btn sec small" type="button" onclick="addTrackerPreset('sobriety')">📅 Days sober <span class="desc">(End Day)</span></button>
+      <button class="btn sec small" type="button" onclick="addTrackerPreset('sobriety')"><svg class="ic"><use href="#i-calendar"/></svg> Days sober <span class="desc">(End Day)</span></button>
       <button class="btn sec small" type="button" onclick="addTrackerPreset('pregnancy')">🤰 Pregnancy <span class="desc">(event→day)</span></button>
     </div>
-    <div class="subhead" style="margin-top:10px">🗺️ Locations</div>
+    <div class="subhead" style="margin-top:10px"><svg class="ic"><use href="#i-map"/></svg> Locations</div>
     <div class="desc">Places in this world — homes where characters live and points of interest to travel to. You can generate a picture for each; the chat background changes when you're there.</div>
     <div id="ueLocList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
     <button class="btn sec small" type="button" onclick="addLocation()">＋ New location</button>
-    <button class="btn sec small" type="button" onclick="genLocations()">✨ Generate locations</button>
-    <button class="btn sec small" type="button" id="genSchedBtn" onclick="genAllSchedules()">🗓️ Generate schedules for cast</button>
+    <button class="btn sec small" type="button" onclick="genLocations()"><svg class="ic"><use href="#i-sparkle"/></svg> Generate locations</button>
+    <button class="btn sec small" type="button" id="genSchedBtn" onclick="genAllSchedules()"><svg class="ic"><use href="#i-calendar"/></svg> Generate schedules for cast</button>
     <div class="desc">Builds each character's daily rhythm across these locations. Save the universe first if you just added locations.</div>
 
-    <div class="subhead" style="margin-top:10px">📜 Prompts (this universe)</div>
-    <div class="desc">Override any system prompt just for this universe. Anything left on <b>Default</b> uses your global prompt from Settings. Tap <b>Edit</b> to customize, or <b>✨ Write with AI</b> to generate one from a short request.</div>
+    <div class="subhead" style="margin-top:10px"><svg class="ic"><use href="#i-book"/></svg> Prompts (this universe)</div>
+    <div class="desc">Override any system prompt just for this universe. Anything left on <b>Default</b> uses your global prompt from Settings. Tap <b>Edit</b> to customize, or <b><svg class="ic"><use href="#i-sparkle"/></svg> Write with AI</b> to generate one from a short request.</div>
     <div id="uePromptList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
 
     <div class="row">
@@ -842,7 +951,7 @@
     <div id="peEditScope" class="desc" style="color:var(--accent)"></div>
     <textarea class="fld" id="peEditText" style="min-height:240px"></textarea>
     <div class="row" style="margin-top:4px">
-      <button class="btn sec" type="button" onclick="openWriteAi()">✨ Write with AI</button>
+      <button class="btn sec" type="button" onclick="openWriteAi()"><svg class="ic"><use href="#i-sparkle"/></svg> Write with AI</button>
       <button class="btn sec" type="button" id="peEditReset" onclick="promptEditReset()">↺ Reset to default</button>
     </div>
     <div class="row">
@@ -856,14 +965,14 @@
 <div class="modal" id="writeAiModal">
   <button class="x" onclick="closeModal('writeAiModal')">×</button>
   <div class="card editCard">
-    <h3>✨ Write this prompt with AI</h3>
+    <h3><svg class="ic"><use href="#i-sparkle"/></svg> Write this prompt with AI</h3>
     <div class="desc" id="waiTarget"></div>
     <div><label>Describe what you want this prompt to do</label>
       <textarea class="fld" id="waiBrief" placeholder="e.g. make characters reply in short, punchy lines; keep a tense noir mood; always answer in English" style="min-height:90px"></textarea></div>
     <div class="desc">The assistant writes a complete system prompt from your request. If this prompt must return structured JSON, that requirement is added automatically — you don't need to mention it.</div>
     <div class="row">
       <button class="btn sec" onclick="closeModal('writeAiModal')">Cancel</button>
-      <button class="btn" id="waiGo" onclick="runWriteAi()">✨ Generate</button>
+      <button class="btn" id="waiGo" onclick="runWriteAi()"><svg class="ic"><use href="#i-sparkle"/></svg> Generate</button>
     </div>
   </div>
 </div>
@@ -886,22 +995,22 @@
 <div class="modal" id="locEditModal">
   <button class="x" onclick="closeModal('locEditModal')">×</button>
   <div class="card editCard">
-    <h3>📍 Edit location</h3>
+    <h3><svg class="ic"><use href="#i-pin"/></svg> Edit location</h3>
     <div><label>Name</label><input type="text" class="fld" id="leName" placeholder="Cafe Derya"></div>
     <div><label>Description <span class="desc" style="display:inline">(used for the scene &amp; image)</span></label>
       <textarea class="fld" id="leDesc" placeholder="A busy open-air coffee shop by the marina…" style="min-height:80px"></textarea></div>
     <div><label>Type</label>
       <div class="seg" id="leType" style="display:flex;gap:6px;margin-top:4px">
-        <button type="button" data-type="poi" onclick="leSetType('poi')">📍 Point of interest</button>
-        <button type="button" data-type="home" onclick="leSetType('home')">🏠 Home</button>
+        <button type="button" data-type="poi" onclick="leSetType('poi')"><svg class="ic"><use href="#i-pin"/></svg> Point of interest</button>
+        <button type="button" data-type="home" onclick="leSetType('home')"><svg class="ic"><use href="#i-home"/></svg> Home</button>
       </div></div>
     <div><label>Travel time to here (periods)</label>
       <input type="number" class="fld" id="leTravel" min="0" step="1" placeholder="blank = global default" style="max-width:220px"></div>
-    <div><label>🏠 Residents <span class="desc" style="display:inline">(who lives / is found here)</span></label>
+    <div><label><svg class="ic"><use href="#i-home"/></svg> Residents <span class="desc" style="display:inline">(who lives / is found here)</span></label>
       <div id="leResidents" style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;max-height:200px;overflow:auto"></div>
       <div class="desc">Characters ticked here are present when you arrive at this place — and are never placed anywhere else automatically.</div></div>
     <div class="row" style="margin-top:4px">
-      <button class="btn sec small" id="leGenPic" onclick="leGenPic(this)">✨ Generate picture</button>
+      <button class="btn sec small" id="leGenPic" onclick="leGenPic(this)"><svg class="ic"><use href="#i-sparkle"/></svg> Generate picture</button>
     </div>
     <div class="row">
       <button class="btn sec" onclick="closeModal('locEditModal')">Cancel</button>
@@ -914,16 +1023,16 @@
 <div class="modal" id="trackerEditModal">
   <button class="x" onclick="closeModal('trackerEditModal')">×</button>
   <div class="card editCard">
-    <h3>📊 Tracker</h3>
+    <h3><svg class="ic"><use href="#i-chart"/></svg> Tracker</h3>
     <div><label>Name</label><input type="text" class="fld" id="teName" placeholder="e.g. Suspicion, Power uses, Pregnancy"></div>
     <div><label>What it tracks <span class="desc" style="display:inline">(shown to its AI — be specific)</span></label>
       <textarea class="fld" id="teDesc" placeholder="e.g. How close the police are to catching the player. Rises when they leave evidence or are seen; falls when they cover their tracks." style="min-height:64px"></textarea></div>
 
     <div><label>Belongs to</label>
       <div class="seg" id="teOwnerType" style="display:flex;gap:6px;margin-top:4px">
-        <button type="button" data-ot="__story__" onclick="teSetOwnerType('__story__')">🌍 Story</button>
+        <button type="button" data-ot="__story__" onclick="teSetOwnerType('__story__')"><svg class="ic"><use href="#i-globe"/></svg> Story</button>
         <button type="button" data-ot="__user__" onclick="teSetOwnerType('__user__')">🧑 You</button>
-        <button type="button" data-ot="__chars__" onclick="teSetOwnerType('__chars__')">🎭 Characters</button>
+        <button type="button" data-ot="__chars__" onclick="teSetOwnerType('__chars__')"><svg class="ic"><use href="#i-masks"/></svg> Characters</button>
       </div>
       <div class="desc">Story = one shared value everyone sees. You = the player. Characters = a private copy for each one you pick.</div></div>
     <div id="teCharsRow" style="display:none">
@@ -932,7 +1041,7 @@
     </div>
     <div id="teUserVisRow" style="display:none"><label>Player tracker visibility</label>
       <div class="seg" id="teUserVis" style="display:flex;gap:6px;margin-top:4px">
-        <button type="button" data-vis="public" onclick="teSetVis('public')">👁️ Public (characters see it)</button>
+        <button type="button" data-vis="public" onclick="teSetVis('public')"><svg class="ic"><use href="#i-eye"/></svg> Public (characters see it)</button>
         <button type="button" data-vis="private" onclick="teSetVis('private')">🔒 Private (only you)</button>
       </div></div>
 
@@ -945,16 +1054,16 @@
     <div><label>How it changes</label>
       <select class="fld" id="teBehavior">
         <option value="free">↕️ Free — can go up or down</option>
-        <option value="up">⬆️ Increase only</option>
-        <option value="down">⬇️ Decrease only</option>
+        <option value="up"><svg class="ic"><use href="#i-arrow-up"/></svg> Increase only</option>
+        <option value="down"><svg class="ic"><use href="#i-download"/></svg> Decrease only</option>
         <option value="counter">🔢 Counter / accumulate (up only)</option>
       </select></div>
 
     <div style="margin-top:8px"><label>What moves it</label>
       <select class="fld" id="teMethod" onchange="teMethodChanged()">
         <option value="llm">🤖 AI judges the scene (each turn)</option>
-        <option value="endday">📅 Fixed change every End Day</option>
-        <option value="trigger_then_day">⚡→📅 AI watches for an event, then counts up each End Day</option>
+        <option value="endday"><svg class="ic"><use href="#i-calendar"/></svg> Fixed change every End Day</option>
+        <option value="trigger_then_day"><svg class="ic"><use href="#i-bolt"/></svg>→<svg class="ic"><use href="#i-calendar"/></svg> AI watches for an event, then counts up each End Day</option>
       </select>
       <div class="desc" id="teMethodHint"></div>
     </div>
@@ -988,14 +1097,14 @@
     </div>
 
     <details class="sgroup" style="margin-top:8px">
-      <summary><span class="sg-ico">🧠</span><span class="sg-meta">Its own model<div class="sg-sub">A dedicated AI model for this tracker (optional)</div></span><span class="sg-chev">▶</span></summary>
+      <summary><span class="sg-ico"><svg class="ic"><use href="#i-brain"/></svg></span><span class="sg-meta">Its own model<div class="sg-sub">A dedicated AI model for this tracker (optional)</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody"><div class="card">
         <div><label>Model <span class="desc" style="display:inline">(blank = your memory/utility model)</span></label>
           <input type="text" class="fld" id="teModel" list="modelList" placeholder="(default)"></div>
       </div></div>
     </details>
 
-    <div style="margin-top:8px"><label>📍 Breaking points <span class="desc" style="display:inline">(threshold → text injected into the payload when reached)</span></label>
+    <div style="margin-top:8px"><label><svg class="ic"><use href="#i-pin"/></svg> Breaking points <span class="desc" style="display:inline">(threshold → text injected into the payload when reached)</span></label>
       <div id="teStagesList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
       <button class="btn sec small" type="button" onclick="teAddStage()">＋ Add breaking point</button>
     </div>
@@ -1011,7 +1120,7 @@
 <div class="modal" id="sceneStateModal">
   <button class="x" onclick="closeModal('sceneStateModal')">×</button>
   <div class="card editCard">
-    <h3>🕐 Set time &amp; place</h3>
+    <h3><svg class="ic"><use href="#i-clock"/></svg> Set time &amp; place</h3>
     <div><label>Day</label>
       <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
         <button class="btn sec small" type="button" onclick="ssAdjustDay(-1)" style="width:42px">−</button>
@@ -1048,18 +1157,18 @@
   <div class="card editCard">
     <h3 id="peTitle">New Character</h3>
     <details class="acc" style="margin-bottom:10px">
-      <summary>🌍 Global base instruction — applies to every character</summary>
+      <summary><svg class="ic"><use href="#i-globe"/></svg> Global base instruction — applies to every character</summary>
       <div class="desc">These principles (emotional authenticity, push-and-pull, conflict, restraint…) are automatically applied to <b>all</b> characters before their individual details below. You don't need to add them here. Edit them in Settings → Global base instruction.</div>
       <pre id="peBasePreview" style="margin:8px 0 0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:11px;line-height:1.4;white-space:pre-wrap;max-height:160px;overflow-y:auto;color:var(--muted)"></pre>
     </details>
     <div class="card" id="peAiBox" style="margin-bottom:10px;border-color:var(--accent)">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <div><b>✨ Create with AI</b><div class="desc" style="margin:2px 0 0">Describe the character; the LLM fills the card.</div></div>
+        <div><b><svg class="ic"><use href="#i-sparkle"/></svg> Create with AI</b><div class="desc" style="margin:2px 0 0">Describe the character; the LLM fills the card.</div></div>
         <button class="btn sec small" type="button" onclick="document.getElementById('peAiPanel').classList.toggle('hide')">Open</button>
       </div>
       <div id="peAiPanel" class="hide" style="margin-top:8px">
         <textarea class="fld" id="peAiBrief" placeholder="e.g. a brooding vampire lord who runs a jazz club; charming but dangerous, haunted by a betrayal" style="min-height:70px"></textarea>
-        <button class="btn small" type="button" id="peAiGo" onclick="generateBioIntoEditor()" style="margin-top:6px">✨ Generate character</button>
+        <button class="btn small" type="button" id="peAiGo" onclick="generateBioIntoEditor()" style="margin-top:6px"><svg class="ic"><use href="#i-sparkle"/></svg> Generate character</button>
         <div class="desc">Fills the fields below — you can edit anything before saving.</div>
       </div>
     </div>
@@ -1067,9 +1176,9 @@
     <div><label>Universe</label><select id="peUniverse"></select>
       <div class="desc">Which world this character belongs to. The universe's setting is added to their stories.</div></div>
     <div><label>Profile picture</label>
-      <div id="peAvatarPreview" class="avatarPreview">🎭</div>
+      <div id="peAvatarPreview" class="avatarPreview"><svg class="ic"><use href="#i-masks"/></svg></div>
       <div class="row" style="margin-top:8px">
-        <button class="btn sec small" id="peGenPic" onclick="generateProfilePic()">✨ Generate from appearance</button>
+        <button class="btn sec small" id="peGenPic" onclick="generateProfilePic()"><svg class="ic"><use href="#i-sparkle"/></svg> Generate from appearance</button>
         <button class="btn sec small" id="peClearPic" onclick="clearProfilePic()">Clear</button>
       </div>
       <div class="desc">Uses the Appearance field below + your ModelsLab image settings. Fill in Appearance first for best results.</div>
@@ -1077,27 +1186,33 @@
     <div><label>Avatar (emoji fallback)</label><input type="text" id="peAvatar" placeholder="🧝‍♀️" maxlength="4"></div>
     <div><label>Roleplay instructions</label><textarea class="fld" id="peInstructions" placeholder="How this character should be played: rules, tone, content boundaries, formatting preferences, things to always/never do…" style="min-height:64px"></textarea></div>
     <div><label>Personality</label><textarea class="fld" id="pePersonality" placeholder="Sharp-tongued but loyal, fiercely independent…"></textarea></div>
-    <div><label>Backstory</label><textarea class="fld" id="peBackstory" placeholder="A ranger exiled from her order who now guards the borderlands…"></textarea></div>
+    <div><label>Backstory</label><textarea class="fld" id="peBackstory" placeholder="A ranger exiled from her order who now guards the borderlands…" style="min-height:48px"></textarea></div>
+    <div><label><svg class="ic"><use href="#i-compass"/></svg> Core traits <span class="desc" style="font-weight:400">— the five-factor sketch (how they tend to behave, with examples)</span></label>
+      <textarea class="fld" id="peTraits" placeholder="Five short, in-voice trait sketches with a behavioral example each — Openness, Conscientiousness, Extraversion, Agreeableness, Emotional volatility. e.g. 'Openness: wary of the untested; sticks to what works. (When pitched a bold new venture, your first instinct is to find the flaw and step back.)'" style="min-height:96px"></textarea>
+      <div class="desc">A systematic personality skeleton so the character behaves consistently across all five axes — not just their one or two loud traits. Generated by "<svg class="ic"><use href="#i-sparkle"/></svg> Create with AI" or written by hand.</div></div>
+    <div><label><svg class="ic"><use href="#i-target"/></svg> Goals &amp; ambitions <span class="desc" style="font-weight:400">— what they're driving toward</span></label>
+      <textarea class="fld" id="peGoals" placeholder="What this character WANTS — their standing drives, short- and long-term. e.g. 'Claw back relevance in Alper's eyes; not be replaced by younger women; secure a public win that proves she still matters.' These give the character (and the director engines) something to push toward proactively." style="min-height:64px"></textarea>
+      <div class="desc">Baseline motivations the character pursues on their own — read by the Gamemaster, the offstage-intent engine, and the character's own turns, so they drive the story instead of only reacting.</div></div>
     <div><label>Speaking style</label><textarea class="fld" id="peStyle" placeholder="Clipped, dry wit, occasional old-world phrasing" style="min-height:48px"></textarea></div>
     <div><label>Appearance (used for image prompts)</label><textarea class="fld" id="peLook" placeholder="silver hair, green cloak, emerald eyes, leather armor" style="min-height:48px"></textarea></div>
-    <div><label>🎯 Interject / pressure points</label><textarea class="fld" id="peInterject" placeholder="What can be used against this character or pulls them into a scene: fears, obsessions, debts, secrets, loved ones, triggers, unfinished business… The Gamemaster &amp; Scene Writer use these to craft events that hit home." style="min-height:64px"></textarea>
+    <div><label><svg class="ic"><use href="#i-target"/></svg> Interject / pressure points</label><textarea class="fld" id="peInterject" placeholder="What can be used against this character or pulls them into a scene: fears, obsessions, debts, secrets, loved ones, triggers, unfinished business… The Gamemaster &amp; Scene Writer use these to craft events that hit home." style="min-height:64px"></textarea>
       <div class="desc">Hooks for the director engines — what destabilizes this character or raises the stakes for them. Shared with the Gamemaster and Scene Writer (never shown to other characters as dialogue).</div></div>
-    <div><label>🕸️ Relationships / social graph</label><textarea class="fld" id="peSocialGraph" placeholder="Who is who to this character: kinship, who's their boss/subordinate, rivals, enemies, allies, exes, who they're jealous of or protective over. e.g. 'Mara is my younger sister. I answer to Captain Vale and resent it. I distrust Idris — he courted Mara. Fiercely protective of Mara.'" style="min-height:72px"></textarea>
+    <div><label><svg class="ic"><use href="#i-network"/></svg> Relationships / social graph</label><textarea class="fld" id="peSocialGraph" placeholder="Who is who to this character: kinship, who's their boss/subordinate, rivals, enemies, allies, exes, who they're jealous of or protective over. e.g. 'Mara is my younger sister. I answer to Captain Vale and resent it. I distrust Idris — he courted Mara. Fiercely protective of Mara.'" style="min-height:72px"></textarea>
       <div class="desc">This character's map of their world — fed into their payload so they act on real ties (kinship, hierarchy, rivalry, jealousy). Your text is never overwritten; the engines may <i>append</i> things discovered in play below.</div>
       <div id="peSocialAuto" class="desc" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;font-style:italic"></div></div>
     <div id="peRelGenWrap">
-      <label>🧬 Generated relationships <span class="desc" style="font-weight:400">— factual ties to everyone (kinship, how they address each other, who they live with, standing)</span></label>
+      <label><svg class="ic"><use href="#i-dna"/></svg> Generated relationships <span class="desc" style="font-weight:400">— factual ties to everyone (kinship, how they address each other, who they live with, standing)</span></label>
       <div class="row" style="margin:4px 0">
-        <button class="btn sec small" type="button" id="peRelGenBtn" onclick="genRelationshipsForCharacter((editingPersona&&editingPersona.id),this)">🕸️ Generate relationships</button>
+        <button class="btn sec small" type="button" id="peRelGenBtn" onclick="genRelationshipsForCharacter((editingPersona&&editingPersona.id),this)"><svg class="ic"><use href="#i-network"/></svg> Generate relationships</button>
       </div>
       <textarea class="fld" id="peRelGen" placeholder="Press “Generate relationships” to have this character work out who everyone in the universe is to them — father, ally, rival, stranger — how they address each other, pet names, who lives where, and their initial feelings. You can edit the result. It feeds into roleplay alongside your social-graph notes (your hand-written notes take priority). Re-runs automatically at End Day for bonds that shifted." style="min-height:90px"></textarea>
       <div class="desc">Distinct from the numeric feeling tracker — this is durable social <i>fact</i>. First run uses only the character cards; later runs fold in how the long-term opinions have changed.</div>
     </div>
-    <div class="desc" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px">📍 <b>Where they live:</b> assign this character as a <b>resident</b> of a place in the <b>Universe → Locations</b> editor. They'll be found there (and nowhere else) unless you bring them into a scene manually.</div>
-    <div><label>🗺️ Daily whereabouts <span class="desc" style="display:inline">(auto-generated from their routine — where they tend to be each part of the day)</span></label>
+    <div class="desc" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px"><svg class="ic"><use href="#i-pin"/></svg> <b>Where they live:</b> assign this character as a <b>resident</b> of a place in the <b>Universe → Locations</b> editor. They'll be found there (and nowhere else) unless you bring them into a scene manually.</div>
+    <div><label><svg class="ic"><use href="#i-map"/></svg> Daily whereabouts <span class="desc" style="display:inline">(auto-generated from their routine — where they tend to be each part of the day)</span></label>
       <div id="peWhereabouts" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px"></div>
       <div class="row" style="margin-top:4px">
-        <button class="btn sec small" type="button" id="peSchedBtn" onclick="genScheduleForCharacter(this)">🗓️ Generate / refresh whereabouts</button>
+        <button class="btn sec small" type="button" id="peSchedBtn" onclick="genScheduleForCharacter(this)"><svg class="ic"><use href="#i-calendar"/></svg> Generate / refresh whereabouts</button>
       </div></div>
     <div class="row">
       <button class="btn danger sec small" id="peDelete" onclick="deletePersona()">Delete</button>
@@ -1111,19 +1226,19 @@
   <button class="x" onclick="closeModal('imgModal')">×</button>
   <img id="imgModalImg" src="">
   <div class="cap" id="imgModalCap"></div>
-  <button class="btn sec small" style="margin-top:14px;width:auto" onclick="downloadCurrent()">⬇ Download</button>
+  <button class="btn sec small" style="margin-top:14px;width:auto" onclick="downloadCurrent()"><svg class="ic"><use href="#i-download"/></svg> Download</button>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <nav>
-  <button class="active" data-s="chat" onclick="show('chat')"><span class="ico">💬</span>Story</button>
-  <button data-s="personas" onclick="show('personas')"><span class="ico">🎭</span>Characters</button>
-  <button data-s="gallery" onclick="show('gallery')"><span class="ico">🖼️</span>Gallery</button>
-  <button data-s="memory" onclick="show('memory')"><span class="ico">🧠</span>Memory</button>
-  <button data-s="diary" onclick="show('diary')"><span class="ico">📔</span>Diary</button>
-  <button data-s="settings" onclick="show('settings')"><span class="ico">⚙️</span>Settings</button>
-  <button data-s="debug" onclick="show('debug')"><span class="ico">🐞</span>Debug</button>
+  <button class="active" data-s="chat" onclick="show('chat')"><span class="ico"><svg class="ic"><use href="#i-message"/></svg></span>Story</button>
+  <button data-s="personas" onclick="show('personas')"><span class="ico"><svg class="ic"><use href="#i-masks"/></svg></span>Characters</button>
+  <button data-s="gallery" onclick="show('gallery')"><span class="ico"><svg class="ic"><use href="#i-image"/></svg></span>Gallery</button>
+  <button data-s="memory" onclick="show('memory')"><span class="ico"><svg class="ic"><use href="#i-brain"/></svg></span>Memory</button>
+  <button data-s="diary" onclick="show('diary')"><span class="ico"><svg class="ic"><use href="#i-book"/></svg></span>Diary</button>
+  <button data-s="settings" onclick="show('settings')"><span class="ico"><svg class="ic"><use href="#i-settings"/></svg></span>Settings</button>
+  <button data-s="debug" onclick="show('debug')"><span class="ico"><svg class="ic"><use href="#i-bug"/></svg></span>Debug</button>
 </nav>
 
 <script>
@@ -1136,6 +1251,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   autoRpOn:"sm_autorpon",playerNarratePrompt:"sm_playernarrate",playerNarrateModel:"sm_playernarratemodel",userPersonality:"sm_userpersonality",userStyle:"sm_userstyle",
   routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
   sceneOn:"sm_sceneon",sceneSetup:"sm_scenesetup",sceneWriter:"sm_scenewriter",sceneMin:"sm_scenemin",sceneMax:"sm_scenemax",
+  confrontJudge:"sm_confrontjudge",confrontOn:"sm_confronton",
   theme:"sm_theme",font:"sm_font",streamReveal:"sm_streamreveal",chats:"sm_chats",curChat:"sm_curchat",
   personas:"sm_personas",curPersona:"sm_curpersona",universes:"sm_universes",curUniverse:"sm_curuniverse",memory:"sm_memory",images:"sm_images",videos:"sm_videos",onboarded:"sm_onboarded",
   // ModelsLab + smart routing
@@ -1144,8 +1260,10 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   // Memory condenser (Stage 4)
   condenseOn:"sm_condenseon",condenseThreshold:"sm_condensethresh",condenseKeep:"sm_condensekeep",condenseBatch:"sm_condensebatch",condensePrompt:"sm_condenseprompt",
   memRecentCount:"sm_memrecentcount",memDistantCount:"sm_memdistantcount",
+  gossipOn:"sm_gossipon",gossipThreshold:"sm_gossipthresh",gossipMaxPerDay:"sm_gossipmax",gossipModel:"sm_gossipmodel",gossipPrompt:"sm_gossipprompt",
+  intentOn:"sm_intenton",intentForm:"sm_intentform",intentTick:"sm_intenttick",intentMax:"sm_intentmax",
   // Character bio generator + auto-character (Stages 5/6)
-  bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",univPrompt:"sm_univprompt",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
+  bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",univPrompt:"sm_univprompt",directorAuthor:"sm_directorauthor",authorModel:"sm_authormodel",promptTuner:"sm_prompttuner",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
   // History compaction (tiered narration stripping)
   stripNarr:"sm_stripnarr",stripKeepFull:"sm_stripkeepfull",histTurns:"sm_histturns",
   // Quality-of-life features
@@ -2111,38 +2229,143 @@ Include 5-10 lowercase tags (names, locations, actions, objects, emotional theme
 // They did NOT hear the words. They form a low-fidelity impression of the SOCIAL SHAPE only:
 // who was talking to whom, and the emotional read (close/flirtatious, tense/arguing, secretive,
 // warm, cold, ordinary). This is deliberately fuzzy — an outside observer's read, not a transcript.
-const DEFAULT_GIST_BUILD=`{{char}} is in the same place as {{user}} but is NOT part of the conversation — across the room, occupied, out of earshot. {{char}} CANNOT hear the words. Record only what {{char}} could plausibly catch with a glance.
+const DEFAULT_GIST_BUILD=`{{char}} is in the same place as {{user}} but is NOT in the conversation — across the room, occupied, out of earshot. {{char}} CANNOT hear the words and is barely paying attention. Record only the briefest passing impression — what someone catches out of the corner of their eye.
 
-Write {{char}}'s passing impression of {{user}} and whoever {{user}} is with.
+## Hard rules — keep it VAGUE
+- ONE short sentence. Often just: who {{user}} is with, and roughly how it looks. That's all.
+- This is half-noticed peripheral awareness, NOT a description. Do NOT catalogue body language. Do NOT mention hands, wrists, leaning, gaze, posture, expressions, or tone of voice. A glance doesn't capture that detail.
+- Reduce the whole thing to its simplest read: "standing close with", "talking with", "off in the corner with", "seems to be arguing with". One impression word at most.
+- First person, present tense: "I catch sight of {{user}} standing close with someone by the weights." / "{{user}}'s over there talking with that Arslan woman again."
+- NEVER invent dialogue, topics, what was said, feelings of the people, or any specific. No quotes. No "intimate", no "flustered", no narrating their emotions — {{char}} can't know those.
+- If it didn't even register as notable, say so in a few words ("{{user}}'s talking to someone, didn't catch who") and set charge low. Most glances are forgettable.
+- Plain and offhand. No literary flourishes, no similes.
 
-## Hard rules
-- ONE or TWO sentences. A glance, not a report. Shorter is better.
-- First person, present tense, as an outside observer: "I catch sight of…", "across the room, {{user}} and…".
-- Record ONLY observable surface: who {{user}} is with, body language, distance, tone of voice (loud/hushed), the overall MOOD. Nothing about WHAT was said.
-- NEVER invent dialogue, topics, names of subjects discussed, plans, or any specific {{char}} could not have overheard. No quotes. No "they discussed…", no "arguing about…".
-- Use hedged, uncertain language — "seems", "looks like", "something about". {{char}} is guessing from the outside.
-- If nothing about it stood out, say so plainly in a few words and set charge low. Most glances are forgettable; don't manufacture drama.
-- Do NOT editorialize with literary similes. Plain, what-I-saw observation only.
+GOOD: "I notice {{user}} standing pretty close to Ceyda Arslan over by the weights."
+TOO MUCH (do NOT do this): "{{user}} stands very close to Ceyda, his hand on her wrist as he leans in, speaking in a low intimate tone while she looks flustered." ← that is a transcript of body language; a passer-by doesn't catch all that.
 
-## Read the SHAPE, not the script
-Decide the social shape from body language and tone alone: close/intimate, flirtatious, tense, an argument, secretive/hushed, warm, cold, formal, or ordinary.
+## Read the SHAPE (for the JSON fields, not the content)
+Privately judge the social shape — close/intimate, flirtatious, tense, argument, secretive, warm, cold, ordinary — and put it in "gist" + "charge". But keep "content" itself vague, as above.
 
 ## Respond ONLY with JSON, nothing else:
 {
-  "content": "1-2 plain sentences. Outside view. No overheard words, no invented specifics.",
+  "content": "ONE vague sentence. Who + roughly how it looked. No body-language detail, no invented specifics.",
   "location": "where (short phrase)",
   "emotion": "neutral|curious|amused|suspicious|disapproving|concerned|indifferent",
-  "gist": "short phrase for the shape, e.g. 'standing very close, flirtatious' / 'a tense, hushed argument' / 'heads together, secretive' / 'an ordinary chat'",
+  "gist": "the private read of the shape, e.g. 'close/flirtatious' / 'tense/argument' / 'secretive' / 'ordinary'",
   "charge": 0.0-1.0,
   "importance_score": 0.0-1.0,
   "tags": ["who","where","shape"]
 }
 
-## charge = how gossip-worthy the SHAPE looked (used later by the world)
-0.7-1.0: visibly intimate or flirtatious, a real argument, something furtive — people would talk.
-0.4-0.6: notably warm, notably cold, an odd pairing, a charged moment.
+## charge = how gossip-worthy the shape looked (the world uses this later)
+0.7-1.0: looked intimate/flirtatious, a real argument, something furtive — people would talk.
+0.4-0.6: notably warm, notably cold, an odd pairing.
 0.0-0.3: ordinary, dull, routine — not worth a mention. (Most glances land here.)
-importance_score tracks charge: keep it low unless the shape was striking.`;
+Keep importance_score low unless the shape was striking.`;
+
+// ===== LIVING UNIVERSE, layer 2: gossip propagation (runs at End Day) =====
+// Given a charged thing a WITNESS saw today (a vague impression — who the player was with and how
+// it looked) plus who the witness knows, decide whether the witness spreads it, to whom, and as
+// what. Output plants a rumor in the recipient's head + a small OPEN SUSPICION (a question, never a
+// verdict) so any later confrontation stays winnable. The player is just another node — they can be
+// the SUBJECT of gossip (someone who'd care is told) here.
+const DEFAULT_GOSSIP=`You run the gossip of a living social world. Today, a WITNESS noticed something and MIGHT talk about it. Decide — realistically, in character — whether they do, and to whom.
+
+## What the witness saw (a vague glance, not a transcript)
+WITNESS: {{witness}}
+IMPRESSION: {{impression}}
+HOW CHARGED IT LOOKED (0-1): {{charge}}
+WHERE: {{location}}
+
+## Who the witness knows (and could tell)
+{{witness_ties}}
+
+## People who might CARE about this (candidate recipients — use their exact names)
+{{candidates}}
+
+## Decide like a real person
+- Would THIS witness actually spread this? Personality and ties decide. A loyal friend warns the person wronged; a rival or gossip spreads it eagerly, maybe twisted worse; a discreet or indifferent person says nothing. Many people just don't bother — silence is a valid, common answer.
+- If they DO talk, who do they tell? Pick from the candidates someone who would plausibly hear it AND care — often someone close to a person in the impression (a partner, family, a rival). The witness tells people in their OWN circle.
+- Gossip is VAGUE and travels imperfectly. It is a RUMOR and a QUESTION ("I heard X was getting close with Y — is something going on?"), NEVER a proven fact or verdict. It may be exaggerated or softened by the teller's bias. No invented specifics, no quotes of what was actually said (the witness didn't hear it).
+- Do NOT manufacture drama. If the realistic answer is "nobody spreads this", return an empty list.
+
+## Output ONLY strict JSON:
+{
+  "spread": [
+    {
+      "teller": "witness name (exact)",
+      "recipient": "recipient name (exact, from candidates)",
+      "motive": "loyalty|malice|manipulation|fun|concern",
+      "rumor": "the vague rumor as the recipient would now hold it, first person from the recipient's view, e.g. 'I heard {{user}} was getting cozy with Ceyda at the gym — I don't know if it's true.' One sentence. A question/suspicion, not a verdict.",
+      "suspicion_strength": 0.0-1.0
+    }
+  ]
+}
+
+Return {"spread": []} if no one would realistically talk. At most 2 entries — gossip is selective.`;
+
+// ===== LIVING UNIVERSE layer 4: OFFSTAGE INTENT & AGENCY =====
+// Characters form charged MOTIVES from what happened, act on them offstage (festering, recruiting
+// allies, planning), and eventually come back — which spawns a layer-3 confrontation. Genre-blind:
+// "intent" covers a grievance (you insulted me → revenge), an ambition (I want the throne), a
+// desire, a loyalty, a scheme. All abstract bookkeeping until it surfaces.
+
+// FORMATION — at End Day, read a character's charged memories of the day and decide whether they now
+// hold a NEW intent worth acting on. Most days: nothing. Strong provocations: a real motive.
+const DEFAULT_INTENT_FORM=`You decide whether a character, after today, now privately WANTS something enough to act on it later — a motive that will quietly drive them when the player isn't looking.
+
+CHARACTER: {{char}}
+THEIR NATURE: {{nature}}
+WHAT STRUCK THEM TODAY (their own charged memories):
+{{day_memories}}
+
+PEOPLE THEY KNOW (possible targets / would-be allies):
+{{roster}}
+
+## Decide like a real person
+- Most events do NOT create a lasting motive. People let things go. Only a real provocation, opportunity, or longing produces an intent. Return nothing if today wasn't enough.
+- If something DID land, name the motive: a GRIEVANCE (wronged, insulted, humiliated → wants payback or an apology), an AMBITION (sees an opening → wants power/position/a person), a DESIRE (wants someone or something), a LOYALTY (will protect/avenge another), or a SCHEME (wants to undermine someone).
+- The TARGET is who the motive is about (use an exact name from the roster, or "{{user}}" for the player).
+- STRENGTH reflects how much it consumes them (0.2 = a passing irritation, 0.8 = it will define their next days).
+
+## Output ONLY strict JSON:
+{
+  "intents": [
+    {
+      "kind": "grievance|ambition|desire|loyalty|scheme",
+      "target": "exact name or {{user}}",
+      "trigger": "one short line: what sparked it",
+      "aim": "one short line: what they want to happen as a result",
+      "strength": 0.0-1.0
+    }
+  ]
+}
+Return {"intents": []} for an ordinary day. At most 1 — people don't pick up new vendettas daily.`;
+
+// TICK — once an intent exists, each End Day it festers: who (if anyone) joins, and does it harden
+// or fade. Cheap: decides recruitment + a strength nudge, no narration.
+const DEFAULT_INTENT_TICK=`A character is privately nursing a motive. Decide how it develops over one more day offstage.
+
+WHO HOLDS IT: {{holder}} ({{nature}})
+THE MOTIVE: a {{kind}} toward {{target}} — {{aim}} (sparked by: {{trigger}})
+CURRENT STRENGTH (0-1): {{strength}}
+ALREADY INVOLVED: {{allies}}
+PEOPLE WHO MIGHT JOIN (and how they relate to the holder and the target):
+{{candidates}}
+
+## Decide realistically
+- Does the motive HARDEN, hold, or FADE? Minor or stale motives lose strength and may dissolve. A fresh, serious one with support grows.
+- Would anyone NEW join? Only someone who plausibly shares the sentiment or has their own reason — a friend of the holder who also dislikes the target, a rival of the target, someone who owes the holder. Most intents stay solo. Recruiting is the exception, not the rule.
+- People don't conspire instantly; alliances build over days.
+
+## Output ONLY strict JSON:
+{
+  "strength_delta": -0.3 .. 0.3,
+  "recruit": ["exact names who newly join, usually none"],
+  "ready": true|false,
+  "note": "one short line on what shifted"
+}
+"ready": true only when the motive is strong AND (if it needs others) has enough support to act on — i.e. they're about to make their move. Keep recruit lists short; usually empty.`;
 
 const DEFAULT_QUERYGEN=`You generate a short semantic SEARCH QUERY used to retrieve a character's most relevant past memories for the current moment in a roleplay.
 
@@ -2169,16 +2392,20 @@ const DEFAULT_BIO=`You are a character-card writer for an adult roleplay app. Gi
 
 Write in the second person where natural ("You are…"), keep each field focused, and make personality, backstory, speaking style and appearance cohere into one believable person. Do NOT include a scenario or an opening line.
 
+For "traits", give a FIVE-FACTOR sketch — one short, in-voice line per axis (Openness, Conscientiousness, Extraversion, Agreeableness, Emotional volatility), EACH with a concrete behavioral example in parentheses showing how it plays out. This is the personality skeleton; make it specific to THIS person, not generic. Low and high are both interesting — don't make everyone high on everything.
+
 Return ONLY a JSON object, no markdown, no commentary:
 {
   "name": "the character's name",
   "avatar": "a single emoji that fits them",
   "personality": "2-4 sentences: temperament, values, how they treat others, contradictions",
+  "traits": "Five lines, one per factor, each with an example. e.g. 'Openness: clings to the familiar and distrusts the new (when handed an unproven plan, hunts for the flaw and steps back). Conscientiousness: meticulous to the point of control (re-checks every detail others would let slide). Extraversion: performs warmth in public but drains fast (works a room, then needs to vanish). Agreeableness: warm on the surface, keeps score underneath (smiles at a rival while filing the slight away). Emotional volatility: a calm shell over quick-spiking nerves (one offhand remark and the composure cracks).'",
+  "goals": "1-3 sentences: what this character actively WANTS — their standing ambitions and drives, short- and long-term. Concrete things they'd pursue on their own and that could put them at odds with others or the player.",
   "backstory": "2-4 sentences of history that shaped them",
   "style": "1-2 sentences on how they speak (rhythm, vocabulary, quirks)",
   "look": "comma-separated visual details for image generation: hair, eyes, build, clothing, distinguishing features",
   "instructions": "1-2 sentences of roleplay guidance: tone, boundaries, things to always/never do",
-  "interject": "1-2 sentences: this character's pressure points — fears, desires, secrets, hooks a director engine can use",
+  "interject": "Their pressure points as hooks for the director, covering: what TEMPTS them, what WOUNDS or shames them, what they FEAR being exposed, and what they'd RETALIATE over. 2-4 short clauses, concrete.",
   "routine": "1-2 sentences describing this character's typical daily rhythm — where they tend to be in the morning, daytime, evening, and night, and how much of a homebody vs out-and-about they are. Plain English; the app turns it into a schedule."
 }`;
 
@@ -2197,11 +2424,13 @@ Return ONLY a JSON object, no markdown, no commentary:
       "name": "character name",
       "avatar": "a single emoji",
       "personality": "2-4 sentences",
+      "traits": "five-factor sketch: one in-voice line per axis (Openness, Conscientiousness, Extraversion, Agreeableness, Emotional volatility), each with a concrete behavioral example in parentheses",
+      "goals": "1-3 sentences: what this character actively wants — standing ambitions/drives that could put them at odds with others or the player",
       "backstory": "2-4 sentences of history that ties them to this world and possibly the player",
       "style": "1-2 sentences on how they speak",
       "look": "comma-separated visual details: hair, eyes, build, clothing, distinguishing features",
       "instructions": "1-2 sentences of roleplay guidance",
-      "interject": "1-2 sentences: this character's pressure points — fears, desires, secrets, hooks"
+      "interject": "pressure points as director hooks: what tempts them, what wounds/shames them, what they fear exposed, what they'd retaliate over — 2-4 concrete clauses"
     }
   ],
   "locations": [
@@ -2214,6 +2443,55 @@ Return ONLY a JSON object, no markdown, no commentary:
   ]
 }
 Create exactly the requested number of characters. Include 3-6 locations: some homes where characters live (set "resident" to that character's exact name) and some points of interest to visit. Do NOT include a scenario or opening line. Make the cast varied — different roles, temperaments, and relationships to the player.`;
+
+// LAYER 5: AI-authored director notes. Given a finished world + cast, write concise guidance on how
+// DRAMA works in THIS world — so the genre-blind engine (Gamemaster events, gossip, grudges,
+// schemes, confrontations) produces genre-appropriate beats. Flavor only: it never changes the
+// machinery, it tells the directors what KINDS of tensions, motives, and tones fit this world.
+const DEFAULT_DIRECTOR_AUTHOR=`You are briefing the "director" of a roleplay — the hidden system that decides what events happen, what grudges and ambitions characters form, how rumors spread, and how confrontations play out. Read this world and its cast, then write SHORT, concrete guidance so the director makes drama that fits THIS world specifically.
+
+WORLD:
+{{setting}}
+
+CAST (names, natures, and what privately drives them):
+{{cast}}
+
+PLAYER: {{user}} — {{user_bio}}
+
+Write guidance covering, briefly and concretely (no preamble, no headers repeated back):
+- The characteristic TENSIONS of this world — what conflict is actually ABOUT here (status and scandal? power and succession? survival? faith? money? honor?).
+- What kinds of EVENTS fit — the typical ways trouble arrives in this setting (a leaked secret, a duel, a summons, a raid, a betrayal at court, a public snub).
+- How GRUDGES and AMBITIONS express here — when wronged or tempted, how do these characters act? Quietly poison a reputation? Gather bannermen? Hire someone? Challenge openly? What's in-genre vs absurd.
+- How rumors and alliances MOVE — who talks, how information travels, what loyalty is worth.
+- The TONE — how confrontation sounds in this world (icy courtesy, blunt threats, political euphemism, raw violence).
+
+Keep it to ~150-250 words of plain, usable direction — the actual texture of conflict in this world, not generic advice. Write it as notes TO the director. Output ONLY the notes, no JSON, no markdown headers.`;
+
+// LAYER 5b: per-universe prompt TUNER. Takes a WORKING default director prompt and adjusts it
+// LIGHTLY to fit a specific world — never a blank-page rewrite. The defaults encode the mechanics
+// (JSON shapes, bounded rules, placeholders); the tuner only bends flavor/emphasis/examples so the
+// genre-blind engine produces genre-fitting beats while every structural guarantee stays intact.
+const DEFAULT_PROMPT_TUNER=`You are tuning a working system prompt to fit a specific fictional world. You are given a PROVEN base prompt and the world it will run in. Make MINIMAL, SURGICAL edits so the prompt's behavior fits this world's genre and texture — you are NOT rewriting it.
+
+WORLD:
+{{setting}}
+
+DIRECTOR NOTES FOR THIS WORLD (how drama works here):
+{{directing}}
+
+THE BASE PROMPT (adjust this — do not start over):
+"""
+{{base}}
+"""
+
+## Rules — follow exactly
+- PRESERVE the structure completely: every section, every instruction, the output format, and EVERY {{placeholder}} token must remain exactly as-is, spelled identically. Do not add, remove, or rename placeholders.
+- If the base demands strict JSON output with specific keys, those keys and that format MUST stay identical.
+- Do NOT change the mechanics, thresholds, numeric ranges, or logic. Only adjust FLAVOR: word choice, tone, and any in-text EXAMPLES, so they read as native to this world (e.g. swap a generic "rumor at the gym" example for one that fits a royal court — a whisper in the gallery).
+- Most of the prompt should come through UNCHANGED. If a sentence is already genre-neutral and works, leave it.
+- Do not add commentary, headers, or markdown fences. Output ONLY the adjusted prompt text, ready to use as-is.
+
+Output the lightly-adjusted prompt now.`;
 
 // Out-of-character command rules, injected into every roleplay prompt.
 const DEFAULT_OOC=`- If {{user}} types something inside (parentheses), treat it as an OUT-OF-CHARACTER command, not as something their character said or did.
@@ -2787,6 +3065,51 @@ Prompt #4: Scene Writer — brings the event into the scene FAST, advances, reso
     ↓  {narration, bring_in, resolved, resolution}
 \`\`\``;
 
+// ===== LIVING UNIVERSE layer 3: CONFRONTATION JUDGE (unbiased referee) =====
+// Genre-blind. Scores ONLY the player's most recent turn against a charged INTENT a character (or
+// faction) is acting on — a suspicion, a grievance, an ambition, a demand. Outputs a bounded
+// conviction DELTA with a required one-line justification. It does NOT write dialogue and does NOT
+// decide the ending — it only rules on whether the player's last turn made the intent's premise
+// MORE or LESS credible/justified. Keeping this scoring separate from the character's performance
+// is what stops "character sticking" (the model locking the outcome on turn one).
+const DEFAULT_CONFRONT_JUDGE=`You are an impartial REFEREE inside a roleplay confrontation. You do NOT play any character and you do NOT write dialogue. Your only job: judge whether {{user}}'s most recent turn made the confronter's case STRONGER or WEAKER, and by how much.
+
+## The confrontation
+- WHO is confronting {{user}}: {{accuser}}
+- WHAT they believe / want (their intent): {{intent}}
+- HOW strong the evidence behind it is (0-1): {{evidence}}
+- Their nature (how movable they are): {{accuser_nature}}
+- Current conviction (0 = fully reassured/abandons it, 1 = certain/acts on it): {{conviction}}
+- This conviction can fall no lower than {{floor}} (the evidence is real and can't be fully erased) and no higher than {{ceiling}}.
+
+## Score ONLY {{user}}'s latest turn
+{{user}}'s latest turn: "{{player_turn}}"
+
+Judge that turn ALONE. Do not anticipate the ending. Do not pattern-match to how "these scenes usually go". Rule strictly on the merit of what {{user}} just said or did:
+
+LOWER conviction (negative delta) when the turn is:
+- a plausible, specific explanation that fits what the confronter already knows,
+- internally consistent with anything {{user}} claimed earlier,
+- backed by a verifiable detail, or credibly leans on real established trust/history.
+
+RAISE conviction (positive delta) when the turn:
+- contradicts an earlier claim or a known fact,
+- is evasive, deflecting, hostile, or refuses to engage,
+- is implausible, or insults/threatens the confronter.
+
+NEUTRAL (near-zero delta) when the turn doesn't really address the matter.
+
+## Movability is bounded by nature, but never zero
+A trusting/loving nature moves easily; a paranoid, betrayed, or hostile one moves slowly and grudgingly — but EVERY nature can move at least a little. Stubbornness means small deltas, NOT a frozen number. Never refuse to move conviction at all.
+
+## Output ONLY strict JSON:
+{
+  "delta": -0.4 .. 0.4,
+  "reason": "one short line: WHY this turn earned that delta, in terms of the confronter's view",
+  "player_lied_or_evaded": true|false
+}
+Keep |delta| small (0.05-0.2) for ordinary turns; reserve 0.3-0.4 for a turn that's either devastatingly convincing or that badly backfires. The engine applies the delta and clamps it to [{{floor}}, {{ceiling}}] — you do not decide the outcome.`;
+
 
 // End-of-day diary — each character writes a private diary entry reflecting on their day.
 const DEFAULT_DAY_SUMMARY=`You are {{char}}, writing a private DIARY ENTRY at the end of an in-game day in a roleplay. Write in {{char}}'s own first-person voice, as if no one else will ever read it — honest, introspective, personal.
@@ -3305,6 +3628,8 @@ function loadState(){
     sceneOn:store.get(K.sceneOn,true),
     sceneSetup:store.raw(K.sceneSetup,DEFAULT_SCENE_SETUP),
     sceneWriter:store.raw(K.sceneWriter,DEFAULT_SCENE_WRITER),
+    confrontJudge:store.raw(K.confrontJudge,DEFAULT_CONFRONT_JUDGE),
+    confrontOn:store.get(K.confrontOn,true),
     sceneMin:+store.raw(K.sceneMin,3),
     sceneMax:+store.raw(K.sceneMax,8),
     daySummaryPrompt:store.raw(K.daySummaryPrompt,DEFAULT_DAY_SUMMARY),
@@ -3339,9 +3664,21 @@ function loadState(){
     memRecentCount:+store.raw(K.memRecentCount,3),
     memDistantCount:+store.raw(K.memDistantCount,2),
     condensePrompt:store.raw(K.condensePrompt,DEFAULT_CONDENSE),
+    gossipOn:store.get(K.gossipOn,true),
+    gossipThreshold:+store.raw(K.gossipThreshold,0.6),
+    gossipMaxPerDay:+store.raw(K.gossipMaxPerDay,3),
+    gossipModel:store.raw(K.gossipModel,""),
+    gossipPrompt:store.raw(K.gossipPrompt,DEFAULT_GOSSIP),
+    intentOn:store.get(K.intentOn,true),
+    intentForm:store.raw(K.intentForm,DEFAULT_INTENT_FORM),
+    intentTick:store.raw(K.intentTick,DEFAULT_INTENT_TICK),
+    intentMax:+store.raw(K.intentMax,4),
     bioModel:store.raw(K.bioModel,"deepseek/deepseek-v4-pro"),
+    authorModel:store.raw(K.authorModel,"anthropic/claude-sonnet-4"),
     bioPrompt:store.raw(K.bioPrompt,DEFAULT_BIO),
     univPrompt:store.raw(K.univPrompt,DEFAULT_UNIV),
+    directorAuthor:store.raw(K.directorAuthor,DEFAULT_DIRECTOR_AUTHOR),
+    promptTuner:store.raw(K.promptTuner,DEFAULT_PROMPT_TUNER),
     autoCharOn:store.get(K.autoCharOn,true),
     autoCharDelay:+store.raw(K.autoCharDelay,5),
     stripNarr:store.get(K.stripNarr,true),
@@ -3467,18 +3804,22 @@ function loadState(){
     }
   });
   try{persistUniverses&&persistUniverses();}catch(e){}
-  // One-time upgrade: the first bystander-gist prompt produced over-long, over-literary memories
-  // and let the model name discussion specifics. If the stored prompt is still that v1 default
-  // (carries its distinctive "You create a BYSTANDER's memory." opening), replace it with the
-  // tightened version. Custom gist prompts won't match the marker and are left untouched.
-  if(typeof state.gistBuild==="string"
-     && state.gistBuild.indexOf("You create a BYSTANDER's memory.")!==-1){
+  // One-time upgrade: earlier bystander-gist prompts produced over-detailed memories (cataloguing
+  // hands, gaze, tone — effectively a transcript of body language). The current default keeps the
+  // visible memory deliberately VAGUE (the precise read lives in the gist/charge fields the gossip
+  // engine uses). Upgrade any stored prompt that is one of OUR earlier defaults (carries a stable
+  // fingerprint from v1 or v2) but lacks the new "keep it VAGUE" marker. Truly custom prompts won't
+  // carry the fingerprint and are left untouched.
+  const _gistIsOurOldDefault=s=>typeof s==="string" &&
+    (s.indexOf("You create a BYSTANDER's memory.")!==-1 ||      // v1
+     s.indexOf("A glance, not a report. Shorter is better.")!==-1); // v2
+  const _gistIsNew=s=>typeof s==="string" && s.indexOf("keep it VAGUE")!==-1;
+  if(_gistIsOurOldDefault(state.gistBuild) && !_gistIsNew(state.gistBuild)){
     state.gistBuild=DEFAULT_GIST_BUILD;
     store.setRaw(K.gistBuild,state.gistBuild);
   }
   (state.universes||[]).forEach(u=>{
-    if(u&&u.prompts&&typeof u.prompts.gistBuild==="string"
-       && u.prompts.gistBuild.indexOf("You create a BYSTANDER's memory.")!==-1){
+    if(u&&u.prompts && _gistIsOurOldDefault(u.prompts.gistBuild) && !_gistIsNew(u.prompts.gistBuild)){
       delete u.prompts.gistBuild;
     }
   });
@@ -3563,6 +3904,7 @@ function loadState(){
     if(!c.memCounts)c.memCounts={};
     if(!Array.isArray(c.tempChars))c.tempChars=[];
     if(c.activeEvent===undefined)c.activeEvent=null;
+    if(!Array.isArray(c.intents))c.intents=[];
     delete c._gmBusy;   // clear any in-flight flag left over from a previous session
     (c.messages||[]).forEach(m=>{
       if(!m.mid)m.mid=newMid();
@@ -3706,6 +4048,30 @@ function show(s){
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function esc(s){return(s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+/* Inline line-icon helper. `icon("chart")` → an <svg> that inherits the surrounding text color and
+   font-size (so it sits like a glyph). Used for dynamically-built labels; static HTML uses the same
+   sprite directly. `cls` adds modifier classes (e.g. "ic-accent","ic-lg"). */
+function icon(name,cls){ return `<svg class="ic${cls?(" "+cls):""}"><use href="#i-${name}"/></svg>`; }
+/* Map the legacy chrome emojis to icon names, so generated strings can be upgraded consistently.
+   NOTE: deliberately does NOT include character/universe AVATAR emojis — those are user data. */
+const ICONMAP={
+  "⚙️":"settings","⚙":"settings","📊":"chart","🎭":"masks","⚖️":"scale","⚖":"scale",
+  "🧠":"brain","✨":"sparkle","🎬":"film","🖼️":"image","🖼":"image","🌌":"globe","🌍":"globe",
+  "🎯":"target","🧭":"compass","🪪":"card","🛠️":"tools","🛠":"tools","🗓️":"calendar","🗓":"calendar",
+  "📅":"calendar","🗺️":"map","🗺":"map","📍":"pin","🏠":"home","⏱️":"timer","⏱":"timer",
+  "📔":"book","🗣️":"speech","🗣":"speech","🪶":"feather","🕸️":"network","🕸":"network",
+  "❤️":"heart","❤":"heart","⚡":"bolt","🌙":"moon","👁️":"eye","👁":"eye","⬇️":"download","⬇":"download",
+  "✓":"check","⚠️":"warn","⚠":"warn","❌":"x","✕":"x","✍️":"feather","✍":"feather",
+  "🗜️":"tools","🗜":"tools","👤":"user","🔑":"key"
+};
+/* Replace leading/inline chrome emojis in a label string with inline icons. Conservative: only
+   swaps emojis present in ICONMAP, leaves everything else (incl. avatar emojis) untouched. */
+function deEmoji(str){
+  if(typeof str!=="string"||!str)return str;
+  let s=str;
+  for(const e in ICONMAP){ if(s.indexOf(e)!==-1){ s=s.split(e).join(icon(ICONMAP[e])); } }
+  return s;
+}
 // API `name` field: keep to safe chars (letters, digits, _ and -), no spaces.
 function sanitizeName(s){return((s||"char").replace(/[^a-zA-Z0-9_-]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"")||"char").slice(0,60);}
 let _midc=0;
@@ -3906,18 +4272,50 @@ function clearRevealQueue(){
 // array of content parts. We check all the known shapes so a reasoning model never silently
 // returns "" (which was the schedule-generator bug: content was empty, parseJSON failed,
 // and the empty catch hid it). Order: prefer real content, fall back to reasoning text.
+// Strip INLINE reasoning that some models bake into the content field itself (separate from the
+// dedicated reasoning_content field, which we already handle). Reasoning models variously wrap
+// their scratch-work in <think>…</think>, <reasoning>…</reasoning>, ◁think▷…◁/think▷, or a
+// "final answer" channel marker. We remove the reasoning and keep the answer. Conservative: only
+// acts on these explicit markers, so ordinary prose is never touched.
+function stripInlineReasoning(s){
+  if(typeof s!=="string"||!s) return s;
+  let t=s;
+  // 1) Paired tag forms (case-insensitive, multi-line). Covers <think>, <thinking>, <reasoning>,
+  //    <thought>, and the unicode ◁think▷ variant some providers emit.
+  t=t.replace(/<\s*(think|thinking|thought|reasoning|reflection)\s*>[\s\S]*?<\s*\/\s*\1\s*>/gi,"");
+  t=t.replace(/◁\s*think\s*▷[\s\S]*?◁\s*\/\s*think\s*▷/gi,"");
+  // 2) An UNCLOSED opening tag (model emitted <think> but got cut off, or the closer is malformed):
+  //    drop from the tag to the end ONLY if there's no matching close already handled above.
+  t=t.replace(/<\s*(think|thinking|thought|reasoning)\s*>[\s\S]*$/i,"");
+  // 3) Channel-style markers: some models emit "...reasoning... \n\nFinal answer: <answer>". Only
+  //    collapse to the final channel when the text BEFORE it clearly reads as reasoning scratch-work
+  //    (so ordinary prose that merely contains the word "answer" is never truncated).
+  const finRe=/(?:^|\n)\s*(?:#{0,3}\s*)?\**\s*(?:final answer|final response|answer)\s*\**\s*[:\-–]\s*([\s\S]+)$/i;
+  const fin=t.match(finRe);
+  if(fin && fin[1] && fin[1].trim().length>0 && fin.index>0){
+    const preamble=t.slice(0,fin.index);
+    const looksLikeReasoning=/\b(let me|i need to|i should|the user|first,|step \d|okay,|reasoning|let'?s think|i'?ll)\b/i.test(preamble);
+    if(looksLikeReasoning) t=fin[1];
+  }
+  return t.trim();
+}
 function extractCompletionText(d){
   const msg=d&&d.choices&&d.choices[0]&&d.choices[0].message;
   if(!msg)return "";
   // content can be a string OR an array of {type:"text",text:""} parts
   let c=msg.content;
   if(Array.isArray(c)) c=c.map(p=>(p&&(p.text||p.content))||"").join("");
-  if(typeof c==="string" && c.trim()) return c;
-  // reasoning-model fallbacks
+  if(typeof c==="string"){
+    const cleaned=stripInlineReasoning(c);
+    if(cleaned && cleaned.trim()) return cleaned;
+    // content was ONLY reasoning (stripped to empty) → fall through to the reasoning fields below
+  }
+  // reasoning-model fallbacks (dedicated field). This is genuinely the model's thinking, so only
+  // used when there's no real answer content — better than showing nothing.
   const r=msg.reasoning_content||msg.reasoning;
-  if(typeof r==="string" && r.trim()) return r;
+  if(typeof r==="string" && r.trim()) return stripInlineReasoning(r)||r.trim();
   // some providers stream the final answer into choices[0].text
-  if(typeof d.choices[0].text==="string" && d.choices[0].text.trim()) return d.choices[0].text;
+  if(typeof d.choices[0].text==="string" && d.choices[0].text.trim()) return stripInlineReasoning(d.choices[0].text);
   return "";
 }
 async function chatCompletion(messages,model,opts={}){
@@ -4415,6 +4813,12 @@ const PROMPT_REGISTRY=[
    hint:"Produces a structured JSON memory. Use {{char}} and {{user}}."},
   {key:"gistBuild", label:"👁️ Bystander gist (perception)", def:()=>DEFAULT_GIST_BUILD, json:true,
    hint:"A bystander's fuzzy outside impression when present but not in the conversation. Use {{char}}, {{user}}."},
+  {key:"gossipPrompt", label:"🗣️ Gossip propagation (Living Universe)", def:()=>DEFAULT_GOSSIP, json:true,
+   hint:"At End Day, decides who tells whom about charged things bystanders saw. Use {{user}}, {{witness}}, {{impression}}, {{charge}}, {{location}}, {{witness_ties}}, {{candidates}}."},
+  {key:"intentForm", label:"🎯 Intent formation (offstage agency)", def:()=>DEFAULT_INTENT_FORM, json:true,
+   hint:"At End Day, decides if a character now holds a charged motive (grievance/ambition/etc). Use {{char}}, {{nature}}, {{day_memories}}, {{roster}}, {{user}}."},
+  {key:"intentTick", label:"♟️ Intent tick (fester & recruit)", def:()=>DEFAULT_INTENT_TICK, json:true,
+   hint:"Each End Day, develops a live intent: hardens/fades, recruits allies, signals readiness. Use {{holder}}, {{nature}}, {{kind}}, {{target}}, {{aim}}, {{trigger}}, {{strength}}, {{allies}}, {{candidates}}."},
   {key:"queryGen", label:"🔍 Memory query generator", def:()=>DEFAULT_QUERYGEN, json:false,
    hint:"Turns the current moment into a search query."},
   {key:"ranker", label:"📊 Memory ranker", def:()=>DEFAULT_RANKER, json:true,
@@ -4425,6 +4829,10 @@ const PROMPT_REGISTRY=[
    hint:"Turns a brief into a full character card as JSON."},
   {key:"univPrompt", label:"🌌 Universe generator", def:()=>DEFAULT_UNIV, json:true,
    hint:"Turns a brief into a full universe as JSON."},
+  {key:"directorAuthor", label:"🎭 Director-notes author (per-universe)", def:()=>DEFAULT_DIRECTOR_AUTHOR, json:false,
+   hint:"Writes the world's 'how drama works here' notes from its setting + cast, fed to the GM & Scene Writer. Use {{setting}}, {{cast}}, {{user}}, {{user_bio}}."},
+  {key:"promptTuner", label:"🛠️ Per-universe prompt tuner", def:()=>DEFAULT_PROMPT_TUNER, json:false,
+   hint:"Lightly adjusts a working director prompt to fit a world (preserves structure & placeholders). Use {{setting}}, {{directing}}, {{base}}."},
   {key:"relPrompt", label:"❤️ Relationship tracker (long-term)", def:()=>DEFAULT_REL, json:true,
    hint:"End-of-day: evaluates the slow axes (trust, affection, respect) over the whole day. Returns JSON deltas."},
   {key:"relShortPrompt", label:"⚡ Short-term feelings", def:()=>DEFAULT_REL_SHORT, json:true,
@@ -4451,6 +4859,8 @@ const PROMPT_REGISTRY=[
    hint:"Classifies a new event. Returns JSON."},
   {key:"sceneWriter", label:"✍️ Scene Writer advance", def:()=>DEFAULT_SCENE_WRITER, json:true,
    hint:"Returns JSON. Use {{user}}, {{summary}}, {{turn}}, {{min}}, {{max}}."},
+  {key:"confrontJudge", label:"⚖️ Confrontation judge (referee)", def:()=>DEFAULT_CONFRONT_JUDGE, json:true,
+   hint:"Unbiased referee: scores the player's last turn in a confrontation → conviction delta. Use {{user}}, {{accuser}}, {{intent}}, {{evidence}}, {{accuser_nature}}, {{conviction}}, {{floor}}, {{ceiling}}, {{player_turn}}."},
   {key:"routerPlayer", label:"🗣️ Multi-char router 1 (player)", def:()=>DEFAULT_ROUTER_PLAYER, json:true,
    hint:"Returns JSON {addressed, responders}. Use {{user}}."},
   {key:"routerChar", label:"↔️ Multi-char router 2 (character)", def:()=>DEFAULT_ROUTER_CHAR, json:true,
@@ -4471,6 +4881,14 @@ function up(key,uid){
   return reg?reg.def():"";
 }
 
+// The strong "authoring" model used for the rarely-run, high-leverage generation jobs that shape
+// everything downstream: universe generation, character bio generation, per-universe director notes,
+// and per-universe prompt tuning. Worth spending on — runs a handful of times, not per turn.
+function authoringModel(){
+  return (state.authorModel&&state.authorModel.trim())
+    || (state.bioModel&&state.bioModel.trim())
+    || state.model;
+}
 // World-setting text for the active story's universe (empty string if none).
 function curWorldSetting(){const u=curUniverseObj();return (u&&u.setting&&u.setting.trim())?u.setting.trim():"";}
 // Interject / pressure-point sheet for the present cast — fed to the director engines
@@ -4479,6 +4897,14 @@ function castInterjectSheet(chat){
   const cast=(chat?presentCast(chat):curCast())||[];
   const lines=cast.filter(c=>c&&c.interject&&c.interject.trim())
     .map(c=>`- ${c.name}: ${c.interject.trim()}`);
+  return lines.join("\n");
+}
+// Goals/ambitions sheet for the present cast — gives the director engines each character's standing
+// drives, so events and characters can PURSUE goals proactively, not just react. Present-cast only.
+function castGoalsSheet(chat){
+  const cast=(chat?presentCast(chat):curCast())||[];
+  const lines=cast.filter(c=>c&&c.goals&&c.goals.trim())
+    .map(c=>`- ${c.name} wants: ${c.goals.trim()}`);
   return lines.join("\n");
 }
 // Backstory sheet for the present cast — gives the director engines (Gamemaster, Scene
@@ -4537,6 +4963,16 @@ function directorContext(chat,mode){
   const parts=[];
   const w=curWorldSetting();
   if(w)parts.push(`WORLD SETTING:\n${w}`);
+  // AI-authored, per-universe "directing notes": how drama, grudges, schemes, and tone work in THIS
+  // world. Generated when the universe is created (layer 5). Feeds both the Gamemaster and the Scene
+  // Writer so events fit the genre — a noir world schemes differently than a fantasy court. Falls
+  // back silently to the generic director behavior when a universe has none.
+  try{
+    const _u=universeById(chat&&chat.universeId);
+    if(_u&&_u.directingNotes&&_u.directingNotes.trim()){
+      parts.push(`HOW DRAMA WORKS IN THIS WORLD (director guidance — shape events, grievances, and their tone to fit this):\n${_u.directingNotes.trim()}`);
+    }
+  }catch(e){}
   const ss=sceneStateLine(chat);
   if(ss){
     // Surface what KIND of place the current scene is (the location's own description),
@@ -4607,6 +5043,8 @@ function directorContext(chat,mode){
   }catch(e){}
   const ij=castInterjectSheet(chat);
   if(ij)parts.push(`CHARACTER PRESSURE POINTS (use these to craft events that hit home):\n${ij}`);
+  const gl=castGoalsSheet(chat);
+  if(gl)parts.push(`WHAT CHARACTERS ARE AFTER (their standing goals — let them PURSUE these, not just react):\n${gl}`);
   return parts.join("\n\n");
 }
 
@@ -5960,12 +6398,34 @@ function openStoryState(){
     }
     trk=rows.join("")||`<div class="desc">No tracker values yet.</div>`;
   }else{ trk=`<div class="desc">No trackers defined. Add them in the Universe editor.</div>`; }
+  // Undercurrents: the offstage motives characters are nursing (layer 4). Read-only insight.
+  let undercurrents="";
+  {
+    const live=(Array.isArray(chat.intents)?chat.intents:[]).filter(i=>i.status!=="spent");
+    if(live.length){
+      const kindIcon={grievance:"💢",ambition:"👑",desire:"❤️‍🔥",loyalty:"🛡️",scheme:"🗡️"};
+      const statusLbl={brewing:"brewing",ready:"about to act"};
+      undercurrents=live.sort((a,b)=>b.strength-a.strength).map(i=>{
+        const ic=kindIcon[i.kind]||"•";
+        const allies=(i.allies||[]).map(id=>id==="__user__"?state.user:((state.personas.find(p=>p.id===id)||{}).name||"?")).filter(Boolean);
+        const pct=Math.round((i.strength||0)*100);
+        return `<div style="padding:6px 0;border-bottom:1px solid var(--border)">
+          <div><b>${ic} ${esc(i.holderName||"?")}</b> → ${esc(i.targetName||"?")} <span class="desc">(${esc(i.kind)}, ${esc(statusLbl[i.status]||i.status)})</span></div>
+          <div class="desc">${esc(i.aim||i.trigger||"")}${allies.length?` · with ${esc(allies.join(", "))}`:""}</div>
+          <span class="relBar"><span class="relBarFill" style="width:${pct}%;background:${i.status==="ready"?"#c0556b":"var(--accent)"}"></span></span>
+        </div>`;
+      }).join("");
+    }else{
+      undercurrents=`<div class="desc">Nothing brewing offstage right now.</div>`;
+    }
+  }
   const m=document.createElement('div'); m.id="storyStateModal"; m.className="modal show";
   m.innerHTML=`<button class="x" onclick="_ssClose()">×</button>
    <div class="card editCard">
-    <h3>📊 Story State</h3>
+    <h3>${icon("chart")} Story State</h3>
     <div class="subhead">How they feel</div>${state.relOn?rel:`<div class="desc">Relationship tracking is off.</div>`}
     <div class="subhead" style="margin-top:12px">Trackers</div>${trk}
+    ${state.intentOn!==false?`<div class="subhead" style="margin-top:12px">${icon("globe")} Undercurrents <span class="desc">(offstage motives)</span></div>${undercurrents}`:``}
     <button class="btn small" style="margin-top:12px" onclick="_ssClose()">Close</button>
    </div>`;
   m.addEventListener('click',e=>{if(e.target===m)_ssClose();});
@@ -6048,6 +6508,7 @@ function editUniverse(id){
   document.getElementById('ueName').value=u.name||"";
   document.getElementById('ueAvatar').value=u.avatar||"";
   document.getElementById('ueSetting').value=u.setting||"";
+  {const e=document.getElementById('ueDirectingNotes'); if(e)e.value=u.directingNotes||"";}
   document.getElementById('ueUserName').value=u.userName||"";
   document.getElementById('ueUserLook').value=u.userLook||"";
   {const e=document.getElementById('ueUserPersonality'); if(e)e.value=u.userPersonality||"";}
@@ -6431,7 +6892,7 @@ async function runUniverseGenerator(){
       nameToId[c.name.toLowerCase()]=pid;
       state.personas.push({id:pid,
         universeId:uid, name:c.name, avatar:c.avatar,
-        personality:c.personality, backstory:c.backstory, style:c.style,
+        personality:c.personality, traits:c.traits||"", goals:c.goals||"", backstory:c.backstory, style:c.style,
         look:c.look, instructions:c.instructions, interject:c.interject, image:null});
       made++;
     }
@@ -6461,6 +6922,12 @@ async function runUniverseGenerator(){
         const cast=state.personas.filter(p=>p.universeId===uid);
         for(const p of cast){ try{ const sc=await generateSchedule(p,p.routine,universe); if(sc){p.schedule=sc;persistPersonas();} }catch(e){} }
       }
+      // LAYER 5: author this world's director notes (how drama/grudges/schemes/tone work here) so the
+      // genre-blind event/gossip/intent/confrontation engines produce genre-fitting beats.
+      try{ const dn=await generateDirectingNotes(universe); if(dn){ persistUniverses(); } }catch(e){}
+      // LAYER 5b: lightly tune the flavorable director prompts to this world (structure preserved,
+      // validated). Uses the directing notes above, so it runs after them.
+      try{ const nt=await tuneUniversePrompts(universe); if(nt){ persistUniverses(); } }catch(e){}
       toast("Universe ready ✓");
     })();
     if(typeof openUniverse==="function"){ openUniverse(uid); }
@@ -6473,6 +6940,7 @@ function saveUniverse(){
   if(!name){toast("Give the universe a name");return;}
   const obj={name,avatar:document.getElementById('ueAvatar').value.trim()||"🌌",
     setting:document.getElementById('ueSetting').value.trim(),
+    directingNotes:(document.getElementById('ueDirectingNotes')?document.getElementById('ueDirectingNotes').value.trim():""),
     userName:document.getElementById('ueUserName').value.trim(),
     userLook:document.getElementById('ueUserLook').value.trim(),
     userPersonality:(document.getElementById('ueUserPersonality')?document.getElementById('ueUserPersonality').value.trim():""),
@@ -6715,6 +7183,8 @@ function editPersona(id){
     const map={Name:'name',Avatar:'avatar',Instructions:'instructions',Personality:'personality',Backstory:'backstory',Style:'style',Look:'look',Interject:'interject'};
     document.getElementById('pe'+f).value=p[map[f]]||"";
   });
+  {const e=document.getElementById('peTraits'); if(e)e.value=p.traits||"";}
+  {const e=document.getElementById('peGoals'); if(e)e.value=p.goals||"";}
   {const sg=document.getElementById('peSocialGraph'); if(sg)sg.value=p.socialGraph||"";
    const auto=document.getElementById('peSocialAuto');
    if(auto){ const a=(p.socialGraphAuto||"").trim();
@@ -6852,7 +7322,7 @@ async function generateBio(brief,context){
     out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:user}
-    ],state.bioModel,{temp:fnTemp("mem",0.9),max:fnTok("mem",800),dbg:"Character bio generator"});
+    ],authoringModel(),{temp:fnTemp("mem",0.9),max:fnTok("mem",800),dbg:"Character bio generator"});
   }catch(e){ return null; }
   const j=parseJSON(out);
   if(!j||typeof j!=="object") return null;
@@ -6861,6 +7331,8 @@ async function generateBio(brief,context){
     name:clean(j.name),
     avatar:clean(j.avatar)||"🎭",
     personality:clean(j.personality),
+    traits:clean(j.traits),
+    goals:clean(j.goals),
     backstory:clean(j.backstory),
     style:clean(j.style),
     look:clean(j.look),
@@ -6973,7 +7445,7 @@ async function generateRelationshipsFor(persona,forUniverse){
     out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:userMsg}
-    ],state.bioModel,{temp:fnTemp("mem",0.5),max:fnTok("mem",1100),dbg:"Relationship generator · "+persona.name});
+    ],authoringModel(),{temp:fnTemp("mem",0.5),max:fnTok("mem",1100),dbg:"Relationship generator · "+persona.name});
   }catch(e){ return null; }
   const text=(out||"").trim();
   if(!text)return null;
@@ -7185,14 +7657,15 @@ async function generateUniverse(brief,count){
     out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:user}
-    ],state.bioModel,{temp:fnTemp("mem",0.9),max:fnTok("mem",2200),dbg:"Universe generator"});
+    ],authoringModel(),{temp:fnTemp("mem",0.9),max:fnTok("mem",2200),dbg:"Universe generator"});
   }catch(e){ return null; }
   const j=parseJSON(out);
   if(!j||typeof j!=="object") return null;
   const clean=s=>typeof s==="string"?s.trim():"";
   const chars=Array.isArray(j.characters)?j.characters.slice(0,9).map(c=>({
     name:clean(c.name), avatar:clean(c.avatar)||"🎭",
-    personality:clean(c.personality), backstory:clean(c.backstory),
+    personality:clean(c.personality), traits:clean(c.traits), goals:clean(c.goals),
+    backstory:clean(c.backstory),
     style:clean(c.style), look:clean(c.look),
     instructions:clean(c.instructions), interject:clean(c.interject)
   })).filter(c=>c.name) : [];
@@ -7210,6 +7683,108 @@ async function generateUniverse(brief,count){
     characters:chars, locations:locs
   };
 }
+// LAYER 5: author per-universe director notes from the finished world + cast. Best-effort; stores
+// the result on universe.directingNotes, which directorContext() then feeds to the GM + Scene Writer.
+async function generateDirectingNotes(universe){
+  if(!universe||!state.key)return null;
+  const cast=(state.personas||[]).filter(p=>p.universeId===universe.id).slice(0,12)
+    .map(p=>`- ${p.name}: ${(p.personality||"").slice(0,120)}${p.goals?` | wants: ${String(p.goals).slice(0,120)}`:""}${p.interject?` | privately: ${String(p.interject).slice(0,160)}`:""}`).join("\n")
+    || "(no cast yet)";
+  const sys=fillTpl(up("directorAuthor"),{
+    user:universe.userName||state.user||"the player",
+    user_bio:(universe.userBio||state.userBio||"a newcomer").slice(0,300),
+    setting:(universe.setting||"").slice(0,1500),
+    cast
+  });
+  try{
+    const out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:`Write the director notes for "${universe.name}". Output only the notes.`}
+    ],authoringModel(),{temp:fnTemp("mem",0.7),max:fnTok("mem",500),dbg:"Director notes · "+universe.name});
+    const notes=stripInlineReasoning(String(out||"")).trim();
+    if(notes && notes.length>40){ universe.directingNotes=notes; return notes; }
+  }catch(e){}
+  return null;
+}
+// Manual: (re)write the directing notes for the universe being edited, from its setting + cast.
+// Works for older universes (incl. the default) that predate layer-5 auto-authoring.
+async function regenDirectingNotes(){
+  if(!state.key){ toast("Add your API key in Settings first"); return; }
+  const u=editingUniverse||curUniverseObj();
+  if(!u){ toast("Open a universe first"); return; }
+  const btn=document.getElementById('ueDirGenBtn');
+  if(btn){btn.disabled=true;btn.textContent="Writing…";}
+  try{
+    // use the live setting field if the editor's open (may be unsaved), else the stored one
+    const sEl=document.getElementById('ueSetting');
+    const probe={id:u.id, name:document.getElementById('ueName')?.value?.trim()||u.name,
+      setting:(sEl&&sEl.value.trim())||u.setting||"",
+      userName:u.userName, userBio:u.userBio};
+    const notes=await generateDirectingNotes(probe);
+    if(notes){
+      const e=document.getElementById('ueDirectingNotes'); if(e)e.value=notes;
+      u.directingNotes=notes; persistUniverses();
+      // Also lightly tune this world's director prompts now that notes exist.
+      let nt=0; try{ nt=await tuneUniversePrompts(u); persistUniverses(); }catch(e2){}
+      toast(`Director notes written ✓${nt?` · ${nt} prompt${nt===1?"":"s"} tuned`:""}`);
+    }else{ toast("⚠️ Couldn't write notes — try again"); }
+  }catch(e){ toast("⚠️ Generation failed"); }
+  finally{ if(btn){btn.disabled=false;btn.textContent="✨ Write from world & cast";} }
+}
+// LAYER 5b: lightly tune a universe's director prompts to its genre. For each flavorable prompt we
+// hand the model the WORKING default and ask for surgical edits only. We then VALIDATE that every
+// {{placeholder}} survived and (for JSON prompts) that the JSON skeleton is intact — if not, we keep
+// the default. This validation is what makes per-universe prompt authoring safe.
+function _extractPlaceholders(s){ const m=String(s||"").match(/\{\{[a-z_]+\}\}/gi)||[]; return m.sort(); }
+function _tunedPromptIsSafe(base,tuned,mustBeJson){
+  if(!tuned||typeof tuned!=="string"||tuned.trim().length<40)return false;
+  // every placeholder in the base must still be present (no added/removed/renamed tokens)
+  const a=_extractPlaceholders(base), b=new Set(_extractPlaceholders(tuned));
+  for(const ph of a){ if(!b.has(ph))return false; }
+  // no NEW placeholders the engine won't fill
+  const extra=_extractPlaceholders(tuned).filter(x=>a.indexOf(x)===-1);
+  if(extra.length)return false;
+  // JSON prompts must still describe a JSON object
+  if(mustBeJson){
+    if(tuned.indexOf("{")===-1||tuned.indexOf("}")===-1)return false;
+    if(!/json/i.test(tuned))return false;
+  }
+  // sanity: the tuned version shouldn't have ballooned (a sign it rewrote/added scaffolding)
+  if(tuned.length>base.length*1.8)return false;
+  return true;
+}
+async function tuneUniversePrompts(universe){
+  if(!universe||!state.key)return 0;
+  if(!universe.prompts||typeof universe.prompts!=="object")universe.prompts={};
+  const targets=[
+    {key:"gossipPrompt", json:true},
+    {key:"intentForm",   json:true},
+    {key:"intentTick",   json:true},
+    {key:"confrontJudge",json:true}
+  ];
+  const directing=(universe.directingNotes||"").slice(0,1200);
+  const setting=(universe.setting||"").slice(0,1200);
+  let tuned=0;
+  for(const t of targets){
+    const reg=PROMPT_BY_KEY[t.key];
+    const base=(state[t.key]&&String(state[t.key]).trim())||(reg&&reg.def&&reg.def())||"";
+    if(!base)continue;
+    try{
+      const sys=fillTpl(up("promptTuner"),{ setting, directing, base });
+      const out=await chatCompletion([
+        {role:"system",content:sys},
+        {role:"user",content:`Output the lightly-adjusted version of the prompt for "${universe.name}".`}
+      ],authoringModel(),{temp:fnTemp("mem",0.4),max:fnTok("mem",1400),dbg:"Prompt tuner · "+t.key});
+      let cand=stripInlineReasoning(String(out||"")).trim()
+        .replace(/^"""\s*/,"").replace(/\s*"""$/,"")
+        .replace(/^```[a-z]*\n?/i,"").replace(/\n?```$/,"");
+      if(_tunedPromptIsSafe(base,cand,t.json)){
+        universe.prompts[t.key]=cand; tuned++;
+      }
+    }catch(e){/* keep default on any failure */}
+  }
+  return tuned;
+}
 async function generateBioIntoEditor(){
   const brief=document.getElementById('peAiBrief').value.trim();
   const btn=document.getElementById('peAiGo'); if(btn){btn.disabled=true;btn.textContent="Generating…";}
@@ -7218,6 +7793,7 @@ async function generateBioIntoEditor(){
     if(!bio){ toast("⚠️ Generation failed — try again"); return; }
     const set=(id,v)=>{const el=document.getElementById(id); if(el&&v) el.value=v;};
     set('peName',bio.name); set('peAvatar',bio.avatar); set('pePersonality',bio.personality);
+    set('peTraits',bio.traits); set('peGoals',bio.goals);
     set('peBackstory',bio.backstory); set('peStyle',bio.style); set('peLook',bio.look);
     set('peInstructions',bio.instructions); set('peInterject',bio.interject);
     if(bio.routine)_peRoutine=bio.routine;   // stashed; used to build a schedule on save
@@ -7263,6 +7839,8 @@ async function fillPendingBios(chat){
     if(!bio){ continue; } // try again next cycle
     // Fill, but never overwrite the established name; keep any emoji already shown if model gave none.
     p.personality=bio.personality||p.personality;
+    p.traits=bio.traits||p.traits;
+    p.goals=bio.goals||p.goals;
     p.backstory=bio.backstory||p.backstory;
     p.style=bio.style||p.style;
     p.look=bio.look||p.look;
@@ -7296,6 +7874,8 @@ function savePersona(){
     instructions:document.getElementById('peInstructions').value.trim(),
     personality:document.getElementById('pePersonality').value.trim(),
     backstory:document.getElementById('peBackstory').value.trim(),
+    traits:(document.getElementById('peTraits')?document.getElementById('peTraits').value.trim():((editingPersona&&editingPersona.traits)||"")),
+    goals:(document.getElementById('peGoals')?document.getElementById('peGoals').value.trim():((editingPersona&&editingPersona.goals)||"")),
     style:document.getElementById('peStyle').value.trim(),
     look:document.getElementById('peLook').value.trim(),
     interject:document.getElementById('peInterject').value.trim(),
@@ -7386,6 +7966,24 @@ function memoryBlocks(injectedMemories){
     out.push(`# DISTANT MEMORIES\nOlder, fuzzier — the gist of what came before. Treat as background, less precise than recent memory:\n`+distant.map(fmt).join("\n"));
   return out;
 }
+// Build one character's identity block with XML-delimited fields. Stronger structure than flat
+// "Key: value" lines means the model loses far less of this dense, load-bearing info — especially
+// the newer traits/goals. `selfTag` marks whether this is the speaker ("you") or a co-present
+// character. Returns a string; caller wraps it in the section.
+function charBioBlock(c,opts){
+  opts=opts||{};
+  const who=opts.self?`You are ${c.name}.`:`${c.name}:`;
+  const L=[];
+  if(c.instructions) L.push(`  <play_notes>${c.instructions}</play_notes>`);
+  if(c.personality)  L.push(`  <personality>${c.personality}</personality>`);
+  if(c.traits)       L.push(`  <core_traits>\n${c.traits.split(/\n+/).map(t=>`    ${t.trim()}`).filter(Boolean).join("\n")}\n  </core_traits>`);
+  if(c.goals)        L.push(`  <goals_ambitions>${c.goals}</goals_ambitions>`);
+  if(c.backstory)    L.push(`  <backstory>${c.backstory}</backstory>`);
+  if(c.style)        L.push(`  <speaking_style>${c.style}</speaking_style>`);
+  if(c.look)         L.push(`  <appearance>${c.look}</appearance>`);
+  if(opts.locLine)   L.push(`  <location>${opts.locLine.replace(/^Location:\s*/,"")}</location>`);
+  return `${who}\n${L.join("\n")}`;
+}
 function buildSystemPrompt(injectedMemories){
   const cast=presentCast();   // build around who is actually present
   const multi=cast.length>1;
@@ -7413,16 +8011,12 @@ function buildSystemPrompt(injectedMemories){
     const names=cast.map(c=>c.name);
     blocks.push(`# ROLE\nYou are the narrator and voice of MULTIPLE characters in an immersive roleplay with ${state.user}: ${names.slice(0,-1).join(", ")} and ${names[names.length-1]}. Stay fully in character for each. Never break character or mention being an AI.`);
     cast.forEach(c=>{
-      let cb=`# ${c.name} BIO`;
-      if(c.instructions)cb+=`\nInstructions: ${c.instructions}`;
-      if(c.personality)cb+=`\nPersonality: ${c.personality}`;
-      if(c.backstory)cb+=`\nBackstory: ${c.backstory}`;
-      if(c.style)cb+=`\nSpeaking style: ${c.style}`;
-      if(c.look)cb+=`\nAppearance: ${c.look}`;
-      const loc=charLocationLine(c);if(loc)cb+=`\n${loc}`;
+      const loc=charLocationLine(c);
+      let cb=`<character name="${c.name}">\n`+charBioBlock(c,{self:false,locLine:loc});
       const sheetIds=cast.filter(x=>x.id!==c.id).map(x=>x.id);
       const sheet=relSheetBlockFor(c,sheetIds);
-      if(sheet)cb+=`\nRelationships (who the nearby people are to ${c.name}):\n${sheet}`;
+      if(sheet)cb+=`\n  <relationships>who the nearby people are to ${c.name}:\n${sheet}</relationships>`;
+      cb+=`\n</character>`;
       blocks.push(cb);
     });
     const scen=cast.map(c=>c.scenario).filter(Boolean)[0];
@@ -7430,12 +8024,9 @@ function buildSystemPrompt(injectedMemories){
   }else{
     const p=cast[0]||curCast()[0];
     if(p){
-      let rb=`# ${p.name} BIO\nYou are ${p.name}, a character in an immersive roleplay with ${state.user}. Stay fully in character at all times. Never break character or mention being an AI.`;
-      if(p.instructions)rb+=`\nInstructions: ${p.instructions}`;
-      if(p.personality)rb+=`\nPersonality: ${p.personality}`;
-      if(p.backstory)rb+=`\nBackstory: ${p.backstory}`;
-      if(p.style)rb+=`\nSpeaking style: ${p.style}`;
-      const loc=charLocationLine(p);if(loc)rb+=`\n${loc}`;
+      const loc=charLocationLine(p);
+      let rb=`<character_you_play>\nYou are ${p.name}, a character in an immersive roleplay with ${state.user}. Stay fully in character at all times. Never break character or mention being an AI.\n`+
+             charBioBlock(p,{self:true,locLine:loc})+`\n</character_you_play>`;
       blocks.push(rb);
       // RELATIONSHIPS — right after the bio: who the NEARBY people are to them (scoped to present
       // characters + the player, to keep the roleplay payload lean).
@@ -7495,15 +8086,12 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   {const _fr=(up("formatRules")||"").trim();
    if(_fr)blocks.push(/^#/.test(_fr)?_fr:`# FORMATTING RULES\n${_fr}`);}
 
-  // 5) YOUR BIO
-  let rb=`# ${p.name} BIO\nYou are ${p.name}, one character in a multi-character roleplay with ${state.user}. Stay fully in character as ${p.name} only. Never break character or mention being an AI. You speak and act ONLY as ${p.name} — never voice ${state.user}, the narrator, or any other character.`;
-  if(p.instructions)rb+=`\n\nInstructions: ${p.instructions}`;
-  if(p.personality)rb+=`\nPersonality: ${p.personality}`;
-  if(p.backstory)rb+=`\nBackstory: ${p.backstory}`;
-  if(p.style)rb+=`\nSpeaking style: ${p.style}`;
-  if(p.look)rb+=`\nYour appearance: ${p.look}`;
-  {const loc=charLocationLine(p,chat);if(loc)rb+=`\n${loc}`;}
-  blocks.push(rb);
+  // 5) YOUR BIO — XML-delimited so this dense, load-bearing identity (now incl. traits & goals)
+  //    survives attention far better than flat key:value lines.
+  {const loc=charLocationLine(p,chat);
+   let rb=`<character_you_play>\nYou are ${p.name}, one character in a multi-character roleplay with ${state.user}. Stay fully in character as ${p.name} only. Never break character or mention being an AI. You speak and act ONLY as ${p.name} — never voice ${state.user}, the narrator, or any other character.\n`+
+          charBioBlock(p,{self:true,locLine:loc})+`\n</character_you_play>`;
+   blocks.push(rb);}
 
   // RELATIONSHIPS — right after the bio: ONLY this character's ties to the people actually present
   // (others in the scene) + the player, from the scoped JSON sheet (which falls back to prose if a
@@ -8147,8 +8735,8 @@ function findMsg(mid){
 // Small avatar HTML (image if available, else emoji) for a persona — used by bubbles & typing.
 function avatarHTML(sp){
   if(!sp) return "";
-  if(sp.image) return `<img class="chatAv" src="${sp.image}" alt="">`;
-  return `<span class="chatAvEmoji">${esc(sp.avatar||"🎭")}</span>`;
+  if(sp.image) return `<span class="avatarChip"><img src="${esc(sp.image)}" alt=""></span>`;
+  return `<span class="avatarChip">${esc(sp.avatar||"🎭")}</span>`;
 }
 // Compact status strip shown under a character reply: Day · Period · Location · trackers.
 // Only for real character lines (not narrator/system). Reads a snapshot saved on the message
@@ -9300,6 +9888,234 @@ async function endDay(){
 // Order matters: diaries are written from the day's experiential memories first, THEN the
 // long-axis relationship pass runs (it deliberately excludes the diary it just wrote). They are
 // independent of each other's *output* but we sequence them so cost/rate-limit stays sane.
+// ===== LIVING UNIVERSE layer 2: gossip propagation (End Day) =====
+// Charged bystander observations from today become rumors that travel through the relationship
+// graph to people who'd care. Each planted rumor is a VAGUE, open suspicion (a question, not a
+// verdict) stored as a memory in the recipient — so it colors their next scene and (later) can
+// motivate a confrontation, while staying winnable. Lightweight: a few LLM calls, capped per day.
+async function runGossipPropagation(chat,day,uni){
+  if(!state.gossipOn||!state.key||!state.mem)return;
+  const uid=uni||(chat&&chat.universeId)||state.curUniverse||null;
+  const thresh=(state.gossipThreshold!=null?state.gossipThreshold:0.6);
+  const cap=Math.max(0,(state.gossipMaxPerDay!=null?state.gossipMaxPerDay:3));
+  if(cap<=0)return;
+  // Today's charged bystander observations, most charged first.
+  const charged=state.memory.filter(m=>
+      m.gameDay===day && m.type==="OBSERVATION" && (!m.universeId||!uid||m.universeId===uid) &&
+      typeof m.charge==="number" && m.charge>=thresh
+    ).sort((a,b)=>(b.charge||0)-(a.charge||0)).slice(0,cap);
+  if(!charged.length)return;
+  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  const nameById=id=>id==="__user__"?state.user:((roster.find(p=>p.id===id)||{}).name||null);
+  const idByName=nm=>{ const k=(nm||"").toLowerCase().trim();
+    if(k===(state.user||"").toLowerCase().trim()||k==="player"||k==="user")return "__user__";
+    const p=roster.find(x=>(x.name||"").toLowerCase().trim()===k); return p?p.id:null; };
+  const model=(state.gossipModel&&state.gossipModel.trim())?state.gossipModel:state.memModel;
+
+  for(const obs of charged){
+    try{
+      const witness=roster.find(p=>p.id===obs.ownerId); if(!witness)continue;
+      // The witness's ties — who they know and could tell.
+      const ties=relSheetBlock(witness)||"(no notable ties)";
+      // Candidate recipients: everyone in the roster the witness has a relationship with, EXCEPT
+      // the witness, plus anyone whose relationships point back at the witness (two-way circle).
+      const candIds=new Set();
+      const wr=witness.relationships||{};
+      Object.keys(wr).forEach(id=>{ if(id&&id!==witness.id) candIds.add(id); });
+      roster.forEach(p=>{ if(p.id!==witness.id && p.relationships && p.relationships[witness.id]) candIds.add(p.id); });
+      candIds.delete("__user__"); // the player learning gossip is a later feature; v1 plants in NPCs
+      if(!candIds.size)continue;
+      const candList=[...candIds].map(id=>{ const nm=nameById(id); if(!nm)return null;
+        const tie=(wr[id]&&wr[id].tie)||""; return `- ${nm}${tie?` (${witness.name}'s ${tie})`:""}`; }).filter(Boolean).join("\n");
+      if(!candList)continue;
+      const sys=fillTpl(up("gossipPrompt"),{
+        user:state.user, witness:witness.name, impression:memText(obs),
+        charge:String(obs.charge), location:obs.location||(chat&&chat.location)||"",
+        witness_ties:ties, candidates:candList
+      });
+      const out=await chatCompletion([
+        {role:"system",content:sys},
+        {role:"user",content:`Decide what ${witness.name} does with what they saw.`}
+      ],model,{temp:fnTemp("mem",0.6),max:fnTok("mem",400),dbg:"Gossip · "+witness.name});
+      const j=parseJSON(out);
+      const spread=j&&Array.isArray(j.spread)?j.spread:[];
+      for(const g of spread.slice(0,2)){
+        if(!g||!g.recipient||!g.rumor)continue;
+        const rid=idByName(g.recipient);
+        if(!rid||rid==="__user__"||rid===witness.id)continue;   // must be a real NPC recipient
+        const rp=roster.find(p=>p.id===rid); if(!rp)continue;
+        // Plant the rumor as an open-suspicion memory in the recipient.
+        const mem={
+          id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
+          content:String(g.rumor).trim(),
+          location:"", emotion:"suspicious",
+          importance:Math.max(0.5, Math.min(0.9, (typeof g.suspicion_strength==="number"?g.suspicion_strength:0.6))),
+          tags:["gossip","rumor",(g.motive||"").toLowerCase()].filter(Boolean),
+          type:"GOSSIP",
+          ownerId:rid, character:rp.name, date:Date.now(), gameDay:day, source:"gossip",
+          gossipFrom:witness.name, gossipMotive:(g.motive||""), openSuspicion:true,
+          suspicion:(typeof g.suspicion_strength==="number"?g.suspicion_strength:0.6),
+          universeId:uid, chatId:(chat&&chat.id)||null
+        };
+        if(!memoriesOf(rid).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase())){
+          state.memory.push(mem);
+        }
+      }
+    }catch(e){/* best-effort per observation */}
+  }
+  persistMemory();
+}
+// LAYER 3 trigger: scan for a strong, still-open suspicion (a gossip rumor a character now carries
+// about the player) and, if its holder is around and nothing else is happening, have them come
+// settle it. Picks at most one — the most charged — and marks it consumed so it can't re-fire.
+function maybeSpawnConfrontation(chat,uni){
+  if(!chat||state.confrontOn===false||!state.sceneOn)return false;
+  if(chat.activeEvent && !chat.activeEvent.resolved)return false;
+  const uid=uni||(chat&&chat.universeId)||state.curUniverse||null;
+  // candidate suspicions: gossip-planted, open, charged, not already used for a confrontation
+  const cands=state.memory.filter(m=>
+    m.type==="GOSSIP" && m.openSuspicion && !m._confrontUsed &&
+    (!m.universeId||!uid||m.universeId===uid) &&
+    (typeof m.suspicion==="number"?m.suspicion:0)>=0.6
+  ).sort((a,b)=>(b.suspicion||0)-(a.suspicion||0));
+  if(!cands.length)return false;
+  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  for(const sus of cands){
+    const accuser=roster.find(p=>p.id===sus.ownerId);
+    if(!accuser)continue;
+    // The accuser should plausibly be able to reach the player. For v1 we allow it whenever the
+    // accuser isn't currently mid-scene elsewhere; the confrontation arrives as a director event.
+    sus._confrontUsed=true;   // consume so it won't re-fire next day
+    persistMemory();
+    startConfrontation(chat,{
+      accuser,
+      intent:memText(sus),
+      summary:`${accuser.name} comes to confront ${state.user}`,
+      evidence:Math.max(0.4,Math.min(0.9,(sus.suspicion||0.6))),
+      conviction:Math.max(0.5,Math.min(0.85,(sus.suspicion||0.6))),
+      accuserNature:accuser.personality?String(accuser.personality).slice(0,200):""
+    });
+    return true;   // one at a time
+  }
+  return false;
+}
+
+// ===== LIVING UNIVERSE layer 4: the intent engine (End Day) =====
+// Three passes: (1) FORM new intents from today's charged memories, (2) TICK existing intents
+// (harden/fade, recruit allies), (3) when an intent is READY, spawn a layer-3 confrontation. All
+// abstract — nothing is narrated until it surfaces. Intents live on chat.intents.
+async function runIntentEngine(chat,day,uni){
+  if(!chat||state.intentOn===false||!state.key||!state.mem)return;
+  const uid=uni||(chat&&chat.universeId)||state.curUniverse||null;
+  if(!Array.isArray(chat.intents))chat.intents=[];
+  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  const nameById=id=>id==="__user__"?state.user:((roster.find(p=>p.id===id)||{}).name||null);
+  const idByName=nm=>{ const k=(nm||"").toLowerCase().trim();
+    if(k===(state.user||"").toLowerCase().trim()||k==="player"||k==="user")return "__user__";
+    const p=roster.find(x=>(x.name||"").toLowerCase().trim()===k); return p?p.id:null; };
+  const model=(state.gossipModel&&state.gossipModel.trim())?state.gossipModel:state.memModel;
+  const cap=Math.max(0,(state.intentMax!=null?state.intentMax:4));
+
+  // ---- PASS 1: FORM new intents from each participant's charged memories of today ----
+  // Only characters who had a charged day are worth checking (cheap gating).
+  const dayChargedBy={};
+  state.memory.forEach(m=>{
+    if(m.gameDay!==day||(m.universeId&&uid&&m.universeId!==uid))return;
+    const imp=typeof m.importance==="number"?m.importance:0.5;
+    const ch=typeof m.charge==="number"?m.charge:0;
+    if(imp>=0.55||ch>=0.5){ (dayChargedBy[m.ownerId]=dayChargedBy[m.ownerId]||[]).push(m); }
+  });
+  const liveCount=()=>chat.intents.filter(i=>i.status!=="spent").length;
+  for(const holderId in dayChargedBy){
+    if(liveCount()>=cap)break;
+    const holder=roster.find(p=>p.id===holderId); if(!holder)continue;
+    // skip if this holder already has a live intent (don't pile them up)
+    if(chat.intents.some(i=>i.holderId===holderId&&i.status!=="spent"))continue;
+    const mems=dayChargedBy[holderId].slice(0,6).map(m=>`- ${memText(m)}`).join("\n");
+    const rosterList=roster.filter(p=>p.id!==holderId).map(p=>p.name).concat(state.user).join(", ");
+    try{
+      const out=await chatCompletion([
+        {role:"system",content:fillTpl(up("intentForm"),{
+          user:state.user, char:holder.name,
+          nature:(holder.personality?String(holder.personality).slice(0,200):"ordinary")+(holder.goals?` | driven by: ${String(holder.goals).slice(0,200)}`:""),
+          day_memories:mems, roster:rosterList })},
+        {role:"user",content:`Does ${holder.name} now hold a motive worth acting on? Return the JSON.`}
+      ],model,{temp:fnTemp("mem",0.5),max:fnTok("mem",250),dbg:"Intent form · "+holder.name});
+      const j=parseJSON(out)||{};
+      const arr=Array.isArray(j.intents)?j.intents:[];
+      for(const it of arr.slice(0,1)){
+        if(!it||!it.kind||typeof it.strength!=="number"||it.strength<0.35)continue;
+        const tid=idByName(it.target); if(!tid||tid===holderId)continue;
+        chat.intents.push({
+          id:"intent_"+Date.now()+Math.random().toString(36).slice(2,5),
+          holderId, holderName:holder.name, targetId:tid, targetName:nameById(tid),
+          kind:String(it.kind).toLowerCase(), trigger:String(it.trigger||"").slice(0,200),
+          aim:String(it.aim||"").slice(0,200), strength:Math.max(0,Math.min(1,it.strength)),
+          allies:[], status:"brewing", born:day, lastTick:day
+        });
+      }
+    }catch(e){/* best-effort */}
+  }
+
+  // ---- PASS 2: TICK each live intent (fester/fade, recruit) ----
+  for(const it of chat.intents){
+    if(it.status==="spent")continue;
+    if(it.lastTick===day && it.born===day)continue;   // formed today → let it sit a day before ticking
+    const holder=roster.find(p=>p.id===it.holderId); if(!holder){it.status="spent";continue;}
+    // candidate allies: holder's circle who aren't already involved, aren't the target
+    const cand=roster.filter(p=>p.id!==it.holderId && p.id!==it.targetId && !(it.allies||[]).includes(p.id))
+      .map(p=>{ const tieH=(holder.relationships&&holder.relationships[p.id]&&holder.relationships[p.id].tie)||"";
+                const tieT=(p.relationships&&p.relationships[it.targetId]&&p.relationships[it.targetId].tie)||"";
+                return `- ${p.name}${tieH?` (${holder.name}'s ${tieH})`:""}${tieT?`, and ${it.targetName}'s ${tieT}`:""}`; })
+      .join("\n")||"(no one available)";
+    try{
+      const out=await chatCompletion([
+        {role:"system",content:fillTpl(up("intentTick"),{
+          holder:holder.name, nature:holder.personality?String(holder.personality).slice(0,160):"ordinary",
+          kind:it.kind, target:it.targetName, aim:it.aim, trigger:it.trigger,
+          strength:String(it.strength.toFixed(2)),
+          allies:(it.allies||[]).map(nameById).filter(Boolean).join(", ")||"(none)",
+          candidates:cand })},
+        {role:"user",content:`Develop ${holder.name}'s ${it.kind} over one more day. Return the JSON.`}
+      ],model,{temp:fnTemp("mem",0.5),max:fnTok("mem",200),dbg:"Intent tick · "+holder.name});
+      const j=parseJSON(out)||{};
+      const d=typeof j.strength_delta==="number"?Math.max(-0.3,Math.min(0.3,j.strength_delta)):0;
+      it.strength=Math.max(0,Math.min(1,it.strength+d));
+      (Array.isArray(j.recruit)?j.recruit:[]).forEach(nm=>{ const rid=idByName(nm);
+        if(rid&&rid!=="__user__"&&rid!==it.holderId&&rid!==it.targetId&&!(it.allies||[]).includes(rid)) it.allies.push(rid); });
+      it.lastTick=day;
+      if(it.strength<0.2){ it.status="spent"; }                 // faded away
+      else if(j.ready===true && it.strength>=0.55){ it.status="ready"; }
+      else { it.status="brewing"; }
+    }catch(e){/* best-effort */}
+  }
+
+  // ---- PASS 3: a READY intent targeting the PLAYER may surface as a confrontation ----
+  // (Intents targeting other characters stay as offstage state for now — they color how those
+  //  characters act, and can surface later; v1 only brings player-targeted intents to a scene.)
+  const ready=chat.intents.filter(i=>i.status==="ready"&&i.targetId==="__user__"&&i.strength>=0.55)
+    .sort((a,b)=>b.strength-a.strength);
+  if(ready.length && !(chat.activeEvent&&!chat.activeEvent.resolved) && state.confrontOn!==false){
+    const it=ready[0];
+    const holder=roster.find(p=>p.id===it.holderId);
+    if(holder){
+      it.status="spent";   // consumed by surfacing
+      const allyNames=(it.allies||[]).map(nameById).filter(Boolean);
+      const summary=allyNames.length
+        ? `${holder.name}${allyNames.length?` (with ${allyNames.join(", ")})`:""} comes for ${state.user} over a ${it.kind}`
+        : `${holder.name} comes for ${state.user} over a ${it.kind}`;
+      startConfrontation(chat,{
+        accuser:holder, intent:`${it.aim} — ${it.trigger}`, summary,
+        evidence:Math.max(0.5,Math.min(0.95,it.strength)),    // their conviction in their own grievance
+        conviction:Math.max(0.55,Math.min(0.9,it.strength)),
+        accuserNature:holder.personality?String(holder.personality).slice(0,200):""
+      });
+    }
+  }
+  // prune spent intents so the list doesn't grow forever
+  chat.intents=chat.intents.filter(i=>i.status!=="spent").slice(-cap*2);
+  persistChats();
+}
 async function endDayBackground(chat,day,uni,daySnapshot,fallbackName){
   // ---- DIARIES ---- one private entry per participating character, from the day's MEMORIES.
   // Diaries and the relationship pass don't depend on each other, so we kick the relationship
@@ -9319,6 +10135,21 @@ async function endDayBackground(chat,day,uni,daySnapshot,fallbackName){
   if(state.key){
     try{ await reEvaluateRelationshipsForDay(chat,day,daySnapshot); }catch(e){}
   }
+
+  // ---- LIVING UNIVERSE: GOSSIP ---- charged things bystanders glimpsed today travel to people
+  // who'd care, planted as open-suspicion rumors. Runs after memories/relationships are settled.
+  try{ await runGossipPropagation(chat,day,uni); }catch(e){}
+
+  // ---- LIVING UNIVERSE: CONFRONTATION (layer 3) ---- if a character now holds a strong, unresolved
+  // open suspicion about the player, they may come to settle it. Fires at most one, only when no
+  // event is already active, and only if the accuser is available. The Scene Writer then runs it as
+  // a judged, winnable confrontation (conviction + floor-by-evidence).
+  try{ maybeSpawnConfrontation(chat,uni); }catch(e){}
+
+  // ---- LIVING UNIVERSE: OFFSTAGE INTENT & AGENCY (layer 4) ---- characters form charged motives
+  // from the day, fester them offstage, recruit allies, and when one is ready it surfaces as a
+  // confrontation (which no-ops if a confrontation already fired above — they won't stack).
+  try{ await runIntentEngine(chat,day,uni); }catch(e){}
 
   // Refresh any open views that show this data.
   if(document.getElementById('screen-memory')&&document.getElementById('screen-memory').classList.contains('active'))renderMemory();
@@ -9560,6 +10391,99 @@ async function setupActiveEvent(chat,eventText){
 }
 
 // Called each player turn while an event is active: advance the arc, maybe resolve.
+// LAYER 3: the unbiased judge. Scores the player's last turn against a confrontation's intent and
+// returns a bounded conviction delta. Pure scoring — writes no dialogue, decides no ending.
+async function runConfrontJudge(chat,ev,playerTurn){
+  if(!ev||ev.kind!=="confrontation")return 0;
+  const accuser=ev.accuserName||(ev.participant&&ev.participant.name)||"the confronter";
+  const sys=fillTpl(up("confrontJudge"),{
+    user:state.user, accuser, intent:ev.intent||ev.summary||"",
+    evidence:String(ev.evidence!=null?ev.evidence:0.5),
+    accuser_nature:ev.accuserNature||"ordinary; moves at a normal pace",
+    conviction:String((ev.conviction!=null?ev.conviction:0.6).toFixed(2)),
+    floor:String((ev.floor!=null?ev.floor:0).toFixed(2)),
+    ceiling:String((ev.ceiling!=null?ev.ceiling:1).toFixed(2)),
+    player_turn:(playerTurn||"(no response)").slice(0,600)
+  });
+  try{
+    const out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:`Score ${state.user}'s latest turn. Return the JSON.`}
+    ],state.gmModel,{temp:fnTemp("gm",0.1),max:fnTok("gm",120),dbg:"Confrontation judge"});
+    const j=parseJSON(out)||{};
+    let d=typeof j.delta==="number"?j.delta:0;
+    d=Math.max(-0.4,Math.min(0.4,d));            // clamp the delta itself
+    const floor=ev.floor!=null?ev.floor:0, ceil=ev.ceiling!=null?ev.ceiling:1;
+    const before=ev.conviction!=null?ev.conviction:0.6;
+    ev.conviction=Math.max(floor,Math.min(ceil,before+d));
+    ev._lastJudge={delta:d,reason:(j.reason||"").slice(0,200),lied:!!j.player_lied_or_evaded};
+    if(j.player_lied_or_evaded) ev._evasions=(ev._evasions||0)+1;
+    return ev.conviction-before;
+  }catch(e){ return 0; }
+}
+// LAYER 3: create a confrontation. Generic across genres — `intent` is whatever charged thing the
+// accuser is acting on (a suspicion, a grievance, an ultimatum, a coup). Sets up the active event,
+// derives an evidence-based conviction floor, and brings the accuser in (director-driven, so they
+// speak — unlike ambient arrivals). Called by gossip→confrontation, by offstage intents (layer 4),
+// or manually for testing. Won't fire if an event is already active.
+function startConfrontation(chat,opts){
+  if(!chat||!state.sceneOn||state.confrontOn===false)return false;
+  if(chat.activeEvent && !chat.activeEvent.resolved)return false;   // never stack on a live event
+  opts=opts||{};
+  const accuser=opts.accuser; if(!accuser||!accuser.id)return false;
+  const evidence=Math.max(0,Math.min(1, opts.evidence!=null?opts.evidence:0.5));
+  // Evidence-based floor: the stronger the proof, the less it can ever be fully talked away.
+  // Witnessed-firsthand (0.9) → floor ~0.45; faint rumor (0.3) → floor ~0.05.
+  const floor=Math.max(0, Math.min(0.6, (evidence-0.3)*0.7));
+  const ceiling=1;
+  const startConv=Math.max(floor, Math.min(ceiling, opts.conviction!=null?opts.conviction:(0.45+evidence*0.4)));
+  const present=presentCast(chat).length===0;
+  const evMin=Math.max(2,state.sceneMin||3);
+  const ev={
+    kind:"confrontation",
+    summary:opts.summary||`${accuser.name} confronts ${state.user}`,
+    intent:opts.intent||opts.summary||`${accuser.name} has something to settle with ${state.user}`,
+    accuserId:accuser.id, accuserName:accuser.name,
+    accuserNature:opts.accuserNature||(accuser.personality?String(accuser.personality).slice(0,200):"ordinary; moves at a normal pace"),
+    evidence, conviction:startConv, floor, ceiling,
+    type:"character", turn:0, minTurns:evMin, maxTurns:Math.max(evMin,state.sceneMax||8),
+    resolved:false,
+    participant:{name:accuser.name,charId:accuser.id,temp:!!accuser.temp,approaching:true}
+  };
+  chat.activeEvent=ev;
+  persistChats();updateChatHeader();
+  // Kick the Scene Writer so the accuser arrives and opens — director-driven, they DO speak.
+  Promise.resolve().then(async()=>{
+    try{
+      const broughtIn=await runSceneWriter(chat);
+      if(broughtIn) await playCharacterTurn(chat,broughtIn,"arriving");
+    }catch(e){}
+  });
+  return true;
+}
+// Persist the outcome of a confrontation so it carries forward: a memory for the accuser recording
+// how it landed (reassured-but-wary, or ruptured). Layer 4 can read this to escalate or drop intents.
+function recordConfrontationAftermath(chat,ev){
+  if(!ev||ev.kind!=="confrontation")return;
+  const aid=ev.accuserId; if(!aid)return;
+  const ap=(state.personas||[]).find(p=>p.id===aid); if(!ap)return;
+  const c=ev.conviction!=null?ev.conviction:0.6;
+  const settled = c<=0.4
+    ? `I confronted ${state.user} about ${ev.intent}. Their answer mostly satisfied me, though a small doubt lingers.`
+    : c>=0.75
+    ? `I confronted ${state.user} about ${ev.intent}. I'm not convinced — if anything I'm more certain now.`
+    : `I confronted ${state.user} about ${ev.intent}. It's still unsettled in my mind.`;
+  const mem={
+    id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
+    content:settled, location:(chat&&chat.location)||"", emotion:c>=0.6?"angry":"concerned",
+    importance:Math.max(0.55,Math.min(0.9,c)), tags:["confrontation",ev._outcome||"unresolved"],
+    type:"EXPERIENCE", ownerId:aid, character:ap.name, date:Date.now(), gameDay:curGameDay(),
+    source:"confrontation", confrontOutcome:ev._outcome||"unresolved", residualConviction:c,
+    universeId:(chat&&chat.universeId)||state.curUniverse||null, chatId:(chat&&chat.id)||null
+  };
+  if(!memoriesOf(aid).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase())) state.memory.push(mem);
+  persistMemory();
+}
 async function runSceneWriter(chat){
   const ev=chat.activeEvent;
   if(!ev||ev.resolved)return false;
@@ -9582,7 +10506,25 @@ async function runSceneWriter(chat){
       }
     }
     const sys=fillTpl(up("sceneWriter"),{user:state.user,summary:ev.summary,turn:ev.turn,min:ev.minTurns,max:ev.maxTurns});
-    const swMsgs=[{role:"system",content:sys+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(forceBringIn&&ev.participant?`\n\n${state.user} just addressed ${ev.participant.name} directly. You MUST set "bring_in":"${ev.participant.name}" this turn.`:``)}];
+    // CONFRONTATION BRANCH (layer 3): before writing the beat, the unbiased judge scores the
+    // player's last turn and moves conviction within its evidence floor/ceiling. The character's
+    // reply must then REFLECT that conviction — climbing toward acting on the intent, or being
+    // talked down toward (but never below) the floor. Resolution is threshold-based, not the
+    // model's free choice. Normal events skip ALL of this and run exactly as before.
+    let confrontGuidance="";
+    if(ev.kind==="confrontation"){
+      await runConfrontJudge(chat,ev,lastUserText);
+      const c=ev.conviction!=null?ev.conviction:0.6;
+      const band = c>=0.75?"hardening — they are close to acting on it; near-certain":
+                   c>=0.5 ?"still suspicious/charged — not satisfied, pressing for more":
+                   c>=0.3 ?"softening — partly reassured but a doubt lingers":
+                           "largely reassured — willing to let it go, though it can't be fully erased";
+      confrontGuidance=`\n\n# CONFRONTATION STATE (internal — never state these numbers in the scene)\n`+
+        `${ev.accuserName||(ev.participant&&ev.participant.name)||"The confronter"} is acting on: ${ev.intent||ev.summary}.\n`+
+        `Their conviction is now ${band}. Write their words and manner to MATCH this exactly — if softening, show it (guarded relief, a half-step back); if hardening, show the pressure rising. Do NOT resolve warmly if conviction is still high, and do NOT stay furious if they've been genuinely reassured.`+
+        (ev._lastJudge&&ev._lastJudge.reason?`\nWhy it moved: ${ev._lastJudge.reason}`:``);
+    }
+    const swMsgs=[{role:"system",content:sys+confrontGuidance+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(forceBringIn&&ev.participant?`\n\n${state.user} just addressed ${ev.participant.name} directly. You MUST set "bring_in":"${ev.participant.name}" this turn.`:``)}];
     if(ctx)swMsgs.push({role:"user",name:"context",content:ctx});
     recentExchangeMsgs(chat,4).forEach(m=>swMsgs.push(m));
     swMsgs.push({role:"user",content:`${partInfo}${lastUserText?`\n${state.user}'s latest line: "${lastUserText}"`:``}\n\nBased on the exchange above, advance the event now. Return the JSON.`});
@@ -9677,6 +10619,17 @@ async function runSceneWriter(chat){
     // would empty the scene: if resolving would leave nobody present, keep the event open so
     // the brought-in character can actually be talked to.
     let resolved=(force||j.resolved===true) && !broughtIn;
+    // CONFRONTATION: resolution is decided by where conviction landed, not the model's free choice.
+    // Reassured (conviction ≤ low) → it ends settled. Hardened to the top (≥ high) → it ends in
+    // rupture/action. Otherwise it keeps going until min/max turns. This is what makes the player's
+    // excuses actually matter and prevents the model from ending the scene arbitrarily.
+    if(ev.kind==="confrontation" && !broughtIn){
+      const c=ev.conviction!=null?ev.conviction:0.6;
+      if(ev.turn>=ev.minTurns && c<=0.28){ resolved=true; ev._outcome="defused"; }
+      else if(c>=0.9){ resolved=true; ev._outcome="rupture"; }
+      else if(force){ resolved=true; ev._outcome=(c>=0.6?"rupture":(c<=0.4?"defused":"unresolved")); }
+      else { resolved=false; }   // stay open; conviction hasn't hit a threshold yet
+    }
     if(resolved){
       // Count who would remain present after resolution (resolution may send the participant off).
       const presentNow=presentCast(chat);
@@ -9687,7 +10640,15 @@ async function runSceneWriter(chat){
       }
     }
     if(resolved && ev.turn>=ev.minTurns){
-      await resolveActiveEvent(chat,j.resolution||"the moment passes");
+      // For a confrontation, the wrap-up text reflects WHERE conviction landed, and we record the
+      // outcome on the accuser's relationship/memory so the aftermath persists into future scenes.
+      let how=j.resolution||"the moment passes";
+      if(ev.kind==="confrontation"){
+        if(ev._outcome==="defused") how=j.resolution||`${state.user} talks them down; they let it go, though a faint doubt lingers`;
+        else if(ev._outcome==="rupture") how=j.resolution||`it ends badly — they are not convinced, and act on it`;
+        try{ recordConfrontationAftermath(chat,ev); }catch(e){}
+      }
+      await resolveActiveEvent(chat,how);
     }
     return broughtIn;   // returns the character to let them speak their entrance
   }catch(e){toast("🎬 "+(e.friendly||"Scene Writer couldn't continue the scene.")); return false;}
@@ -9781,6 +10742,44 @@ async function playSingleReaction(chat,p,eventText){
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
   }catch(err){typing.remove();toast("⚠️ "+(err.friendly||"reaction failed"));}
+}
+// Manual TEST trigger for a confrontation: pick a character who has an open suspicion about the
+// player (or, failing that, any nearby/known character) and have them come settle it. Lets you
+// exercise the judged confrontation without waiting for the gossip chain.
+async function manualConfront(){
+  const chat=curChat(); if(!chat){toast("No active scene");return;}
+  if(chat.activeEvent && !chat.activeEvent.resolved){toast("An event is already active");return;}
+  const uid=chat.universeId||state.curUniverse||null;
+  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  // Prefer a character already carrying an open suspicion about the player.
+  const susMem=state.memory
+    .filter(m=>m.type==="GOSSIP"&&m.openSuspicion&&!m._confrontUsed&&(!m.universeId||!uid||m.universeId===uid))
+    .sort((a,b)=>(b.suspicion||0)-(a.suspicion||0))[0];
+  let accuser=null, intent="", evidence=0.6, conv=0.65;
+  if(susMem){
+    accuser=roster.find(p=>p.id===susMem.ownerId);
+    intent=memText(susMem); evidence=Math.max(0.4,Math.min(0.9,susMem.suspicion||0.6));
+    conv=Math.max(0.5,Math.min(0.85,susMem.suspicion||0.65));
+    if(accuser){ susMem._confrontUsed=true; persistMemory(); }
+  }
+  if(!accuser){
+    // Fall back: ask which nearby character should confront the player.
+    const pool=presentCast(chat).length?presentCast(chat):roster;
+    if(!pool.length){toast("No characters available to confront you");return;}
+    const names=pool.map(p=>p.name).join(", ");
+    const who=prompt(`Who confronts ${state.user}? (${names})`, pool[0].name);
+    if(!who)return;
+    accuser=pool.find(p=>p.name.toLowerCase()===who.toLowerCase().trim());
+    if(!accuser){toast("No character by that name");return;}
+    intent=prompt(`What is ${accuser.name} confronting ${state.user} about?`,`something ${state.user} did`)||`something unresolved with ${state.user}`;
+  }
+  const ok=startConfrontation(chat,{
+    accuser, intent, summary:`${accuser.name} confronts ${state.user}`,
+    evidence, conviction:conv,
+    accuserNature:accuser.personality?String(accuser.personality).slice(0,200):""
+  });
+  if(ok) toast("⚖️ "+accuser.name+" is coming to confront you…");
+  else toast("Couldn't start a confrontation right now");
 }
 // Manual override — force the Gamemaster to inject an event and play it out now.
 async function forceGamemaster(){
@@ -10069,7 +11068,7 @@ function renderMemory(){
     const owner=m.ownerId?`${ownerAvatar(m.ownerId)} ${ownerName(m.ownerId)}`:(m.character||"⚠️ unassigned");
     c.innerHTML=`<div style="font-size:12px;color:var(--accent);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span class="pill" style="border-color:var(--accent);color:var(--accent)">${esc(owner)}</span>
-        <span>${m.source==='auto'?'🤖 remembered':m.source==='diary'?'📔 diary':m.source==='day-summary'?'🌙 day':m.source==='condenser'?'🗜️ condensed'+(m.condensedFrom?' ×'+m.condensedFrom:''):'✍️ added'} · ${esc(m.type||"EXPERIENCE")} · ${esc(m.emotion||"neutral")}${m.location?" · "+esc(m.location):""} · Day ${m.gameDay||1}</span>
+        <span>${m.source==='auto'?'🤖 remembered':m.source==='diary'?'📔 diary':m.source==='day-summary'?'🌙 day':m.source==='gossip'?'🗣️ heard ('+esc(m.gossipFrom||'?')+')':m.source==='condenser'?'🗜️ condensed'+(m.condensedFrom?' ×'+m.condensedFrom:''):'✍️ added'} · ${esc(m.type||"EXPERIENCE")} · ${esc(m.emotion||"neutral")}${m.location?" · "+esc(m.location):""} · Day ${m.gameDay||1}</span>
       </div>
       <div>${esc(memText(m))}</div>
       ${m.importance!==undefined?`<div class="desc">importance ${imp}%</div>`:""}
@@ -10317,8 +11316,8 @@ function renderToggleSegs(){
 const GLOBAL_PROMPT_TEXTAREAS={
   setBaseInstruction:"baseInstruction", setFormatRules:"formatRules",
   setRewritePrompt:"rewritePrompt", setVidPrompt:"vidPrompt", setRouterPrompt:"routerPrompt",
-  setMemBuild:"memBuild", setGistBuild:"gistBuild", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
-  setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setRelPrompt:"relPrompt", setRelShortPrompt:"relShortPrompt", setRelGenPrompt:"relGenPrompt", setPlayerNarratePrompt:"playerNarratePrompt", setTrackPrompt:"trackPrompt",
+  setMemBuild:"memBuild", setGistBuild:"gistBuild", setGossipPrompt:"gossipPrompt", setConfrontJudge:"confrontJudge", setIntentForm:"intentForm", setIntentTick:"intentTick", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
+  setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setDirectorAuthor:"directorAuthor", setPromptTuner:"promptTuner", setRelPrompt:"relPrompt", setRelShortPrompt:"relShortPrompt", setRelGenPrompt:"relGenPrompt", setPlayerNarratePrompt:"playerNarratePrompt", setTrackPrompt:"trackPrompt",
   setVoiceCheckPrompt:"voiceCheckPrompt", setTravelPrompt:"travelPrompt", setCalPrompt:"calPrompt",
   setGmJudge:"gmJudge", setGmAuthor:"gmAuthor", setDaySummary:"daySummaryPrompt",
   setSceneSetup:"sceneSetup", setSceneWriter:"sceneWriter",
@@ -10419,10 +11418,24 @@ function syncSettingsUI(){
   document.getElementById('setCondenseBatch').value=state.condenseBatch;
   {const e=document.getElementById('setMemRecentCount'); if(e)e.value=(state.memRecentCount!=null?state.memRecentCount:3);}
   {const e=document.getElementById('setMemDistantCount'); if(e)e.value=(state.memDistantCount!=null?state.memDistantCount:2);}
+  {const e=document.getElementById('setGossipOn'); if(e)e.checked=state.gossipOn!==false;}
+  {const e=document.getElementById('setGossipThreshold'); if(e)e.value=(state.gossipThreshold!=null?state.gossipThreshold:0.6);}
+  {const e=document.getElementById('setGossipMaxPerDay'); if(e)e.value=(state.gossipMaxPerDay!=null?state.gossipMaxPerDay:3);}
+  {const e=document.getElementById('setGossipModel'); if(e)e.value=state.gossipModel||"";}
+  {const e=document.getElementById('setGossipPrompt'); if(e)e.value=state.gossipPrompt||DEFAULT_GOSSIP;}
+  {const e=document.getElementById('setConfrontOn'); if(e)e.checked=state.confrontOn!==false;}
+  {const e=document.getElementById('setConfrontJudge'); if(e)e.value=state.confrontJudge||DEFAULT_CONFRONT_JUDGE;}
+  {const e=document.getElementById('setIntentOn'); if(e)e.checked=state.intentOn!==false;}
+  {const e=document.getElementById('setIntentMax'); if(e)e.value=(state.intentMax!=null?state.intentMax:4);}
+  {const e=document.getElementById('setIntentForm'); if(e)e.value=state.intentForm||DEFAULT_INTENT_FORM;}
+  {const e=document.getElementById('setIntentTick'); if(e)e.value=state.intentTick||DEFAULT_INTENT_TICK;}
   document.getElementById('setCondensePrompt').value=state.condensePrompt;
   document.getElementById('setBioModel').value=state.bioModel;
   document.getElementById('setBioPrompt').value=state.bioPrompt;
   document.getElementById('setUnivPrompt').value=state.univPrompt;
+  {const e=document.getElementById('setDirectorAuthor'); if(e)e.value=state.directorAuthor||DEFAULT_DIRECTOR_AUTHOR;}
+  {const e=document.getElementById('setAuthorModel'); if(e)e.value=state.authorModel||"";}
+  {const e=document.getElementById('setPromptTuner'); if(e)e.value=state.promptTuner||DEFAULT_PROMPT_TUNER;}
   document.getElementById('setAutoCharOn').checked=state.autoCharOn;
   document.getElementById('setAutoCharDelay').value=state.autoCharDelay;
   document.getElementById('setStripNarr').checked=state.stripNarr;
@@ -10511,10 +11524,24 @@ function saveSettings(notify){
   state.condenseBatch=Math.max(3,+document.getElementById('setCondenseBatch').value||15);
   {const e=document.getElementById('setMemRecentCount'); if(e)state.memRecentCount=Math.max(0,Math.min(10,+e.value||0));}
   {const e=document.getElementById('setMemDistantCount'); if(e)state.memDistantCount=Math.max(0,Math.min(10,+e.value||0));}
+  {const e=document.getElementById('setGossipOn'); if(e)state.gossipOn=e.checked;}
+  {const e=document.getElementById('setGossipThreshold'); if(e)state.gossipThreshold=Math.max(0,Math.min(1,+e.value||0.6));}
+  {const e=document.getElementById('setGossipMaxPerDay'); if(e)state.gossipMaxPerDay=Math.max(0,Math.min(10,+e.value||0));}
+  {const e=document.getElementById('setGossipModel'); if(e)state.gossipModel=e.value.trim();}
+  {const e=document.getElementById('setGossipPrompt'); if(e)state.gossipPrompt=e.value.trim()||DEFAULT_GOSSIP;}
+  {const e=document.getElementById('setConfrontOn'); if(e)state.confrontOn=e.checked;}
+  {const e=document.getElementById('setConfrontJudge'); if(e)state.confrontJudge=e.value.trim()||DEFAULT_CONFRONT_JUDGE;}
+  {const e=document.getElementById('setIntentOn'); if(e)state.intentOn=e.checked;}
+  {const e=document.getElementById('setIntentMax'); if(e)state.intentMax=Math.max(0,Math.min(12,+e.value||4));}
+  {const e=document.getElementById('setIntentForm'); if(e)state.intentForm=e.value.trim()||DEFAULT_INTENT_FORM;}
+  {const e=document.getElementById('setIntentTick'); if(e)state.intentTick=e.value.trim()||DEFAULT_INTENT_TICK;}
   state.condensePrompt=document.getElementById('setCondensePrompt').value.trim()||DEFAULT_CONDENSE;
   state.bioModel=document.getElementById('setBioModel').value.trim()||"deepseek/deepseek-v3.2";
   state.bioPrompt=document.getElementById('setBioPrompt').value.trim()||DEFAULT_BIO;
   state.univPrompt=document.getElementById('setUnivPrompt').value.trim()||DEFAULT_UNIV;
+  {const e=document.getElementById('setDirectorAuthor'); if(e)state.directorAuthor=e.value.trim()||DEFAULT_DIRECTOR_AUTHOR;}
+  {const e=document.getElementById('setAuthorModel'); if(e)state.authorModel=e.value.trim();}
+  {const e=document.getElementById('setPromptTuner'); if(e)state.promptTuner=e.value.trim()||DEFAULT_PROMPT_TUNER;}
   state.autoCharOn=document.getElementById('setAutoCharOn').checked;
   state.autoCharDelay=Math.max(1,+document.getElementById('setAutoCharDelay').value||5);
   state.stripNarr=document.getElementById('setStripNarr').checked;
@@ -10553,8 +11580,8 @@ function saveSettings(notify){
   store.setRaw(K.vidPrompt,state.vidPrompt);store.setRaw(K.vidDur,state.vidDur);store.setRaw(K.vidRes,state.vidRes);store.set(K.vidSound,state.vidSound);
   store.set(K.autoImg,state.autoImg);store.setRaw(K.rewritePrompt,state.rewritePrompt);
   store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.gistBuild,state.gistBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
-  store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);store.setRaw(K.memRecentCount,state.memRecentCount);store.setRaw(K.memDistantCount,state.memDistantCount);
-  store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.setRaw(K.univPrompt,state.univPrompt);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
+  store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);store.setRaw(K.memRecentCount,state.memRecentCount);store.setRaw(K.memDistantCount,state.memDistantCount);store.set(K.gossipOn,state.gossipOn);store.setRaw(K.gossipThreshold,state.gossipThreshold);store.setRaw(K.gossipMaxPerDay,state.gossipMaxPerDay);store.setRaw(K.gossipModel,state.gossipModel||"");store.setRaw(K.gossipPrompt,state.gossipPrompt);store.set(K.confrontOn,state.confrontOn);store.setRaw(K.confrontJudge,state.confrontJudge);store.set(K.intentOn,state.intentOn);store.setRaw(K.intentMax,state.intentMax);store.setRaw(K.intentForm,state.intentForm);store.setRaw(K.intentTick,state.intentTick);
+  store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.setRaw(K.univPrompt,state.univPrompt);store.setRaw(K.directorAuthor,state.directorAuthor);store.setRaw(K.authorModel,state.authorModel||"");store.setRaw(K.promptTuner,state.promptTuner);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
   store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);store.setRaw(K.histTurns,state.histTurns);
   store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.setRaw(K.relShortPrompt,state.relShortPrompt);store.setRaw(K.relGenPrompt,state.relGenPrompt);store.setRaw(K.playerNarratePrompt,state.playerNarratePrompt);store.setRaw(K.playerNarrateModel,state.playerNarrateModel||"");store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
   store.setRaw(K.locModel,state.locModel);store.setRaw(K.travelTime,state.travelTime);store.setRaw(K.travelPrompt,state.travelPrompt);store.set(K.calOn,state.calOn);store.setRaw(K.calPrompt,state.calPrompt);
