@@ -351,6 +351,7 @@
     <div id="chatMenu" class="chatMenu hide">
       <button onclick="openCalendar();closeChatMenu()"><svg class="ic"><use href="#i-calendar"/></svg> Calendar</button>
       <button onclick="openTravel();closeChatMenu()"><svg class="ic"><use href="#i-map"/></svg> Travel</button>
+      <button onclick="openSubMove();closeChatMenu()"><svg class="ic"><use href="#i-pin"/></svg> Move to area</button>
       <button onclick="forceGamemaster();closeChatMenu()"><svg class="ic"><use href="#i-film"/></svg> Nudge the story (Gamemaster)</button>
       <button onclick="manualConfront();closeChatMenu()"><svg class="ic"><use href="#i-scale"/></svg> Trigger a confrontation</button>
       <button onclick="endDay();closeChatMenu()"><svg class="ic"><use href="#i-moon"/></svg> End Day</button>
@@ -1041,11 +1042,18 @@
       <input type="number" class="fld" id="leTravel" min="0" step="1" placeholder="blank = global default" style="max-width:220px"></div>
     <div><label><svg class="ic"><use href="#i-speech"/></svg> Gossip chance <span class="desc" style="display:inline">(<span id="leGossipVal">30</span>% — chance that what you do here leaks as gossip when you leave)</span></label>
       <input type="range" id="leGossip" min="0" max="100" step="5" value="30" style="width:100%"
-        oninput="document.getElementById('leGossipVal').textContent=this.value">
+        oninput="document.getElementById('leGossipVal').textContent=this.value; if(typeof leSubGossipPreview==='function')leSubGossipPreview()">
       <div class="desc">Public places (a café, a club, the marina) talk — leave one and a rumor about your visit may travel. Homes should be 0: what happens at home stays private. Higher = leakier.</div></div>
     <div><label><svg class="ic"><use href="#i-home"/></svg> Residents <span class="desc" style="display:inline">(who lives / is found here)</span></label>
       <div id="leResidents" style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;max-height:200px;overflow:auto"></div>
       <div class="desc">Characters ticked here are present when you arrive at this place — and are never placed anywhere else automatically. They're also this place's <b>regulars</b>: when it leaks gossip (above), the rumor reaches every one of them — including the person it's about.</div></div>
+    <div><label><svg class="ic"><use href="#i-pin"/></svg> Areas <span class="desc" style="display:inline">(private sub-areas — toilet, lounge, bedroom… you arrive at the Entrance)</span></label>
+      <div id="leSubs" style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;max-height:220px;overflow:auto"></div>
+      <div class="row" style="margin-top:4px">
+        <input type="text" class="fld" id="leSubNew" placeholder="Add an area (e.g. Toilet)" style="flex:1">
+        <button class="btn sec small" type="button" onclick="leAddSub()">＋ Add area</button>
+      </div>
+      <div class="desc">Each area is its own earshot — someone who steps to the toilet won't hear talk in the lounge. The Entrance is where everyone arrives and can't be removed.</div></div>
     <div class="row" style="margin-top:4px">
       <button class="btn sec small" id="leGenPic" onclick="leGenPic(this)"><svg class="ic"><use href="#i-sparkle"/></svg> Generate picture</button>
     </div>
@@ -1245,7 +1253,10 @@
       <textarea class="fld" id="peRelGen" placeholder="Press “Generate relationships” to have this character work out who everyone in the universe is to them — father, ally, rival, stranger — how they address each other, pet names, who lives where, and their initial feelings. You can edit the result. It feeds into roleplay alongside your social-graph notes (your hand-written notes take priority). Re-runs automatically at End Day for bonds that shifted." style="min-height:90px"></textarea>
       <div class="desc">Distinct from the numeric feeling tracker — this is durable social <i>fact</i>. First run uses only the character cards; later runs fold in how the long-term opinions have changed.</div>
     </div>
-    <div class="desc" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px"><svg class="ic"><use href="#i-pin"/></svg> <b>Where they live:</b> assign this character as a <b>resident</b> of a place in the <b>Universe → Locations</b> editor. They'll be found there (and nowhere else) unless you bring them into a scene manually.</div>
+    <div class="desc" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px"><svg class="ic"><use href="#i-pin"/></svg> <b>Where they live:</b> assign this character as a <b>resident</b> of a place in the <b>Universe → Locations</b> editor. Homes they live in are always part of their day.</div>
+    <div><label><svg class="ic"><use href="#i-map"/></svg> Places they usually visit <span class="desc" style="display:inline">(tick the public places this character frequents — each day a dice roll picks where they actually are)</span></label>
+      <div id="peVisitLocs" style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;max-height:220px;overflow:auto"></div>
+    </div>
     <div><label><svg class="ic"><use href="#i-map"/></svg> Daily whereabouts <span class="desc" style="display:inline">(auto-generated from their routine — where they tend to be each part of the day)</span></label>
       <div id="peWhereabouts" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px"></div>
       <div class="row" style="margin-top:4px">
@@ -3436,8 +3447,8 @@ Rules:
 - When in doubt, change nothing. Most turns have NO change.
 
 Respond with ONLY strict JSON, no prose:
-{"exit":["Name", ...], "enter":["Name", ...]}
-Both arrays are usually empty.`;
+{"exit":["Name", ...], "enter":["Name", ...], "move":{"Name":"Area"}}
+All are usually empty. Use "move" ONLY when an AREAS list is provided and a PRESENT character shifts to a different area of the SAME place (e.g. goes to the toilet, the bedroom, the lounge). "Area" must be one of the listed area names. Moving to another area is NOT an exit; only use "exit" when someone leaves the whole place.`;
 
 
 
@@ -3904,7 +3915,8 @@ function loadState(){
   let _uMig=false;
   (state.personas||[]).forEach(p=>{ if(!p.universeId||!_uids.has(p.universeId)){p.universeId=_fallbackU;_uMig=true;} });
   persistUniverses(); if(_uMig)persistPersonas();
-  // Ensure a current universe is selected (the chat is keyed to it).
+  // Sub-areas: guarantee every location has an entrance sub-area (idempotent; old data → entrance added).
+  migrateSublocations();
   if(!state.curUniverse||!_uids.has(state.curUniverse))state.curUniverse=_fallbackU;
   // Migrate legacy provider value
   if(state.imgProvider==="segmind")state.imgProvider="modelslab";
@@ -5216,6 +5228,18 @@ function directorContext(chat,mode){
     let line=ss;
     const here=chat.locationId?locById(chat.locationId):null;
     if(here&&here.description)line+=`\nThis place — ${here.name}: ${here.description}`;
+    // Sub-areas (privacy model): list the areas, where the player is, and the earshot rule.
+    if(here&&Array.isArray(here.sublocations)&&here.sublocations.length>1){
+      ensureSublocations(here);
+      const pSub=subById(here,curSubId(chat));
+      // Per-area privacy so a character can suggest moving somewhere quieter.
+      const areaList=here.sublocations.map(s=>`${s.name} — ${gossipLabel(areaGossipChance(here,s.id))}`).join("; ");
+      line+=`\nAreas within ${here.name} (and how private each is): ${areaList}. ${state.user} is in the ${pSub?pSub.name:"Entrance"}.`+
+        `\nPRIVACY: each area is its own earshot. Only people in the SAME area as ${state.user} hear and take part in this conversation. A character can step to another area for privacy (and then can't hear what's said here); someone in another area cannot speak into this one. A character who wants to talk discreetly may suggest moving to a more private area.`;
+    } else if(here){
+      // No sub-areas — still tell the writer how leaky the venue itself is.
+      line+=`\nPrivacy here: ${gossipLabel(locGossipChance(here))}.`;
+    }
     parts.push(line);
   }
   const tc=trackerContext(chat);
@@ -5227,9 +5251,22 @@ function directorContext(chat,mode){
   if(cl)parts.push(cl);
   // Where present characters are (with the kind of place), then offstage characters.
   try{
+    const here=chat.locationId?locById(chat.locationId):null;
+    const hasSubs=here&&Array.isArray(here.sublocations)&&here.sublocations.length>1;
     const pres=presentCast(chat);
-    const hereLines=pres.map(p=>{ const ln=charLocationLine(p,chat); return ln?`${p.name}: ${ln.replace(/^Location:\s*/,"at ")}`:`${p.name}: here in the scene`; });
-    if(hereLines.length)parts.push("WHO IS PRESENT (and where):\n"+hereLines.join("\n"));
+    if(hasSubs){
+      // Split into who is in the player's area (in earshot) vs other areas of the same place.
+      const inset=new Set(inSceneIds(chat));
+      const here2=here;
+      const fmt=p=>{ const s=subById(here2,charSubId(chat,p.id)); return `${p.name} (${s?s.name:"Entrance"})`; };
+      const inEar=pres.filter(p=>inset.has(p.id)).map(fmt);
+      const offEar=pres.filter(p=>!inset.has(p.id)).map(fmt);
+      if(inEar.length)parts.push("IN THIS AREA WITH "+state.user+" (can hear & respond):\n"+inEar.join("\n"));
+      if(offEar.length)parts.push("ELSEWHERE IN "+here.name+" (out of earshot — cannot hear this conversation):\n"+offEar.join("\n"));
+    }else{
+      const hereLines=pres.map(p=>{ const ln=charLocationLine(p,chat); return ln?`${p.name}: ${ln.replace(/^Location:\s*/,"at ")}`:`${p.name}: here in the scene`; });
+      if(hereLines.length)parts.push("WHO IS PRESENT (and where):\n"+hereLines.join("\n"));
+    }
     const pos=resolveWorldPositions(chat);
     const present=new Set(presentIds(chat));
     const lines=[];
@@ -5238,6 +5275,11 @@ function directorContext(chat,mode){
       lines.push(`${p.name}: ${l?("at "+l.name+(l.description?` (${l.description.slice(0,80)})`:"")):"elsewhere / unavailable"}`);
     });
     if(lines.length)parts.push("WHO IS WHERE (offstage):\n"+lines.join("\n"));
+    // Venues and how private each is — lets a character propose moving somewhere quieter/safer.
+    try{
+      const venueLines=(curLocations()||[]).map(l=>`- ${l.name}: ${gossipLabel(locGossipChance(l))}`);
+      if(venueLines.length)parts.push("PLACES IN THIS WORLD (and how private each is — a character may suggest one to talk discreetly):\n"+venueLines.join("\n"));
+    }catch(e){}
   }catch(e){}
   // The player's own identity in this universe — grounds events around them too.
   let pl=`PLAYER (${state.user})`;
@@ -5322,6 +5364,89 @@ function renderUniverses(){
 // ============================ LOCATIONS + TRAVEL ============================
 function curLocations(){ const u=curUniverseObj(); return (u&&Array.isArray(u.locations))?u.locations:[]; }
 function locById(id){ return curLocations().find(l=>l.id===id); }
+// ---- SUBLOCATIONS ----------------------------------------------------------
+// A location is split into named areas (Entrance, Lounge, Toilet, …). The ENTRANCE is mandatory:
+// arriving at a place drops you at its entrance. Areas provide privacy — characters only hear and
+// respond to others in the SAME area as the player. Gossip stays at the LOCATION level (unchanged);
+// areas never get their own leak slider, so the existing leak pipeline is untouched.
+function newSubId(){ return "sub_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+// Ensure a location has a sublocations array with an entrance first. Idempotent; safe on old data.
+function ensureSublocations(l){
+  if(!l)return l;
+  if(!Array.isArray(l.sublocations))l.sublocations=[];
+  if(!l.sublocations.some(s=>s&&s.entrance)){
+    l.sublocations.unshift({id:(l.id?l.id+"_entrance":newSubId()),name:"Entrance",entrance:true});
+  }
+  return l;
+}
+// The entrance sub-area id for a location (where you land on arrival).
+function entranceSubId(l){
+  ensureSublocations(l);
+  const e=l.sublocations.find(s=>s&&s.entrance)||l.sublocations[0];
+  return e?e.id:null;
+}
+function subById(l,subId){
+  if(!l||!Array.isArray(l.sublocations))return null;
+  return l.sublocations.find(s=>s&&s.id===subId)||null;
+}
+// Migrate every location in every universe to have an entrance sub-area. Run once at startup.
+function migrateSublocations(){
+  try{
+    (state.universes||[]).forEach(u=>{
+      if(Array.isArray(u.locations))u.locations.forEach(l=>ensureSublocations(l));
+    });
+  }catch(e){}
+}
+// Resolve the player's current sub-area id for a chat, defaulting to the location's entrance.
+function curSubId(chat){
+  const c=chat||curChat(); if(!c||!c.locationId)return null;
+  const l=locById(c.locationId); if(!l)return null;
+  ensureSublocations(l);
+  if(c.subId && subById(l,c.subId))return c.subId;
+  c.subId=entranceSubId(l);
+  return c.subId;
+}
+// A character's current sub-area within the present location (defaults to entrance if unknown).
+function charSubId(chat,pid){
+  const c=chat||curChat(); if(!c||!c.locationId)return null;
+  const l=locById(c.locationId); if(!l)return null;
+  ensureSublocations(l);
+  if(!c.subPos)c.subPos={};
+  const s=c.subPos[pid];
+  if(s && subById(l,s))return s;
+  return entranceSubId(l); // unknown → treat as at the entrance with the rest of the scene
+}
+// The base gossip chance (0..1) for a location, applying its type default when unset.
+function locGossipChance(l){
+  if(!l)return 0;
+  return (typeof l.gossipChance==="number")?l.gossipChance:((l.type==="home")?0:0.3);
+}
+// Effective leak chance for a specific AREA within a location: venue chance × area multiplier.
+function areaGossipChance(l,subId){
+  const base=locGossipChance(l);
+  if(!subId||!Array.isArray(l&&l.sublocations))return base;
+  const s=l.sublocations.find(x=>x&&x.id===subId);
+  const m=(s&&typeof s.gossipMult==="number")?Math.max(0,Math.min(1,s.gossipMult)):1;
+  return base*m;
+}
+// Plain-words privacy label for a chance, for the roleplay payload so characters can reason about
+// where to talk ("let's go somewhere quieter"). Never shows raw numbers to the writer.
+function gossipLabel(chance){
+  if(chance<=0) return "private (nothing said here gets out)";
+  if(chance<0.2) return "fairly private (talk here rarely spreads)";
+  if(chance<0.45) return "semi-public (word can get around)";
+  if(chance<0.75) return "gossipy (talk here often spreads)";
+  return "very public (assume anything said here will spread)";
+}
+// Fuzzy-resolve a free-text area name (from the presence tracker) to a sub-area id in this location.
+function subByName(l,name){
+  if(!l||!name||!Array.isArray(l.sublocations))return null;
+  const q=String(name).trim().toLowerCase(); if(!q)return null;
+  let hit=l.sublocations.find(s=>(s.name||"").toLowerCase()===q);
+  if(hit)return hit.id;
+  hit=l.sublocations.find(s=>(s.name||"").toLowerCase().includes(q)||q.includes((s.name||"").toLowerCase()));
+  return hit?hit.id:null;
+}
 // Resolve a free-text place name from the calendar detector to a real location id (fuzzy:
 // exact, then contains, case-insensitive). Returns null if nothing reasonable matches.
 function locByName(name){
@@ -5362,11 +5487,37 @@ function charLocationLine(p,chat){
 function applyLocationBackground(){
   const chat=curChat(); const list=document.getElementById('chatList'); if(!list)return;
   let img=null;
-  if(chat&&chat.locationId){ const l=locById(chat.locationId); if(l&&l.image)img=l.image; }
+  if(chat&&chat.locationId){
+    const l=locById(chat.locationId);
+    if(l){
+      // Prefer the CURRENT sub-area's own image; fall back to the location's image.
+      const sub=subById(l,curSubId(chat));
+      if(sub&&sub.image)img=sub.image;
+      else if(l.image)img=l.image;
+    }
+  }
   if(img){
     list.style.backgroundImage=`linear-gradient(rgba(13,15,20,0.82),rgba(13,15,20,0.92)), url(${img})`;
     list.style.backgroundSize="cover"; list.style.backgroundPosition="center"; list.style.backgroundAttachment="local";
   }else{ list.style.backgroundImage=""; }
+}
+
+// Generate a scenery image for a specific SUB-AREA within a location (e.g. the Toilet, the Lounge).
+// Reuses the same provider path as location images, but prompts for the area inside the place.
+async function generateSubImage(loc,sub){
+  if(!loc||!sub)return null;
+  const prompt=`${sub.name} inside ${loc.name}, ${loc.description||""}, interior, establishing wide shot, scenery, no people, atmospheric, detailed environment`.replace(/, ,/g,",");
+  const neg="people, person, character, portrait, text, watermark, low quality";
+  try{
+    const rule=await pickRule(state.imgRules,prompt);
+    if(rule){
+      const r=state.locModel?Object.assign({},rule,{model_id:state.locModel}):rule;
+      return await genImageForRule(r,prompt,neg);
+    }
+    if(state.imgProvider==="atlascloud") return await atlasImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
+    if(state.imgProvider==="modelslab")  return await modelslabImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
+    return await imageCompletion(prompt,state.locModel||state.imgModel,"1024x576");
+  }catch(e){ return null; }
 }
 
 async function generateLocationImage(loc){
@@ -5392,12 +5543,22 @@ async function generateLocationImage(loc){
 // actions (which happen constantly), not from the rare present-but-silent bystander. Homes default to
 // 0 chance — what happens at home stays private. Owner = a plausible witness at that place (a resident
 // or an ambient character who was around); with no plausible witness, a place can't gossip, so it no-ops.
-async function runLocationGossipLeak(chat, leftLoc){
+async function runLocationGossipLeak(chat, leftLoc, leftSubId){
   try{
     if(!chat||!leftLoc||!state.key||!state.mem)return;
     if(state.gossipOn===false)return;   // respect the master gossip toggle
-    // chance: explicit per-location value, else default by type (home 0, poi 0.3)
-    const chance = (typeof leftLoc.gossipChance==="number") ? leftLoc.gossipChance : ((leftLoc.type==="home")?0:0.3);
+    // CHANCE — the location's base chance, scaled by a per-AREA multiplier (0..1, default 1).
+    // The area the player spent the visit in dials the venue's leakiness up/down: a private back
+    // room (×0) leaks nothing even in a gossipy venue; the entrance/floor (×1) leaks like the venue.
+    // This is purely the EXIT-time roll. Ownership is unchanged — the rumor still reaches the
+    // LOCATION's residents below — and the separate End-Day propagation never re-spreads it.
+    const locChance = (typeof leftLoc.gossipChance==="number") ? leftLoc.gossipChance : ((leftLoc.type==="home")?0:0.3);
+    let mult = 1;
+    if(leftSubId && Array.isArray(leftLoc.sublocations)){
+      const sub=leftLoc.sublocations.find(s=>s&&s.id===leftSubId);
+      if(sub && typeof sub.gossipMult==="number") mult=Math.max(0,Math.min(1,sub.gossipMult));
+    }
+    const chance = locChance * mult;
     if(chance<=0)return;
     if(Math.random()>=chance)return;    // the place stayed quiet this time
     // The visit window: messages since the last arrival (travelBeat) — i.e. what happened HERE.
@@ -5475,15 +5636,24 @@ async function travelTo(locId,companionIds){
   const ambient=charactersAtLocation(chat,dest.id);
   const present=[];
   [...companions,...ambient].forEach(p=>{ if(p&&!present.some(x=>x.id===p.id))present.push(p); });
-  // Companions you brought are now AT this location for the rest of the period.
-  companions.forEach(c=>{ if(chat.worldPositions)chat.worldPositions[c.id]=dest.id; });
+  // Companions you brought are now AT this location, and STAY with you for the rest of the day
+  // (companionLock overrides their rolled spot until the day ends).
+  if(!chat.companionLock)chat.companionLock={};
+  companions.forEach(c=>{ if(chat.worldPositions)chat.worldPositions[c.id]=dest.id; chat.companionLock[c.id]=true; });
   // EXIT GOSSIP: before we leave the current location, let the place (if public) possibly leak a
   // rumor about this visit. Fire-and-forget on the location being LEFT — captured now, before the
   // reassignment below changes locationId. No-ops for homes / quiet places / deserted spots.
   const leftLoc = chat.locationId ? locById(chat.locationId) : null;
-  if(leftLoc && leftLoc.id!==dest.id){ runLocationGossipLeak(chat, leftLoc); }
+  const leftSubId = (leftLoc && chat.subId) ? chat.subId : null;   // the area the player was actually in
+  if(leftLoc && leftLoc.id!==dest.id){ runLocationGossipLeak(chat, leftLoc, leftSubId); }
   chat.presentIds=present.map(p=>p.id);
   chat.location=dest.name; chat.locationId=dest.id;
+  // Arriving drops everyone at the ENTRANCE of the destination (areas reset per location).
+  ensureSublocations(dest);
+  chat.subId=entranceSubId(dest);
+  chat.subPos=chat.subPos||{};
+  const entr=chat.subId;
+  present.forEach(p=>{ chat.subPos[p.id]=entr; });
   let narration="";
   try{
     const sys=fillTpl(up("travelPrompt"),{user:state.user});
@@ -5559,6 +5729,61 @@ function _doTravel(locId,withCompanions){
   _travelClose();
   travelTo(locId,ids);
 }
+// ---- SUB-AREA MOVE (player) ------------------------------------------------
+// Move the player to a different area of the CURRENT location. Optionally bring along characters
+// who are in earshot now. Changes who can hear the conversation (privacy). Fires a short note.
+function openSubMove(){
+  const chat=curChat(); if(!chat)return;
+  _travelClose();
+  if(!chat.locationId){ toast("Travel somewhere first — areas exist inside a place"); return; }
+  const l=locById(chat.locationId); if(!l){ toast("No current place"); return; }
+  ensureSublocations(l);
+  if(l.sublocations.length<=1){ toast(`${l.name} has no separate areas`); return; }
+  const cur=curSubId(chat);
+  const here=inSceneCast(chat).filter(p=>p&&!String(p.id).startsWith("tmp_"));
+  const areaBtns=l.sublocations.map(s=>{
+    const isHere=s.id===cur;
+    return `<div class="card" style="padding:9px;${isHere?'border-color:var(--accent)':''}">
+      <div class="kvline" style="padding:0">
+        <div><b>📍 ${esc(s.name)}</b>${isHere?' <span class="pill" style="font-size:9px">you are here</span>':''}</div>
+        ${isHere?'':`<button class="btn small" onclick="_doSubMove('${s.id}')">Go</button>`}
+      </div></div>`;
+  }).join("");
+  const companions = here.length?`<div class="desc" style="margin-top:8px">Anyone in earshot you tick will come with you:</div>
+    <div id="subCompanions" style="display:flex;flex-direction:column;gap:6px;margin:6px 0">
+      ${here.map(p=>`<label class="kvline" style="cursor:pointer"><span>${avatarHTML(p)} ${esc(p.name)}</span>
+        <input type="checkbox" data-cid="${p.id}"></label>`).join("")}</div>`:"";
+  const m=document.createElement('div'); m.id="travelModal"; m.className="modal show";
+  m.innerHTML=`<button class="x" onclick="_travelClose()">×</button>
+   <div class="card editCard"><h3>Move within ${esc(l.name)}</h3>
+   <div class="desc">Each area is private — stepping away means you no longer hear (or are heard by) the area you left.</div>
+   ${areaBtns}${companions}
+   <button class="btn sec small" style="margin-top:10px" onclick="_travelClose()">Close</button></div>`;
+  m.addEventListener('click',e=>{if(e.target===m)_travelClose();});
+  document.body.appendChild(m);
+}
+function _doSubMove(subId){
+  const ids=[];
+  document.querySelectorAll('#subCompanions input[type=checkbox]').forEach(cb=>{ if(cb.checked)ids.push(cb.dataset.cid); });
+  _travelClose();
+  moveToSub(subId,ids);
+}
+function moveToSub(subId,companionIds){
+  const chat=curChat(); if(!chat||!chat.locationId)return;
+  const l=locById(chat.locationId); if(!l)return;
+  ensureSublocations(l);
+  const s=subById(l,subId); if(!s)return;
+  if(!chat.subPos)chat.subPos={};
+  chat.subId=subId;
+  (companionIds||[]).forEach(id=>{ chat.subPos[id]=subId; });
+  // Note who moved with you, for the scene.
+  const names=(companionIds||[]).map(id=>{ const p=resolveChar(id,chat); return p?p.name:null; }).filter(Boolean);
+  const withTxt=names.length?` with ${names.join(", ")}`:"";
+  chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",presenceNote:true,
+    content:`— ${state.user} moves to the ${s.name}${withTxt} —`,img:null,imgState:"idle",vidState:"idle",video:null});
+  persistChats();appendNewBubbles();updateChatHeader();applyLocationBackground();
+  toast(`Now in the ${s.name}`);
+}
 // ============================ CHARACTER SCHEDULES ============================
 // DETERMINISTIC placement (no randomness). A character is "at" a location ONLY if they are a
 // listed resident of it. This guarantees a character can never turn up somewhere they were not
@@ -5570,22 +5795,83 @@ function personaHome(p){
   const loc=curLocations().find(l=>Array.isArray(l.residents)&&l.residents.includes(p.id));
   return loc?loc.id:null;
 }
+// The full set of locations a character can be rolled into for the day:
+//   - every HOME they're a resident of (always eligible), PLUS
+//   - the POIs ticked on their card (p.locations, the "usually visits" set).
+// Returns an array of location ids (may be empty → character is off-screen that day).
+function allowedLocs(p){
+  const locs=curLocations();
+  const set=new Set();
+  locs.forEach(l=>{ if(Array.isArray(l.residents)&&l.residents.includes(p.id))set.add(l.id); });
+  if(Array.isArray(p.locations))p.locations.forEach(id=>{ if(locs.some(l=>l.id===id))set.add(id); });
+  return Array.from(set);
+}
+// Weight a character's allowed locations for the daily roll. Prefer the generated schedule
+// (sum each location's points across all periods); fall back to even weighting. Homes get a
+// gentle floor so a resident is never impossible to find at home.
+function placementWeights(p){
+  const ids=allowedLocs(p); if(!ids.length)return {};
+  const w={}; ids.forEach(id=>{ w[id]=0; });
+  const sched=p&&p.schedule;
+  if(sched&&typeof sched==="object"){
+    for(const period of PERIODS){
+      const row=sched[period]; if(!row||typeof row!=="object")continue;
+      for(const id in row){ if(id in w){ const v=+row[id]; if(v>0)w[id]+=v; } }
+    }
+  }
+  const homeId=personaHome(p);
+  // Even fallback for anything still at zero (no schedule, or schedule didn't cover it).
+  let any=false; for(const id in w){ if(w[id]>0){ any=true; break; } }
+  if(!any){ ids.forEach(id=>{ w[id]=1; }); }
+  if(homeId&&w[homeId]!=null&&w[homeId]<1)w[homeId]=1; // home floor
+  return w;
+}
+// Roll ONE location for a character from their weighted allowed set. Pure dice — no LLM.
+function rollPlacement(p){
+  const w=placementWeights(p); const ids=Object.keys(w);
+  if(!ids.length)return personaHome(p); // nothing ticked → fall back to home (or null → off-screen)
+  let total=0; ids.forEach(id=>{ total+=w[id]; });
+  if(total<=0)return personaHome(p);
+  let r=Math.random()*total;
+  for(const id of ids){ r-=w[id]; if(r<=0)return id; }
+  return ids[ids.length-1];
+}
+// Build (or reuse) the LOCKED placement for the current game-day: one rolled location per
+// character, fixed for the whole day. Companions the player has taken along (chat.companionLock)
+// override their rolled spot and stay wherever the player currently is.
 function resolveWorldPositions(chat,force){
   const c=chat||curChat(); if(!c)return {};
-  const key=`${c.gameDay||1}|${chatPeriod(c)}`;
-  if(!c.worldPositions)c.worldPositions={};
-  if(!force && c._wpKey===key) return c.worldPositions;
+  const day=c.gameDay||1;
+  const fresh=(force || !c.dayPlacement || c.dayPlacement.day!==day);
+  // (Re)roll the day's placement if it's missing or stale (a new day began).
+  if(fresh){
+    const rolled={};
+    (state.personas||[]).filter(p=>p.universeId===c.universeId).forEach(p=>{
+      rolled[p.id]=rollPlacement(p);   // dice over allowed set, or home/null
+    });
+    c.dayPlacement={day,positions:rolled};
+    if(c._lastPlacementDay!==day){ c.companionLock={}; c._lastPlacementDay=day; } // companions reset each new day
+  }
+  // If the day's positions are already materialized and nothing forced a reroll, keep them —
+  // momentary scene moves (presence tracker entries/exits, GM summon/send) live on this object
+  // and must not be wiped on every read.
+  if(!fresh && c.worldPositions && c._wpKey===`${day}`) return c.worldPositions;
   const pos={};
+  const rolled=(c.dayPlacement&&c.dayPlacement.positions)||{};
   (state.personas||[]).filter(p=>p.universeId===c.universeId).forEach(p=>{
-    pos[p.id]=personaHome(p);   // resident home, or null (off-screen) — never random
+    pos[p.id]=rolled[p.id]!=null?rolled[p.id]:null;
   });
-  c.worldPositions=pos; c._wpKey=key;
+  // Companions the player took with them stay at the player's current location for the day.
+  if(c.companionLock&&c.locationId){
+    for(const id in c.companionLock){ if(c.companionLock[id])pos[id]=c.locationId; }
+  }
+  c.worldPositions=pos; c._wpKey=`${day}`;
   return pos;
 }
 function charactersAtLocation(chat,locId){
-  // Only residents of this location are ambiently here. Manually-brought companions are added
-  // by the caller (travelTo) on top of this set.
-  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && personaHome(p)===locId);
+  // Whoever the daily roll (plus companion locks) placed here.
+  const pos=resolveWorldPositions(chat);
+  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && pos[p.id]===locId);
 }
 // GM movement: bring a named character INTO the current scene, or send a present one AWAY.
 // Returns the brought-in persona (so they can speak) or null.
@@ -5596,6 +5882,7 @@ function gmSummonCharacter(chat,name){
   if(!chat.presentIds)chat.presentIds=[];
   if(!chat.presentIds.includes(p.id))chat.presentIds.push(p.id);
   if(chat.worldPositions&&chat.locationId)chat.worldPositions[p.id]=chat.locationId; // they're here now
+  if(chat.locationId){ if(!chat.subPos)chat.subPos={}; chat.subPos[p.id]=curSubId(chat); } // into the player's area
   notePresence(chat,[p.name],[]);
   return p;
 }
@@ -5604,6 +5891,7 @@ function gmSendCharacter(chat,name){
   const p=presentCast(chat).find(x=>x.name.toLowerCase()===String(name).toLowerCase());
   if(!p)return;
   chat.presentIds=(chat.presentIds||[]).filter(id=>id!==p.id);
+  if(chat.companionLock)delete chat.companionLock[p.id]; // no longer tagging along
   if(chat.worldPositions)chat.worldPositions[p.id]=null; // they went elsewhere
   notePresence(chat,[],[p.name]);
 }
@@ -7114,7 +7402,9 @@ async function genLocationImage(i,btn){
   finally{ btn.textContent=old; btn.disabled=false; }
 }
 function addLocation(){
-  _ueLocs.push({id:"loc_"+Date.now().toString(36),name:"New place",description:"",type:"poi",residents:[],image:null,travelPeriods:null});
+  const id="loc_"+Date.now().toString(36);
+  _ueLocs.push({id,name:"New place",description:"",type:"poi",residents:[],image:null,travelPeriods:null,
+    sublocations:[{id:id+"_entrance",name:"Entrance",entrance:true}]});
   editLocation(_ueLocs.length-1);
 }
 // Bulk-generate daily schedules for every character in the universe being edited.
@@ -7197,7 +7487,96 @@ function editLocation(i){
       <input type="checkbox" class="leResChk" value="${p.id}" ${cur.has(p.id)?"checked":""}>
       <span>${esc(p.avatar||"🎭")} ${esc(p.name)}</span></label>`).join("");
   }
+  // Sub-areas (private zones). Ensure an entrance, then render the editable list.
+  ensureSublocations(l);
+  renderLeSubs();
   openModal('locEditModal');
+}
+// Render the sub-area editor list for the location currently open in the editor.
+// Each area has a gossip MULTIPLIER (0..1) on the venue's chance. We show the resulting effective
+// % live next to the slider so the user never has to compute venue×multiplier themselves.
+function renderLeSubs(){
+  const l=_ueLocs[_leIndex]; const box=document.getElementById('leSubs'); if(!box)return;
+  if(!l){ box.innerHTML=""; return; }
+  ensureSublocations(l);
+  box.innerHTML=l.sublocations.map((s,si)=>{
+    const lock=s.entrance;
+    const mult=(typeof s.gossipMult==="number")?Math.max(0,Math.min(1,s.gossipMult)):1;
+    const imgCell=s.image
+      ? `<img src="${s.image}" class="leSubImg" data-si="${si}" title="View / replace area image" style="width:40px;height:40px;object-fit:cover;border-radius:8px;cursor:zoom-in">`
+      : `<button class="btn sec small leSubGenImg" type="button" data-si="${si}" title="Generate an image for this area">✨</button>`;
+    return `<div class="kvline" style="padding:4px 0;gap:8px;flex-wrap:wrap;align-items:center">
+      ${imgCell}
+      <span style="flex:1;min-width:96px">📍 ${esc(s.name)}${lock?' <span class="desc">(entry point)</span>':''}</span>
+      <span style="display:inline-flex;align-items:center;gap:6px">
+        <svg class="ic"><use href="#i-speech"/></svg>
+        <input type="range" class="leSubGossip" data-si="${si}" min="0" max="100" step="5" value="${Math.round(mult*100)}"
+          oninput="leSubGossipPreview()" style="width:96px" title="How much of the venue's gossip chance applies here">
+        <span class="leSubGossipOut desc" data-si="${si}" style="min-width:120px;text-align:right"></span>
+      </span>
+      ${lock?'':`<button class="btn sec small" type="button" onclick="leDelSub(${si})">✕</button>`}
+    </div>`;
+  }).join("");
+  // Wire per-area image controls (generate when empty; view/replace/clear when set).
+  box.querySelectorAll('.leSubGenImg').forEach(b=>{ b.onclick=()=>leGenSubImg(+b.dataset.si,b); });
+  box.querySelectorAll('.leSubImg').forEach(im=>{ im.onclick=()=>leSubImgMenu(+im.dataset.si); });
+  leSubGossipPreview();
+}
+// Live-update the "×mult → effective%" labels from the current venue slider + each area slider.
+function leSubGossipPreview(){
+  const gv=document.getElementById('leGossip');
+  const locPct=gv?(+gv.value||0):0;   // venue chance % as currently set on the location slider
+  document.querySelectorAll('#leSubs .leSubGossip').forEach(r=>{
+    const mult=(+r.value||0)/100;
+    const eff=Math.round(locPct*mult);
+    const out=document.querySelector(`#leSubs .leSubGossipOut[data-si="${r.dataset.si}"]`);
+    if(out)out.textContent=`×${mult.toFixed(2)} → ${eff}% leak`;
+  });
+}
+// Generate an image for a specific sub-area, store it on the editor copy, re-render.
+async function leGenSubImg(si,btn){
+  const l=_ueLocs[_leIndex]; if(!l)return;
+  ensureSublocations(l);
+  const sub=l.sublocations[si]; if(!sub)return;
+  if(!state.key&&state.imgProvider!=="modelslab"&&!state.segkey){ toast("Add your image API key first"); return; }
+  // Persist the venue's typed name/description so the area image matches what's on screen.
+  l.name=document.getElementById('leName').value.trim()||l.name;
+  l.description=document.getElementById('leDesc').value.trim();
+  const old=btn?btn.textContent:""; if(btn){btn.disabled=true;btn.textContent="…";}
+  toast(`Generating ${sub.name} image…`);
+  try{
+    const url=await generateSubImage(l,sub);
+    if(url){ sub.image=url; renderLeSubs(); toast(`${sub.name} image`); }
+    else toast("Image failed — check your image provider & key");
+  }catch(e){ toast(""+(e&&e.friendly||"Couldn't generate image")); }
+  finally{ if(btn){btn.disabled=false;btn.textContent=old;} }
+}
+// Tap an existing area image: view it, regenerate, or clear it.
+function leSubImgMenu(si){
+  const l=_ueLocs[_leIndex]; if(!l)return;
+  const sub=l.sublocations[si]; if(!sub)return;
+  const choice=prompt(`"${sub.name}" image — type:\n  v = view\n  r = regenerate\n  x = remove\n(or Cancel)`,"v");
+  if(choice==null)return;
+  const c=choice.trim().toLowerCase();
+  if(c==="v"){ if(sub.image)viewImageUrl(sub.image); }
+  else if(c==="r"){ leGenSubImg(si,null); }
+  else if(c==="x"){ delete sub.image; renderLeSubs(); toast("Area image removed"); }
+}
+function leAddSub(){
+  const l=_ueLocs[_leIndex]; if(!l)return;
+  ensureSublocations(l);
+  const inp=document.getElementById('leSubNew'); const name=(inp.value||"").trim();
+  if(!name)return;
+  if(l.sublocations.some(s=>(s.name||"").toLowerCase()===name.toLowerCase())){ toast("That area already exists"); return; }
+  l.sublocations.push({id:newSubId(),name});
+  inp.value="";
+  renderLeSubs();
+}
+function leDelSub(si){
+  const l=_ueLocs[_leIndex]; if(!l||!Array.isArray(l.sublocations))return;
+  const s=l.sublocations[si]; if(!s||s.entrance)return; // never delete the entrance
+  l.sublocations.splice(si,1);
+  renderLeSubs();
 }
 function saveLocationEdit(){
   const l=_ueLocs[_leIndex]; if(!l){closeModal('locEditModal');return;}
@@ -7208,6 +7587,13 @@ function saveLocationEdit(){
   l.travelPeriods=tp===""?null:Math.max(0,+tp||0);
   { const gv=document.getElementById('leGossip'); if(gv) l.gossipChance=Math.max(0,Math.min(1,(+gv.value||0)/100)); }
   l.residents=Array.from(document.querySelectorAll('#leResidents .leResChk:checked')).map(c=>c.value);
+  ensureSublocations(l); // guarantee an entrance survives the save
+  // Per-area gossip multipliers (0..1). Store only when not the default 1.0 to keep data tidy.
+  document.querySelectorAll('#leSubs .leSubGossip').forEach(r=>{
+    const si=+r.dataset.si; const sub=l.sublocations[si]; if(!sub)return;
+    const mult=Math.max(0,Math.min(1,(+r.value||0)/100));
+    if(mult>=1) delete sub.gossipMult; else sub.gossipMult=mult;
+  });
   closeModal('locEditModal');
   renderLocEditor();
   toast("Location saved — Save the universe to keep");
@@ -7534,7 +7920,7 @@ function editPersona(id){
       if(u.id===targetU)o.selected=true;
       sel.appendChild(o);
     });
-    sel.onchange=()=>renderPeLocations(editingPersona||{});
+    sel.onchange=()=>{ renderPeVisitLocs(editingPersona||{}); renderPeLocations(editingPersona||{}); };
   }
   ['Name','Avatar','Instructions','Personality','Backstory','Style','Look','Interject'].forEach(f=>{
     const map={Name:'name',Avatar:'avatar',Instructions:'instructions',Personality:'personality',Backstory:'backstory',Style:'style',Look:'look',Interject:'interject'};
@@ -7549,8 +7935,8 @@ function editPersona(id){
   {const rg=document.getElementById('peRelGen'); if(rg)rg.value=p.relationshipsGen||"";
    const wrap=document.getElementById('peRelGenWrap'); if(wrap)wrap.style.display="block";
    const rgBtn=document.getElementById('peRelGenBtn'); if(rgBtn)rgBtn.disabled=!id; }   // need a saved id to target
+  renderPeVisitLocs(p);
   renderPeLocations(p);
-  // Reset the Create-with-AI box for each open.
   {const panel=document.getElementById('peAiPanel');if(panel)panel.classList.add('hide');const brief=document.getElementById('peAiBrief');if(brief)brief.value="";}
   document.getElementById('peDelete').style.display=id?"block":"none";
   const bp=document.getElementById('peBasePreview');if(bp)bp.textContent=up("baseInstruction");
@@ -7558,6 +7944,26 @@ function editPersona(id){
   openModal('personaModal');
 }
 function clearProfilePic(){peImageData=null;renderAvatarPreview();}
+// Render the "places they usually visit" checklist. Homes the character lives in are shown
+// pre-ticked and disabled (they're always part of the day); POIs are tickable and stored on
+// p.locations (the per-character "allowed visit set" that the daily placement roll uses).
+function renderPeVisitLocs(p){
+  const el=document.getElementById('peVisitLocs'); if(!el)return;
+  const uni=universeById(p&&p.universeId)||curUniverseObj();
+  const locs=(uni&&Array.isArray(uni.locations))?uni.locations:[];
+  if(!locs.length){ el.innerHTML=`<div class="desc">No locations in this universe yet — add some in Universe → Locations.</div>`; return; }
+  const visit=Array.isArray(p&&p.locations)?p.locations:[];
+  const rows=locs.map(l=>{
+    const isHome=Array.isArray(l.residents)&&p&&p.id&&l.residents.includes(p.id);
+    const checked=isHome||visit.includes(l.id);
+    const tag=l.type==='home'?' <span class="desc">(home)</span>':'';
+    const note=isHome?' <span class="desc">— always (lives here)</span>':'';
+    return `<label class="switchLbl" style="justify-content:flex-start;gap:8px">
+      <input type="checkbox" class="peVisitChk" value="${l.id}" ${checked?'checked':''} ${isHome?'disabled':''}>
+      <span>${esc(l.name)}${tag}${note}</span></label>`;
+  }).join("");
+  el.innerHTML=rows;
+}
 // Render the character's auto-generated daily whereabouts (their schedule) as a read-only,
 // human-readable panel: for each period, the locations they're most likely to be, by weight.
 function renderPeLocations(p){
@@ -7982,9 +8388,11 @@ async function generateLocations(uni,count){
   const n=Math.max(3,Math.min(10,count||6));
   const sys=`You design the LOCATIONS for a roleplay world: homes where characters live and points of interest they visit. Given the world setting and the cast, create ${n} believable, varied places that fit this world and give the characters somewhere to live and somewhere to go.
 
+Each place also has 2-4 logical SUB-AREAS (private zones inside it) — e.g. a home might have a Living Room, Kitchen, Bedroom; a club might have a Dance Floor, VIP Booth, Bar, Toilets. The FIRST sub-area MUST be the entry point everyone arrives at (an "Entrance", "Foyer", "Front Door", "Lobby", or whatever fits). Sub-areas give privacy: people in different areas can't overhear each other.
+
 Return ONLY strict JSON, an array:
-[{"name":"place name","description":"1-2 sentences of what it is and its mood","type":"home or poi","resident":"EXACT name of a character who lives here, or empty for a point of interest"}]
-Make some homes (assign residents from the cast) and some points of interest (no resident). Use exact character names. No commentary.`;
+[{"name":"place name","description":"1-2 sentences of what it is and its mood","type":"home or poi","resident":"EXACT name of a character who lives here, or empty for a point of interest","sublocations":["Entrance","Lounge","Toilet"]}]
+Make some homes (assign residents from the cast) and some points of interest (no resident). The first sublocation is always the arrival point. Use exact character names. No commentary.`;
   let out;
   try{
     out=await chatCompletion([
@@ -7995,13 +8403,24 @@ Make some homes (assign residents from the cast) and some points of interest (no
   const arr=parseJSON(out); if(!Array.isArray(arr)||!arr.length)return null;
   const nameToId={}; cast.forEach(p=>nameToId[p.name.toLowerCase()]=p.id);
   const clean=s=>typeof s==="string"?s.trim():"";
-  return arr.slice(0,10).map(l=>({
-    id:"loc_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
-    name:clean(l.name), description:clean(l.description),
-    type:(clean(l.type).toLowerCase()==='home')?'home':'poi',
-    residents:(l.resident && nameToId[String(l.resident).toLowerCase()])?[nameToId[String(l.resident).toLowerCase()]]:[],
-    image:null, travelPeriods:null
-  })).filter(l=>l.name);
+  return arr.slice(0,10).map(l=>{
+    const id="loc_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    // Build sublocations: first is the entrance, rest are extra areas. Always guarantee an entrance.
+    let subs=[];
+    if(Array.isArray(l.sublocations)){
+      l.sublocations.map(clean).filter(Boolean).forEach((nm,i)=>{
+        subs.push(i===0?{id:id+"_entrance",name:nm,entrance:true}:{id:newSubId(),name:nm});
+      });
+    }
+    if(!subs.some(s=>s.entrance))subs.unshift({id:id+"_entrance",name:"Entrance",entrance:true});
+    return {
+      id,
+      name:clean(l.name), description:clean(l.description),
+      type:(clean(l.type).toLowerCase()==='home')?'home':'poi',
+      residents:(l.resident && nameToId[String(l.resident).toLowerCase()])?[nameToId[String(l.resident).toLowerCase()]]:[],
+      image:null, travelPeriods:null, sublocations:subs
+    };
+  }).filter(l=>l.name);
 }
 // One-shot universe generator: brief + count → a full universe object with characters.
 // Returns {universe, characters[], userName/userLook/userBio} or null. Never throws.
@@ -8245,9 +8664,13 @@ function savePersona(){
     relationshipsGenAt:(editingPersona&&editingPersona.relationshipsGenAt)||null,
     relationships:(editingPersona&&editingPersona.relationships)||undefined,
     routine:(editingPersona&&editingPersona.routine)||_peRoutine||"",
-    // Location frequenting was removed from the character editor (residence is set in the
-    // Universe → Locations editor instead). Preserve any existing value rather than wiping it.
-    locations:(editingPersona&&Array.isArray(editingPersona.locations))?editingPersona.locations:[],
+    // Per-character "usually visits" set: the ticked POIs (homes they live in are always
+    // eligible and added at roll time, so they're not stored here). Drives the daily placement roll.
+    locations:(function(){
+      const chks=document.querySelectorAll('#peVisitLocs .peVisitChk');
+      if(chks&&chks.length)return Array.from(chks).filter(c=>c.checked&&!c.disabled).map(c=>c.value);
+      return (editingPersona&&Array.isArray(editingPersona.locations))?editingPersona.locations:[];
+    })(),
     image:peImageData||null};
   // If the player hand-picked locations, drop any stale generated schedule so the new
   // hand-picked spread (varied weighting) takes effect immediately.
@@ -8739,6 +9162,29 @@ function presentCast(chat){
   return out;   // may be empty — user is talking to themselves
 }
 function isPresent(chat,id){return presentIds(chat).includes(id);}
+// ---- SCENE (earshot) vs PRESENT (at the location) --------------------------
+// presentIds = everyone at this LOCATION. inScene = those in the SAME sub-area as the player,
+// i.e. who can actually hear the dialogue and take a turn. With no sublocations (old data),
+// inScene == present, so behaviour is unchanged.
+function inSceneIds(chat){
+  const c=chat||curChat(); if(!c)return [];
+  const ids=presentIds(c);
+  if(!c.locationId)return ids.slice();
+  const l=locById(c.locationId); if(!l||!Array.isArray(l.sublocations)||l.sublocations.length<=1)return ids.slice();
+  const here=curSubId(c);
+  return ids.filter(id=>charSubId(c,id)===here);
+}
+function inSceneCast(chat){
+  const c=chat||curChat();
+  const set=new Set(inSceneIds(c));
+  return presentCast(c).filter(p=>set.has(p.id));
+}
+// Present at the location but in a DIFFERENT area than the player (out of earshot).
+function offEarshotCast(chat){
+  const c=chat||curChat();
+  const inset=new Set(inSceneIds(c));
+  return presentCast(c).filter(p=>!inset.has(p.id));
+}
 // Resolve a character id to a persona object — including temporary event characters.
 function resolveChar(id,chat){
   chat=chat||(state.curChat&&state.chats[state.curChat]);
@@ -8822,7 +9268,9 @@ function applyPresence(chat,enterNames,exitNames){
   const pres=presentIds(chat);
   const entered=[],exited=[];
   (exitNames||[]).forEach(n=>{const p=byName(n);if(p){const i=pres.indexOf(p.id);if(i>=0){pres.splice(i,1);exited.push(p.name);}}});
-  (enterNames||[]).forEach(n=>{const p=byName(n);if(p&&!pres.includes(p.id)){pres.push(p.id);entered.push(p.name);}});
+  (enterNames||[]).forEach(n=>{const p=byName(n);if(p&&!pres.includes(p.id)){pres.push(p.id);entered.push(p.name);
+    if(chat.locationId){ if(!chat.subPos)chat.subPos={}; chat.subPos[p.id]=curSubId(chat); }   // arrive into the player's area
+  }});
   chat.presentIds=pres;   // empty is allowed — nobody nearby
   // Track who just left, so the turn router won't auto-pull a departed character back into the scene.
   // They may give ONE last reply (handled in the router) and only return if the player's words
@@ -9690,7 +10138,7 @@ async function runMultiCharTurn(chat,playerText){
   document.getElementById('sendBtn').disabled=true;
   try{
     await runPresenceTracker(chat);   // the player may have narrated someone leaving/arriving
-    let cast=presentCast(chat);   // only characters currently present can respond
+    let cast=inSceneCast(chat);   // only characters in the player's area (earshot) can respond
     if(cast.length===0){ // nobody nearby — user is talking to themselves
       maybeBuildMemory(chat);postTurn(chat);
       return;
@@ -9728,7 +10176,7 @@ async function runMultiCharTurn(chat,playerText){
     const spokenThisChain=new Set();
     for(const r of responders){
       if(turns>=cap)break;
-      if(!isPresent(chat,r.id))continue;
+      if(!inSceneIds(chat).includes(r.id))continue;
       const ok=await playCharacterTurn(chat,r,state.user);
       if(ok){lastSpeaker=r;turns++;spokenThisChain.add(r.id);}
       const tr=await runPresenceTracker(chat);
@@ -9737,7 +10185,7 @@ async function runMultiCharTurn(chat,playerText){
     // ROUTER 2 chain — only continue when a character was clearly addressed/provoked by the
     // last speaker. This is deliberately rare; most turns return to the player here.
     while(turns<cap){
-      cast=presentCast(chat);
+      cast=inSceneCast(chat);
       // Exclude the immediate last speaker AND anyone who already spoke this chain.
       const others=cast.filter(c=>c.id!==(lastSpeaker&&lastSpeaker.id) && !spokenThisChain.has(c.id));
       if(!others.length)break;
@@ -9902,16 +10350,45 @@ async function runPresenceTracker(chat){
   try{
     const present=presentCast(chat).map(c=>c.name);
     const offstage=cast.filter(c=>!present.includes(c.name)).map(c=>c.name);
-    // Nothing present and nobody clearly summoned? Skip the call cheaply most turns.
+    // Sub-area (privacy) context: the areas of the current location, where the player is, and
+    // who is in which area. Lets the tracker route "goes to the toilet"-style moves between areas
+    // (which change earshot) instead of treating them as leaving the location entirely.
+    const hereLoc=chat.locationId?locById(chat.locationId):null;
+    let subBlock="", playerArea="";
+    if(hereLoc && Array.isArray(hereLoc.sublocations) && hereLoc.sublocations.length>1){
+      ensureSublocations(hereLoc);
+      const areaNames=hereLoc.sublocations.map(s=>s.name);
+      const pSub=subById(hereLoc,curSubId(chat));
+      playerArea=pSub?pSub.name:"Entrance";
+      const whereLines=presentCast(chat).map(p=>{ const s=subById(hereLoc,charSubId(chat,p.id)); return `  ${p.name}: ${s?s.name:"Entrance"}`; });
+      subBlock=`\n\nAREAS within ${hereLoc.name}: ${areaNames.join(", ")}.\n${state.user} (the player) is in: ${playerArea}.\nWho is in which area:\n${whereLines.join("\n")||"  (only the player)"}\n`+
+        `If someone PRESENT moves to a DIFFERENT area of this same place (e.g. steps out to the toilet, goes to the bedroom, heads to the lounge), report it in "move" — NOT as an exit. Only use "exit" when they leave the whole place.`;
+    }
     const sys=fillTpl(up("presencePrompt"),{user:state.user});
     const out=await chatCompletion([
       {role:"system",content:sys},
-      {role:"user",content:`Currently present: ${present.join(", ")||"(none)"}\nOffstage (could enter): ${offstage.join(", ")||"(none)"}\nAll cast: ${cast.map(c=>c.name).join(", ")}\n\nLatest exchange:\n${castConvoText(chat,4)}`}
-    ],state.mcModel,{temp:fnTemp("mc",0),max:fnTok("mc",80),dbg:"Presence tracker"});
+      {role:"user",content:`Currently present: ${present.join(", ")||"(none)"}\nOffstage (could enter): ${offstage.join(", ")||"(none)"}\nAll cast: ${cast.map(c=>c.name).join(", ")}${subBlock}\n\nLatest exchange:\n${castConvoText(chat,4)}`}
+    ],state.mcModel,{temp:fnTemp("mc",0),max:fnTok("mc",110),dbg:"Presence tracker"});
     const j=parseJSON(out);
     if(!j)return result;
     const all=cast.concat(chat.tempChars||[]);
     const find=n=>all.find(c=>c.name.toLowerCase()===String(n).toLowerCase());
+    // SUB-AREA MOVES: a present character changed area within this same location. Update their
+    // sub-area (changing earshot) and drop a quiet note. Does NOT remove them from the location,
+    // so they remain a regular for gossip and can drift back later.
+    if(hereLoc && j.move && typeof j.move==="object" && !Array.isArray(j.move)){
+      if(!chat.subPos)chat.subPos={};
+      for(const nm in j.move){
+        const p=find(nm); if(!p||!present.some(o=>o.toLowerCase()===String(nm).toLowerCase()))continue;
+        const sid=subByName(hereLoc,j.move[nm]); if(!sid)continue;
+        const prev=charSubId(chat,p.id); if(prev===sid)continue;
+        chat.subPos[p.id]=sid;
+        const sName=(subById(hereLoc,sid)||{}).name||"another area";
+        chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",presenceNote:true,
+          content:`— ${p.name} steps away to the ${sName} —`,img:null,imgState:"idle",vidState:"idle",video:null});
+        persistChats();appendNewBubbles();updateChatHeader();
+      }
+    }
     // The Scene Writer owns the entrance of an active event's approaching participant.
     // Don't let the presence tracker pull that same character in independently — that
     // causes the character to speak twice (once here, once via the reaction loop).
@@ -9941,6 +10418,7 @@ async function runPresenceTracker(chat){
       applyPresence(chat,[p.name],[]);
       notePresence(chat,[p.name],[]);
       if(chat.worldPositions&&chat.locationId)chat.worldPositions[p.id]=chat.locationId; // now here
+      if(chat.locationId){ if(!chat.subPos)chat.subPos={}; chat.subPos[p.id]=curSubId(chat); } // join the player's area
       persistChats();appendNewBubbles();updateChatHeader();
       result.entered.push(p);   // present now, but SILENT — not a "beat", so don't set lastBeat
     }
