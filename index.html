@@ -1006,9 +1006,13 @@
       </div></div>
     <div><label>Travel time to here (periods)</label>
       <input type="number" class="fld" id="leTravel" min="0" step="1" placeholder="blank = global default" style="max-width:220px"></div>
+    <div><label><svg class="ic"><use href="#i-speech"/></svg> Gossip chance <span class="desc" style="display:inline">(<span id="leGossipVal">30</span>% — chance that what you do here leaks as gossip when you leave)</span></label>
+      <input type="range" id="leGossip" min="0" max="100" step="5" value="30" style="width:100%"
+        oninput="document.getElementById('leGossipVal').textContent=this.value">
+      <div class="desc">Public places (a café, a club, the marina) talk — leave one and a rumor about your visit may travel. Homes should be 0: what happens at home stays private. Higher = leakier.</div></div>
     <div><label><svg class="ic"><use href="#i-home"/></svg> Residents <span class="desc" style="display:inline">(who lives / is found here)</span></label>
       <div id="leResidents" style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;max-height:200px;overflow:auto"></div>
-      <div class="desc">Characters ticked here are present when you arrive at this place — and are never placed anywhere else automatically.</div></div>
+      <div class="desc">Characters ticked here are present when you arrive at this place — and are never placed anywhere else automatically. They're also this place's <b>regulars</b>: when it leaks gossip (above), the rumor reaches every one of them — including the person it's about.</div></div>
     <div class="row" style="margin-top:4px">
       <button class="btn sec small" id="leGenPic" onclick="leGenPic(this)"><svg class="ic"><use href="#i-sparkle"/></svg> Generate picture</button>
     </div>
@@ -1246,12 +1250,12 @@ const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",
-  memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",queryGen:"sm_querygen",ranker:"sm_ranker",
+  memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",poiGossip:"sm_poigossip",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
   autoRpOn:"sm_autorpon",playerNarratePrompt:"sm_playernarrate",playerNarrateModel:"sm_playernarratemodel",userPersonality:"sm_userpersonality",userStyle:"sm_userstyle",
   routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
   sceneOn:"sm_sceneon",sceneSetup:"sm_scenesetup",sceneWriter:"sm_scenewriter",sceneMin:"sm_scenemin",sceneMax:"sm_scenemax",
-  confrontJudge:"sm_confrontjudge",confrontOn:"sm_confronton",
+  confrontJudge:"sm_confrontjudge",confrontOn:"sm_confronton",overtureJudge:"sm_overturejudge",
   theme:"sm_theme",font:"sm_font",streamReveal:"sm_streamreveal",chats:"sm_chats",curChat:"sm_curchat",
   personas:"sm_personas",curPersona:"sm_curpersona",universes:"sm_universes",curUniverse:"sm_curuniverse",memory:"sm_memory",images:"sm_images",videos:"sm_videos",onboarded:"sm_onboarded",
   // ModelsLab + smart routing
@@ -1261,7 +1265,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   condenseOn:"sm_condenseon",condenseThreshold:"sm_condensethresh",condenseKeep:"sm_condensekeep",condenseBatch:"sm_condensebatch",condensePrompt:"sm_condenseprompt",
   memRecentCount:"sm_memrecentcount",memDistantCount:"sm_memdistantcount",
   gossipOn:"sm_gossipon",gossipThreshold:"sm_gossipthresh",gossipMaxPerDay:"sm_gossipmax",gossipModel:"sm_gossipmodel",gossipPrompt:"sm_gossipprompt",
-  intentOn:"sm_intenton",intentForm:"sm_intentform",intentTick:"sm_intenttick",intentMax:"sm_intentmax",
+  intentOn:"sm_intenton",intentForm:"sm_intentform",intentTick:"sm_intenttick",intentMax:"sm_intentmax",contemplate:"sm_contemplate",
   // Character bio generator + auto-character (Stages 5/6)
   bioModel:"sm_biomodel",bioPrompt:"sm_bioprompt",univPrompt:"sm_univprompt",directorAuthor:"sm_directorauthor",authorModel:"sm_authormodel",promptTuner:"sm_prompttuner",autoCharOn:"sm_autocharon",autoCharDelay:"sm_autochardelay",
   // History compaction (tiered narration stripping)
@@ -2252,6 +2256,45 @@ Privately judge the social shape — close/intimate, flirtatious, tense, argumen
 0.0-0.3: ordinary, dull, routine — not worth a mention. (Most glances land here.)
 Keep importance_score low unless the shape was striking.`;
 
+// LOCATION GOSSIP — runs once when {{user}} LEAVES a public location, if the place's gossip-chance
+// rolls a hit. It produces the RUMOR already circulating about the visit — the "people are saying…"
+// version that the place's regulars would repeat to each other — NOT a first-hand observation. The
+// result is planted (same OBSERVATION shape) in every character ticked at that location, INCLUDING
+// the person the rumor is about (they hear that people are talking about them). Reads the whole VISIT.
+const DEFAULT_POI_GOSSIP=`A public place talks. {{user}} has just spent time at {{place}}, and now word of it is going around — the kind of secondhand rumor the regulars repeat to each other. Produce that circulating rumor: vague, attributed to "people", the way talk actually spreads.
+
+WHERE: {{place}} — {{place_desc}}
+WHO {{user}} WAS WITH: {{others}}
+WHAT HAPPENED DURING THE VISIT (use ONLY to judge the SHAPE people would talk about — the rumor mill did not hear private words):
+{{visit}}
+
+## Hard rules — it's a RUMOR, not a witness report
+- ONE short sentence, in the "people are saying…" register: "People are saying {{user}} and Ceyda had a cosy dinner at {{place}}." / "Word is {{user}} got into it with someone at {{place}}."
+- Attributed to talk, not to an observer: "people say", "word is", "everyone's talking about". NEVER first-person ("I saw"). This is what's going AROUND.
+- Name {{user}} and, if there was a clear companion, name them — that's the heart of any rumor (who with whom). If {{user}} was alone or it was unremarkable, the rumor is thin and the charge is low.
+- Keep it VAGUE on specifics — no quotes, no private feelings, no body-language detail. Rumor blurs detail and sharpens the shape (romantic / a row / something secretive).
+- If nothing about the visit was worth repeating, say so plainly and set charge low. Most visits don't make the rounds.
+
+## Read the SHAPE (for the JSON fields)
+Judge how the talk would FRAME it — romantic/cosy, a row/tense, secretive, a notable pairing, or nothing — and put that in "gist" + "charge". Keep "content" the vague circulating line.
+
+## Respond ONLY with JSON, nothing else:
+{
+  "content": "ONE 'people are saying…' sentence: who with whom, roughly what it looked like, at {{place}}. Vague, no specifics.",
+  "location": "{{place}}",
+  "emotion": "neutral|curious|amused|suspicious|disapproving|concerned|indifferent",
+  "gist": "the shape the talk gives it, e.g. 'romantic/cosy' / 'a row' / 'secretive' / 'ordinary'",
+  "charge": 0.0-1.0,
+  "importance_score": 0.0-1.0,
+  "tags": ["who","where","shape"]
+}
+
+## charge = how much this rumor would actually travel
+0.7-1.0: a juicy pairing, a public row, something furtive — people WILL repeat this.
+0.4-0.6: a notably warm or cold moment, an eyebrow-raising companion.
+0.0-0.3: alone, dull, routine — barely makes the rounds. (Most visits land here.)
+A quiet or solo visit should score near 0.`;
+
 // ===== LIVING UNIVERSE, layer 2: gossip propagation (runs at End Day) =====
 // Given a charged thing a WITNESS saw today (a vague impression — who the player was with and how
 // it looked) plus who the witness knows, decide whether the witness spreads it, to whom, and as
@@ -2301,35 +2344,52 @@ Return {"spread": []} if no one would realistically talk. At most 2 entries — 
 
 // FORMATION — at End Day, read a character's charged memories of the day and decide whether they now
 // hold a NEW intent worth acting on. Most days: nothing. Strong provocations: a real motive.
-const DEFAULT_INTENT_FORM=`You decide whether a character, after today, now privately WANTS something enough to act on it later — a motive that will quietly drive them when the player isn't looking.
+const DEFAULT_INTENT_FORM=`You decide whether a character, after today, now privately WANTS something enough to act on it later — a motive that will quietly drive them when the player isn't looking. A motive can pull them TOWARD someone (warmth, loyalty, desire, a wish to mend or protect) just as easily as AGAINST them (a grievance, a rivalry, a cold ambition). Read the relationship, not just the events.
 
 CHARACTER: {{char}}
 THEIR NATURE: {{nature}}
+
 WHAT STRUCK THEM TODAY (their own charged memories):
 {{day_memories}}
+
+HOW THEY ALREADY FEEL, AND HOW IT MOVED TODAY (per person — this is the heart of the judgment):
+{{relationships}}
 
 PEOPLE THEY KNOW (possible targets / would-be allies):
 {{roster}}
 
+## Read the standing AND the swing together
+The "standing" is where the feeling sits now; the "swing" is how it moved today. The same standing means very different things depending on which way it just moved:
+- Warm standing + it grew warmer → a bond deepening: they may want to court, commit to, ally with, or protect this person.
+- Cold/distant standing + it warmed → a thaw: they may want to mend things, earn trust, or cautiously reach out.
+- **Warm standing + a sharp turn cold → this is the richest motive there is: warmth curdling.** Love or trust that just took a wound becomes betrayal, heartbreak, jealousy, a need for answers — hostile precisely BECAUSE it was warm. Prefer this when you see it.
+- Cold standing + it grew colder → entrenched hostility: resentment, rivalry, a wish to undermine or get even.
+- Barely moved, in either direction → usually NO motive. Let it go.
+
 ## Decide like a real person
-- Most events do NOT create a lasting motive. People let things go. Only a real provocation, opportunity, or longing produces an intent. Return nothing if today wasn't enough.
-- If something DID land, name the motive: a GRIEVANCE (wronged, insulted, humiliated → wants payback or an apology), an AMBITION (sees an opening → wants power/position/a person), a DESIRE (wants someone or something), a LOYALTY (will protect/avenge another), or a SCHEME (wants to undermine someone).
-- The TARGET is who the motive is about (use an exact name from the roster, or "{{user}}" for the player).
-- STRENGTH reflects how much it consumes them (0.2 = a passing irritation, 0.8 = it will define their next days).
+- Most days produce NO motive. People let things go. Only a real provocation, longing, opportunity, or a genuine shift in feeling creates something that will actually drive them. Return nothing if today wasn't enough.
+- If something DID land, name the motive honestly across the FULL range — warm or hostile:
+  - WARM: a COURTSHIP (wants to win them, romance them), a RECONCILIATION (wants to repair a rift), a LOYALTY or PROTECTION (will stand by / shield another), an ALLIANCE or FRIENDSHIP (wants them on their side, closer).
+  - HOSTILE: a GRIEVANCE (wronged, insulted → wants payback or an accounting), a RIVALRY (wants to best or displace them), a RESENTMENT (a cold grudge festering), a SCHEME against them (wants to undermine).
+  - SELF-SERVING: an AMBITION (sees an opening → wants power, position, or a thing, with this person as the means or the obstacle).
+- The TARGET is who the motive is about (an exact name from the roster, or "{{user}}" for the player).
+- VALENCE is the direction of the motive toward the target: "warm" (moving toward them — affection, repair, protection), "hostile" (moving against them — payback, rivalry, undermining), or "self_serving" (using or removing them for one's own ends).
+- STRENGTH reflects how much it consumes them (0.2 = a passing pull, 0.8 = it will define their next days).
 
 ## Output ONLY strict JSON:
 {
   "intents": [
     {
-      "kind": "grievance|ambition|desire|loyalty|scheme",
+      "kind": "courtship|reconciliation|loyalty|protection|alliance|friendship|grievance|rivalry|resentment|scheme|ambition|desire",
+      "valence": "warm|hostile|self_serving",
       "target": "exact name or {{user}}",
-      "trigger": "one short line: what sparked it",
+      "trigger": "one short line: what in today's events or shift sparked it",
       "aim": "one short line: what they want to happen as a result",
       "strength": 0.0-1.0
     }
   ]
 }
-Return {"intents": []} for an ordinary day. At most 1 — people don't pick up new vendettas daily.`;
+Return {"intents": []} for an ordinary day. At most 1 — people don't pick up new vendettas, or new loves, every day.`;
 
 // TICK — once an intent exists, each End Day it festers: who (if anyone) joins, and does it harden
 // or fade. Cheap: decides recruitment + a strength nudge, no narration.
@@ -2355,6 +2415,51 @@ PEOPLE WHO MIGHT JOIN (and how they relate to the holder and the target):
   "note": "one short line on what shifted"
 }
 "ready": true only when the motive is strong AND (if it needs others) has enough support to act on — i.e. they're about to make their move. Keep recruit lists short; usually empty.`;
+
+// CONTEMPLATE — once a motive is READY to act on, the holder decides HOW. This is the strategy step:
+// it turns an abstract motive (warm OR hostile) into a chosen METHOD and a concrete approach in the
+// holder's own voice. Genre-blind and valence-neutral: the SAME small vocabulary of tactics serves a
+// demon lord's war, a socialite's ruin, a knight's duel, a suitor's courtship, or a friend's
+// reconciliation. The flavour comes from the holder's nature, the target, and how drama works in
+// THIS world — never from a hardcoded scenario. Returns a one-step plan (the engine grows it to
+// multi-step later); for now the model picks the single best way to make their move.
+const DEFAULT_CONTEMPLATE=`A character has decided they will ACT on a private motive. Your job is to decide HOW — the strategy, in character. You are not narrating anything; you are choosing the method and the shape of their move.
+
+WHO IS ACTING: {{holder}}
+THEIR NATURE: {{nature}}
+THE MOTIVE: a {{kind}} ({{valence}}) toward {{target}} — they want: {{aim}} (sparked by: {{trigger}})
+HOW STRONG IT IS (0-1): {{strength}}
+ALLIES ALREADY WITH THEM: {{allies}}
+WHAT THEY KNOW / HOLD over or about the target (leverage, secrets, debts, ties — may be none): {{leverage}}
+HOW DRAMA WORKS IN THIS WORLD (shape the method to fit this tone): {{world}}
+
+## Choose a METHOD — the same tactics serve warmth and hostility alike
+- "direct" — they go straight to the target themselves and make their move plainly (confront them, or declare themselves to them). The default when nothing subtler fits.
+- "public_spectacle" — they make their move in front of others, where the audience is the point (a public challenge, a humiliation, a declaration, a proposal at the feast).
+- "proxy" — they get someone ELSE to act for them (an ally carries the message, strikes the blow, vouches for them, tests the waters). Needs a plausible proxy.
+- "undermine_first" — they prepare the ground BEFORE the real move (spread word, sabotage, sow doubt, soften the target) so the move lands harder or safer. A two-stage shape.
+- "ambush_isolation" — they wait to catch the target ALONE, away from protection or witnesses, then make their move (a private reckoning, a confession that needs privacy, a threat with no audience).
+- "leverage" — they use something they hold — a secret, a debt, a photo, a fear — as the fulcrum of the move (blackmail, a bargain, a promise of protection in exchange).
+
+## Choose like THIS person
+- The method must fit their NATURE and the world's tone. A proud knight challenges openly; a schemer undermines; a shy heart waits for privacy; a powerful figure may simply act direct because they can.
+- Match the VALENCE: a warm motive's "public_spectacle" is a grand declaration, not a humiliation; a warm "leverage" is "I'll protect you / I kept your secret" not blackmail. Hostile reads the dark way. Keep the method honest to what they actually want.
+- Most moves are "direct". Pick something subtler only when the character and situation genuinely call for it.
+- Only choose "proxy" if a named ally or plausible person could carry it. Only choose "leverage" if they actually hold something. Don't invent power they don't have.
+
+## Output ONLY strict JSON:
+{
+  "method": "direct|public_spectacle|proxy|undermine_first|ambush_isolation|leverage",
+  "approach": "one vivid line, in this character's voice/logic: how THEY specifically intend to do this",
+  "gate": "target_present|target_alone|in_public|prep_done|none",
+  "patience": 0.0-1.0,
+  "params": {
+    "proxy": "exact ally/person name if method is proxy, else null",
+    "leverage": "the secret/debt/thing held if method is leverage, else null",
+    "venue": "the kind of public setting if public_spectacle, else null"
+  }
+}
+"gate" is what must be true for them to make their move: "target_alone" for ambush_isolation, "in_public" for public_spectacle, "prep_done" for undermine_first (the groundwork must land first), "target_present" or "none" otherwise. "patience" is how long they'll wait for the right moment versus forcing it now (low = impatient, acts at the first chance even if imperfect).`;
 
 const DEFAULT_QUERYGEN=`You generate a short semantic SEARCH QUERY used to retrieve a character's most relevant past memories for the current moment in a roleplay.
 
@@ -3062,6 +3167,56 @@ A trusting/loving nature moves easily; a paranoid, betrayed, or hostile one move
 Keep |delta| small (0.05-0.2) for ordinary turns; reserve 0.3-0.4 for a turn that's either devastatingly convincing or that badly backfires. The engine applies the delta and clamps it to [{{floor}}, {{ceiling}}] — you do not decide the outcome.`;
 
 
+// ===== LIVING UNIVERSE layer 3 (WARM SIBLING): OVERTURE JUDGE =====
+// The warm mirror of the confrontation judge. Instead of someone arriving to ACCUSE the player, a
+// character arrives to OFFER something warm — to court them, mend a rift, pledge loyalty, propose an
+// alliance, or extend protection. The judge scores ONLY whether the player's latest turn was
+// RECEPTIVE (warm, encouraging, accepting) or REBUFFING (cold, dismissive, rejecting).
+//
+// CRUCIAL — the engine reuses the SAME numeric field as confrontation (called "conviction" in code)
+// so all the shared machinery works unchanged. Here that number means HOW FAR FROM LANDING the
+// offer is: LOW = the offer is landing / being accepted (the good, warm outcome), HIGH = the offer
+// is being rebuffed / failing. So a RECEPTIVE turn LOWERS the number (toward acceptance) and a COLD
+// turn RAISES it (toward rejection) — exactly the same direction convention as confrontation, where
+// a convincing turn lowers and a hostile turn raises. This is what lets one engine run both.
+const DEFAULT_OVERTURE_JUDGE=`You are an impartial REFEREE inside a roleplay. You do NOT play any character and you do NOT write dialogue. A character has come to {{user}} with a WARM intention — to win them, mend things, pledge loyalty, offer an alliance, or protect them. Your only job: judge whether {{user}}'s most recent turn was RECEPTIVE to that overture or REBUFFED it, and by how much.
+
+## The overture
+- WHO is reaching out to {{user}}: {{accuser}}
+- WHAT they are offering / want (their intention): {{intent}}
+- HOW genuine/strong the feeling behind it is (0-1): {{evidence}}
+- Their nature (how freely they open up / how much rejection wounds them): {{accuser_nature}}
+- Current distance-from-landing (0 = the offer has fully landed/been accepted, 1 = fully rebuffed/failed): {{conviction}}
+- This can fall no lower than {{floor}} (a heartfelt offer can't be made to vanish — something remains even if declined gently) and no higher than {{ceiling}}.
+
+## Score ONLY {{user}}'s latest turn
+{{user}}'s latest turn: "{{player_turn}}"
+
+Judge that turn ALONE. Do not anticipate the ending. Rule strictly on what {{user}} just said or did:
+
+LOWER the number (negative delta → the offer is LANDING) when the turn is:
+- warm, encouraging, curious, or openly accepting of what's being offered,
+- reciprocating the feeling, lowering their own guard, meeting the gesture,
+- gently honest in a way that still leaves the door open.
+
+RAISE the number (positive delta → the offer is being REBUFFED) when the turn:
+- is cold, dismissive, mocking, or flatly rejects the gesture,
+- deflects or stays guarded in a way that shuts the door,
+- humiliates or weaponizes the other's vulnerability.
+
+NEUTRAL (near-zero delta) when the turn doesn't really engage the offer either way.
+
+## Movability is bounded by nature, but never zero
+An open, trusting nature warms quickly; a guarded, wary, or proud one opens slowly and is easily wounded into withdrawal — but EVERY nature can move at least a little. Stubbornness means small deltas, NOT a frozen number.
+
+## Output ONLY strict JSON:
+{
+  "delta": -0.4 .. 0.4,
+  "reason": "one short line: WHY this turn earned that delta, in terms of how the offer was received",
+  "player_warm_or_cold": "warm|cold|neutral"
+}
+Keep |delta| small (0.05-0.2) for ordinary turns; reserve 0.3-0.4 for a turn that either fully embraces the offer or brutally rejects it. The engine applies the delta and clamps it to [{{floor}}, {{ceiling}}] — you do not decide the outcome.`;
+
 // End-of-day diary — each character writes a private diary entry reflecting on their day.
 const DEFAULT_DAY_SUMMARY=`You are {{char}}, writing a private DIARY ENTRY at the end of an in-game day in a roleplay. Write in {{char}}'s own first-person voice, as if no one else will ever read it — honest, introspective, personal.
 
@@ -3592,6 +3747,7 @@ function loadState(){
     memModel:store.raw(K.memModel,"deepseek/deepseek-v3.2"),
     memBuild:store.raw(K.memBuild,DEFAULT_MEMBUILD),
     gistBuild:store.raw(K.gistBuild,DEFAULT_GIST_BUILD),
+    poiGossip:store.raw(K.poiGossip,DEFAULT_POI_GOSSIP),
     queryGen:store.raw(K.queryGen,DEFAULT_QUERYGEN),
     ranker:store.raw(K.ranker,DEFAULT_RANKER),
     gmOn:store.get(K.gmOn,true),
@@ -3604,6 +3760,7 @@ function loadState(){
     sceneSetup:store.raw(K.sceneSetup,DEFAULT_SCENE_SETUP),
     sceneWriter:store.raw(K.sceneWriter,DEFAULT_SCENE_WRITER),
     confrontJudge:store.raw(K.confrontJudge,DEFAULT_CONFRONT_JUDGE),
+    overtureJudge:store.raw(K.overtureJudge,DEFAULT_OVERTURE_JUDGE),
     confrontOn:store.get(K.confrontOn,true),
     sceneMin:+store.raw(K.sceneMin,3),
     sceneMax:+store.raw(K.sceneMax,8),
@@ -3647,6 +3804,7 @@ function loadState(){
     intentOn:store.get(K.intentOn,true),
     intentForm:store.raw(K.intentForm,DEFAULT_INTENT_FORM),
     intentTick:store.raw(K.intentTick,DEFAULT_INTENT_TICK),
+    contemplate:store.raw(K.contemplate,DEFAULT_CONTEMPLATE),
     intentMax:+store.raw(K.intentMax,4),
     bioModel:store.raw(K.bioModel,"deepseek/deepseek-v4-pro"),
     authorModel:store.raw(K.authorModel,"anthropic/claude-sonnet-4"),
@@ -4829,14 +4987,18 @@ const PROMPT_REGISTRY=[
    hint:"Picks which image/video model rule fits the scene."},
   {key:"memBuild", label:"🛠️ Memory builder", def:()=>DEFAULT_MEMBUILD, json:true,
    hint:"Produces a structured JSON memory. Use {{char}} and {{user}}."},
+  {key:"poiGossip", label:"🗣️ Location gossip (on exit)", def:()=>DEFAULT_POI_GOSSIP, json:true,
+   hint:"When the player LEAVES a public location and its gossip-chance rolls a hit, the place produces a vague 'people are saying…' rumor about the visit, planted (as an OBSERVATION) in every character ticked at that location — including the person it's about, so they can hear they're being talked about. Feeds the gossip/intent pipeline. Use {{user}}, {{place}}, {{place_desc}}, {{others}}, {{visit}}."},
   {key:"gistBuild", label:"👁️ Bystander gist (perception)", def:()=>DEFAULT_GIST_BUILD, json:true,
    hint:"A bystander's fuzzy outside impression when present but not in the conversation. Use {{char}}, {{user}}."},
   {key:"gossipPrompt", label:"🗣️ Gossip propagation (Living Universe)", def:()=>DEFAULT_GOSSIP, json:true,
    hint:"At End Day, decides who tells whom about charged things bystanders saw. Use {{user}}, {{witness}}, {{impression}}, {{charge}}, {{location}}, {{witness_ties}}, {{candidates}}."},
   {key:"intentForm", label:"🎯 Intent formation (offstage agency)", def:()=>DEFAULT_INTENT_FORM, json:true,
-   hint:"At End Day, decides if a character now holds a charged motive (grievance/ambition/etc). Use {{char}}, {{nature}}, {{day_memories}}, {{roster}}, {{user}}."},
+   hint:"At End Day, decides if a character now privately wants something — warm (courtship/loyalty/protection) or hostile (grievance/rivalry/scheme) — reasoning from how the relationship moved. Returns valence. Use {{char}}, {{nature}}, {{day_memories}}, {{relationships}}, {{roster}}, {{user}}."},
   {key:"intentTick", label:"♟️ Intent tick (fester & recruit)", def:()=>DEFAULT_INTENT_TICK, json:true,
    hint:"Each End Day, develops a live intent: hardens/fades, recruits allies, signals readiness. Use {{holder}}, {{nature}}, {{kind}}, {{target}}, {{aim}}, {{trigger}}, {{strength}}, {{allies}}, {{candidates}}."},
+  {key:"contemplate", label:"🧠 Contemplation (strategy planner)", def:()=>DEFAULT_CONTEMPLATE, json:true,
+   hint:"When a motive is ready to act on, the holder chooses HOW (direct, public spectacle, proxy, undermine first, ambush, leverage) — genre-blind, warm or hostile. Returns a method + approach + gate. Use {{holder}}, {{nature}}, {{kind}}, {{valence}}, {{target}}, {{aim}}, {{trigger}}, {{strength}}, {{allies}}, {{leverage}}, {{world}}."},
   {key:"queryGen", label:"🔍 Memory query generator", def:()=>DEFAULT_QUERYGEN, json:false,
    hint:"Turns the current moment into a search query."},
   {key:"ranker", label:"📊 Memory ranker", def:()=>DEFAULT_RANKER, json:true,
@@ -4879,6 +5041,8 @@ const PROMPT_REGISTRY=[
    hint:"Returns JSON. Use {{user}}, {{summary}}, {{turn}}, {{min}}, {{max}}."},
   {key:"confrontJudge", label:"⚖️ Confrontation judge (referee)", def:()=>DEFAULT_CONFRONT_JUDGE, json:true,
    hint:"Unbiased referee: scores the player's last turn in a confrontation → conviction delta. Use {{user}}, {{accuser}}, {{intent}}, {{evidence}}, {{accuser_nature}}, {{conviction}}, {{floor}}, {{ceiling}}, {{player_turn}}."},
+  {key:"overtureJudge", label:"💗 Overture judge (warm referee)", def:()=>DEFAULT_OVERTURE_JUDGE, json:true,
+   hint:"Warm mirror of the confrontation judge: scores whether the player was receptive to or rebuffed a warm overture (courtship, reconciliation, loyalty, alliance, protection). Same fields as the confrontation judge."},
   {key:"routerPlayer", label:"🗣️ Multi-char router 1 (player)", def:()=>DEFAULT_ROUTER_PLAYER, json:true,
    hint:"Returns JSON {addressed, responders}. Use {{user}}."},
   {key:"routerChar", label:"↔️ Multi-char router 2 (character)", def:()=>DEFAULT_ROUTER_CHAR, json:true,
@@ -5167,6 +5331,85 @@ async function generateLocationImage(loc){
   }catch(e){ return null; }
 }
 
+// POI GOSSIP LEAK — called when the player EXITS a location. If the place has a gossip chance and it
+// rolls a hit, the visit (everything since arrival) is read into a vague, gossip-shaped OBSERVATION
+// memory — the SAME shape a silent bystander produces — so the existing End-Day gossip propagation
+// picks it up unchanged. The difference is the SOURCE: this leaks from the PLACE, fed by the player's
+// actions (which happen constantly), not from the rare present-but-silent bystander. Homes default to
+// 0 chance — what happens at home stays private. Owner = a plausible witness at that place (a resident
+// or an ambient character who was around); with no plausible witness, a place can't gossip, so it no-ops.
+async function runLocationGossipLeak(chat, leftLoc){
+  try{
+    if(!chat||!leftLoc||!state.key||!state.mem)return;
+    if(state.gossipOn===false)return;   // respect the master gossip toggle
+    // chance: explicit per-location value, else default by type (home 0, poi 0.3)
+    const chance = (typeof leftLoc.gossipChance==="number") ? leftLoc.gossipChance : ((leftLoc.type==="home")?0:0.3);
+    if(chance<=0)return;
+    if(Math.random()>=chance)return;    // the place stayed quiet this time
+    // The visit window: messages since the last arrival (travelBeat) — i.e. what happened HERE.
+    const msgs=chat.messages||[];
+    let startIdx=0;
+    for(let i=msgs.length-1;i>=0;i--){ if(msgs[i] && msgs[i].travelBeat){ startIdx=i+1; break; } }
+    const visitMsgs=msgs.slice(startIdx).filter(m=>m && m.role!=='system' && !m.sysError && !m.dayMarker && !m.presenceNote);
+    if(visitMsgs.length<2)return;       // nothing really happened here
+    const fallbackName=(curCast()[0]&&curCast()[0].name)||"someone";
+    const visit=visitMsgs.slice(-12).map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
+    // Who else was around (companions/ambient who were present during the visit) — used only to give
+    // the rumor a subject ("user and X"), NOT to decide ownership.
+    const presentNames=[...new Set(visitMsgs.filter(m=>m.role!=='user'&&m.speaker).map(m=>m.speaker))];
+    const others=presentNames.length?presentNames.join(", "):"(no one in particular)";
+    // OWNERSHIP (your design): the leak is owned by EVERY character TICKED at this location (its
+    // `residents` list — the people who frequent it) — INCLUDING the gossiped character themselves if
+    // they're ticked here. The place's social fabric hears "people are saying…", subject included.
+    // No ticked characters → no one carries it → no leak.
+    const uid=(chat&&chat.universeId)||state.curUniverse||null;
+    const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+    const ticked=(leftLoc.residents||[]).map(id=>roster.find(p=>p.id===id)).filter(Boolean);
+    if(!ticked.length)return;   // a place with no regulars has no one to spread or hear the talk
+    const model=(state.gossipModel&&state.gossipModel.trim())?state.gossipModel:state.memModel;
+    const sys=fillTpl(up("poiGossip"),{
+      user:state.user, place:leftLoc.name||"the place",
+      place_desc:(leftLoc.description||"").slice(0,200), others, visit
+    });
+    const out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:`What are people saying about ${state.user}'s time at ${leftLoc.name||"this place"}? Return the JSON.`}
+    ],model,{temp:fnTemp("mem",0.5),max:fnTok("mem",260),dbg:"Location gossip · "+(leftLoc.name||"?")});
+    const j=parseJSON(out); if(!j||!j.content)return;
+    const charge=typeof j.charge==="number"?Math.max(0,Math.min(1,j.charge)):0;
+    const baseContent=String(j.content).trim();
+    const gist=(j.gist?String(j.gist).trim():"");
+    const loc=leftLoc.name||(j.location||"");
+    const importance=typeof j.importance_score==="number"?j.importance_score:Math.max(0.3,charge);
+    const emotion=j.emotion||"neutral";
+    const tagsBase=(Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):[]).concat(["location-rumor"]);
+    // Plant the SAME circulating rumor in every ticked character. One impression, N carriers — all
+    // OBSERVATION-typed so the existing End-Day gossip pipeline + intent former consume it unchanged.
+    let planted=false;
+    for(const owner of ticked){
+      // If THIS owner is the subject of the rumor, note it — a self-referential rumor ("people are
+      // saying YOU and …") is what can motivate them to raise it with the player. Flagged for the
+      // intent former; content stays the same circulating "people say…" line.
+      const aboutSelf = presentNames.some(n=>n.toLowerCase()===(owner.name||"").toLowerCase());
+      const mem={
+        id:"m_"+Date.now()+Math.random().toString(36).slice(2,6)+owner.id.slice(-3),
+        content:baseContent,
+        location:loc, emotion,
+        importance, tags:tagsBase.concat(aboutSelf?["about-self"]:[]),
+        type:"OBSERVATION",               // SAME type the pipeline consumes
+        ownerId:owner.id, character:owner.name, date:Date.now(), gameDay:curGameDay(),
+        source:"location_rumor",          // a place-leak rumor, distinct from a bystander glimpse
+        gist, charge, observerOnly:true,
+        poiLocationId:leftLoc.id, aboutSelf:!!aboutSelf,
+        universeId:uid, chatId:(chat&&chat.id)||state.curChat||null
+      };
+      if(!memoriesOf(owner.id).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase())){
+        state.memory.push(mem); planted=true;
+      }
+    }
+    if(planted)persistMemory();
+  }catch(e){/* best-effort: a failed leak never blocks travel */}
+}
 async function travelTo(locId,companionIds){
   const chat=curChat(); const dest=locById(locId); if(!chat||!dest)return;
   const fromName=chat.location||"somewhere";
@@ -5180,6 +5423,11 @@ async function travelTo(locId,companionIds){
   [...companions,...ambient].forEach(p=>{ if(p&&!present.some(x=>x.id===p.id))present.push(p); });
   // Companions you brought are now AT this location for the rest of the period.
   companions.forEach(c=>{ if(chat.worldPositions)chat.worldPositions[c.id]=dest.id; });
+  // EXIT GOSSIP: before we leave the current location, let the place (if public) possibly leak a
+  // rumor about this visit. Fire-and-forget on the location being LEFT — captured now, before the
+  // reassignment below changes locationId. No-ops for homes / quiet places / deserted spots.
+  const leftLoc = chat.locationId ? locById(chat.locationId) : null;
+  if(leftLoc && leftLoc.id!==dest.id){ runLocationGossipLeak(chat, leftLoc); }
   chat.presentIds=present.map(p=>p.id);
   chat.location=dest.name; chat.locationId=dest.id;
   let narration="";
@@ -5683,7 +5931,7 @@ function rollDice(spec){ // "1d3" -> total
 // Relationship pair key (order-independent) and helpers.
 // DIRECTED relationship key: how `fromId` feels about `toId` (not symmetric).
 function relDirKey(fromId,toId){ return fromId+">"+toId; }
-function blankRel(){ const o={}; REL_DIMS.forEach(d=>o[d.key]=0); o.desc=""; o.st={}; REL_FAST.forEach(k=>o.st[k]=0); o.episodes=[]; o.dayOpinions=[]; return o; }
+function blankRel(){ const o={}; REL_DIMS.forEach(d=>o[d.key]=0); o.desc=""; o.st={}; REL_FAST.forEach(k=>o.st[k]=0); o.episodes=[]; o.dayOpinions=[]; o.lastSlowDelta=null; o.lastSlowDeltaDay=0; return o; }
 // Get (and lazily create) the multi-dimensional feeling object for from→to.
 function relObj(chat,fromId,toId){
   if(!chat.rel||typeof chat.rel!=="object")chat.rel={};
@@ -5697,6 +5945,9 @@ function relObj(chat,fromId,toId){
   REL_FAST.forEach(k2=>{ if(typeof o.st[k2]!=="number")o.st[k2]=0; });
   if(!Array.isArray(o.episodes))o.episodes=[];
   if(!Array.isArray(o.dayOpinions))o.dayOpinions=[];
+  // Slow swing (added with the intent layer): how the standing axes moved on the most recent eval.
+  if(o.lastSlowDelta===undefined)o.lastSlowDelta=null;
+  if(typeof o.lastSlowDeltaDay!=="number")o.lastSlowDeltaDay=0;
   return o;
 }
 function clampRel(v){ return Math.max(-100,Math.min(100,v)); }
@@ -6136,7 +6387,21 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs,dayMems,day)
   ],state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",340),dbg:"Daily relationship · "+fromP.name+" → "+toName});
   const j=parseJSON(out); if(!j||typeof j!=="object")return;
   let movedSlow=false;
-  REL_DIMS.forEach(d=>{ if(typeof j[d.key]==="number"){ if(d.tier==="slow"&&Math.abs(j[d.key])>=1)movedSlow=true; o[d.key]=clampRel((o[d.key]||0)+j[d.key]); } });
+  // Capture the SLOW swing (direction + magnitude per axis), not just the "it moved" flag. The
+  // stored value is the standing level; the delta is how that standing shifted on this day. The
+  // intent former reads BOTH — standing vs. swing is what distinguishes curdle (high affection +
+  // sharp negative swing → betrayal) from steady warmth or a slow burn. Overwritten each eval, so
+  // it never grows; only the most recent day's swing is kept (paired with lastSlowDeltaDay so a
+  // stale swing from an earlier day can be ignored).
+  const slowDelta={};
+  REL_DIMS.forEach(d=>{
+    if(typeof j[d.key]==="number"){
+      if(d.tier==="slow"){ slowDelta[d.key]=j[d.key]; if(Math.abs(j[d.key])>=1)movedSlow=true; }
+      o[d.key]=clampRel((o[d.key]||0)+j[d.key]);
+    }else if(d.tier==="slow"){ slowDelta[d.key]=0; }
+  });
+  o.lastSlowDelta=slowDelta;
+  o.lastSlowDeltaDay=(day||chat.gameDay||0);
   // Tag this relationship as having moved a long axis today, so End Day's auto relationship
   // re-evaluation can target only the bonds that actually shifted (the dayOpinions log is cleared
   // just below, so we can't rely on it afterward).
@@ -6421,16 +6686,21 @@ function openStoryState(){
   {
     const live=(Array.isArray(chat.intents)?chat.intents:[]).filter(i=>i.status!=="spent");
     if(live.length){
-      const kindIcon={grievance:"💢",ambition:"👑",desire:"❤️‍🔥",loyalty:"🛡️",scheme:"🗡️"};
-      const statusLbl={brewing:"brewing",ready:"about to act"};
+      const kindIcon={grievance:"💢",ambition:"👑",desire:"❤️‍🔥",loyalty:"🛡️",scheme:"🗡️",
+        rivalry:"⚔️",resentment:"🌑",courtship:"💗",reconciliation:"🕊️",protection:"🛡️",alliance:"🤝",friendship:"😊"};
+      const statusLbl={brewing:"brewing",ready:"about to act",armed:"waiting for the moment"};
       undercurrents=live.sort((a,b)=>b.strength-a.strength).map(i=>{
         const ic=kindIcon[i.kind]||"•";
         const allies=(i.allies||[]).map(id=>id==="__user__"?state.user:((state.personas.find(p=>p.id===id)||{}).name||"?")).filter(Boolean);
         const pct=Math.round((i.strength||0)*100);
+        // colour by valence (warm = accent-green, hostile = red); armed plans get the fuller bar.
+        const warm=(i.valence==="warm");
+        const barColor=warm?"var(--good)":(i.status==="armed"||i.status==="ready")?"#c0556b":"var(--accent)";
+        const methodNote=(i.plan&&i.plan.method&&i.plan.method!=="direct")?` · ${esc(i.plan.method.replace(/_/g," "))}`:"";
         return `<div style="padding:6px 0;border-bottom:1px solid var(--border)">
-          <div><b>${ic} ${esc(i.holderName||"?")}</b> → ${esc(i.targetName||"?")} <span class="desc">(${esc(i.kind)}, ${esc(statusLbl[i.status]||i.status)})</span></div>
+          <div><b>${ic} ${esc(i.holderName||"?")}</b> → ${esc(i.targetName||"?")} <span class="desc">(${esc(i.kind)}, ${esc(statusLbl[i.status]||i.status)}${methodNote})</span></div>
           <div class="desc">${esc(i.aim||i.trigger||"")}${allies.length?` · with ${esc(allies.join(", "))}`:""}</div>
-          <span class="relBar"><span class="relBarFill" style="width:${pct}%;background:${i.status==="ready"?"#c0556b":"var(--accent)"}"></span></span>
+          <span class="relBar"><span class="relBarFill" style="width:${pct}%;background:${barColor}"></span></span>
         </div>`;
       }).join("");
     }else{
@@ -6847,6 +7117,13 @@ function editLocation(i){
   document.getElementById('leName').value=l.name||"";
   document.getElementById('leDesc').value=l.description||"";
   document.getElementById('leTravel').value=(l.travelPeriods!=null?l.travelPeriods:"");
+  // Gossip chance: explicit value if set, else default by type (home 0, poi 0.3).
+  {
+    const gc = (typeof l.gossipChance==="number") ? l.gossipChance : ((l.type==="home")?0:0.3);
+    const pct = Math.round(gc*100);
+    document.getElementById('leGossip').value=pct;
+    document.getElementById('leGossipVal').textContent=pct;
+  }
   leSetType(l.type||"poi");
   // Residents picker — characters in this universe.
   const uid=editingUniverse?editingUniverse.id:null;
@@ -6868,6 +7145,7 @@ function saveLocationEdit(){
   l.type=_leType;
   const tp=document.getElementById('leTravel').value.trim();
   l.travelPeriods=tp===""?null:Math.max(0,+tp||0);
+  { const gv=document.getElementById('leGossip'); if(gv) l.gossipChance=Math.max(0,Math.min(1,(+gv.value||0)/100)); }
   l.residents=Array.from(document.querySelectorAll('#leResidents .leResChk:checked')).map(c=>c.value);
   closeModal('locEditModal');
   renderLocEditor();
@@ -8209,6 +8487,30 @@ function buildTailGuidance(opts){
     {const cl=(typeof calendarContextLine==="function")?calendarContextLine(chat):""; if(cl)sn+=`\n${cl}`;}
     blocks.push(sn);
   }
+
+  // (0b) OFFSTAGE-INTENT COLORING (char-to-char, single beat). If this speaking character holds a
+  // live private intent (a brewing/armed scheme or warmth) toward someone ALSO present in the scene,
+  // inject ONE concrete, this-turn instruction so the hidden current shows in how they treat that
+  // person right now. Deliberately blunt and present-tense (NOT "sustain a subtle undercurrent") so a
+  // mid-range model can actually follow it. Placed in the tail for maximum compliance.
+  try{
+    if(state.intentOn!==false && chat && Array.isArray(chat.intents) && selfId){
+      const presentSet=new Set(presentCast(chat).map(c=>c.id));
+      // this character's live intents whose target is ALSO in the room (not the player)
+      const live=chat.intents.filter(i=>i.holderId===selfId && i.status!=="spent"
+        && i.targetId && i.targetId!=="__user__" && presentSet.has(i.targetId));
+      if(live.length){
+        // strongest one wins the beat (don't pile multiple colorings on one turn)
+        const it=live.sort((a,b)=>(b.strength||0)-(a.strength||0))[0];
+        const tName=it.targetName||"them";
+        const warm=(it.valence==="warm");
+        const line = warm
+          ? `# A PRIVATE FEELING (this turn)\nYou privately hold a growing warmth toward ${tName}, who is here now (a ${it.kind} — ${it.aim}). You are NOT declaring it. But let it quietly tint how you treat ${tName} this turn — a touch more attentive, a softer edge, a small kindness — without announcing it or breaking character.`
+          : `# A PRIVATE TENSION (this turn)\nYou privately hold a ${it.kind} toward ${tName}, who is here now (${it.aim}). You are NOT revealing it openly. But let it edge how you treat ${tName} this turn — a cooler tone, a guarded distance, a barbed remark held just beneath courtesy — without exposing the scheme or breaking character.`;
+        blocks.push(line);
+      }
+    }
+  }catch(e){}
 
   // (1) RESPONSE GUIDANCE
   let g=`# RESPONSE GUIDANCE\nYou are ${selfName}. Continue the scene with your single next turn`;
@@ -9945,9 +10247,13 @@ async function runGossipPropagation(chat,day,uni){
   const thresh=(state.gossipThreshold!=null?state.gossipThreshold:0.6);
   const cap=Math.max(0,(state.gossipMaxPerDay!=null?state.gossipMaxPerDay:3));
   if(cap<=0)return;
-  // Today's charged bystander observations, most charged first.
+  // Today's charged bystander observations, most charged first. EXCLUDE location_rumor observations:
+  // those are already the circulating talk, planted directly in the location's regulars — they color
+  // those carriers' scenes and (if about the subject) can motivate them, but they should NOT re-spread
+  // as fresh first-hand sightings (that would flood the cap with duplicates of the same rumor).
   const charged=state.memory.filter(m=>
-      m.gameDay===day && m.type==="OBSERVATION" && (!m.universeId||!uid||m.universeId===uid) &&
+      m.gameDay===day && m.type==="OBSERVATION" && m.source!=="location_rumor" &&
+      (!m.universeId||!uid||m.universeId===uid) &&
       typeof m.charge==="number" && m.charge>=thresh
     ).sort((a,b)=>(b.charge||0)-(a.charge||0)).slice(0,cap);
   if(!charged.length)return;
@@ -10050,6 +10356,187 @@ function maybeSpawnConfrontation(chat,uni){
 // Three passes: (1) FORM new intents from today's charged memories, (2) TICK existing intents
 // (harden/fade, recruit allies), (3) when an intent is READY, spawn a layer-3 confrontation. All
 // abstract — nothing is narrated until it surfaces. Intents live on chat.intents.
+
+// Turn a slow-axis swing (the per-axis delta recorded by evalRelationship on its last run) into a
+// plain-English direction phrase, so the intent former reads HOW the standing moved today — the
+// thing that separates curdling warmth (betrayal) from steady coldness. Numbers stay out of the
+// payload (house style); we emit words like "affection fell sharply, jealousy rose".
+function _swingPhrase(delta){
+  if(!delta||typeof delta!=="object")return "";
+  const mag=v=>{ const a=Math.abs(v); if(a<2)return null; if(a<6)return "edged"; if(a<14)return "moved"; if(a<26)return "shifted"; return "swung sharply"; };
+  const parts=[];
+  REL_SLOW.forEach(k=>{
+    const v=delta[k]; if(typeof v!=="number")return;
+    const m=mag(v); if(!m)return;
+    const d=REL_DIMS.find(x=>x.key===k); if(!d)return;
+    // describe the axis moving toward its positive or negative pole
+    parts.push(`${d.label.toLowerCase()} ${m} ${v>0?"up (toward "+d.pos+")":"down (toward "+d.neg+")"}`);
+  });
+  return parts.join("; ");
+}
+// Build the per-target relationship picture for ONE holder: their standing (settled slow feeling),
+// how it swung TODAY (if it did), and their momentary heat. Only includes people the holder has a
+// real bond with (skips flat, empty relationships) plus anyone whose feeling moved today. This is
+// the grounding the bipolar former reasons valence from.
+function holderRelationshipBlock(chat,holder,day,nameById){
+  if(!chat||!chat.rel||!holder)return "";
+  const lines=[];
+  // every directed pair starting from this holder
+  Object.keys(chat.rel).forEach(key=>{
+    const m=/^([^>]+)>(.+)$/.exec(key); if(!m)return;
+    if(m[1]!==holder.id)return;
+    const toId=m[2];
+    if(toId===holder.id)return;
+    const o=chat.rel[key]; if(!o)return;
+    const tName=nameById(toId); if(!tName)return;
+    const standing=relConsideredProse(o);          // settled slow feeling, prose
+    const movedToday=(o.lastSlowDeltaDay===day) && o.lastSlowDelta;
+    const swing=movedToday?_swingPhrase(o.lastSlowDelta):"";
+    const heat=relMomentaryProse(o);               // fast/momentary lean, prose
+    // include if there's a real bond, OR it moved today (a swing from a flat base still matters)
+    if(!standing && !swing && !heat)return;
+    let line=`- ${holder.name} → ${tName}: `;
+    line+=standing?`standing: ${standing}`:`standing: barely knows them / neutral`;
+    if(swing)line+=` | TODAY it ${swing}`;
+    if(heat)line+=` | right now: ${heat}`;
+    lines.push(line);
+  });
+  return lines.join("\n");
+}
+
+// CONTEMPLATION — when an intent matures (becomes "ready"), the holder decides HOW to act on it.
+// Runs ONE planning call, valence-neutral and genre-blind, and writes the chosen plan onto the
+// intent. The stored plan uses the multi-step shape we'll grow into later, but for now holds a
+// single step (cursor 0) so it degrades to "make the move directly" while still recording the
+// chosen method, approach, and gate. Best-effort: if it fails, the intent simply has no plan and
+// pass 3 surfaces it the old way (direct).
+async function contemplatePlan(chat,it,roster,nameById,uid){
+  if(!chat||!it||!state.key)return;
+  if(it.plan)return;   // already planned — don't re-contemplate
+  const holder=roster.find(p=>p.id===it.holderId); if(!holder)return;
+  const model=(state.gossipModel&&state.gossipModel.trim())?state.gossipModel:state.memModel;
+  // Leverage the holder might use: their own pressure-point sheet entry toward no one in particular
+  // (their secrets/obsessions) plus anything they hold over the target (the target's pressure points
+  // the holder would plausibly know). Kept short; "none" is a valid, common answer.
+  const targetPersona=it.targetId==="__user__"?null:roster.find(p=>p.id===it.targetId);
+  const leverageBits=[];
+  if(holder.interject&&holder.interject.trim())leverageBits.push(`${holder.name}'s own pressure points: ${holder.interject.trim().slice(0,200)}`);
+  if(targetPersona&&targetPersona.interject&&targetPersona.interject.trim())leverageBits.push(`what could be used on ${targetPersona.name}: ${targetPersona.interject.trim().slice(0,200)}`);
+  const leverage=leverageBits.join(" | ")||"(nothing in particular)";
+  const world=(()=>{ try{ const u=universeById(uid); return (u&&u.directingNotes&&u.directingNotes.trim())?u.directingNotes.trim().slice(0,400):"(ordinary social world)"; }catch(e){ return "(ordinary social world)"; } })();
+  const allies=(it.allies||[]).map(nameById).filter(Boolean).join(", ")||"(none)";
+  try{
+    const out=await chatCompletion([
+      {role:"system",content:fillTpl(up("contemplate"),{
+        holder:holder.name,
+        nature:holder.personality?String(holder.personality).slice(0,200):"ordinary",
+        kind:it.kind, valence:it.valence||"hostile", target:it.targetName||nameById(it.targetId)||state.user,
+        aim:it.aim||"", trigger:it.trigger||"", strength:String((it.strength||0.6).toFixed(2)),
+        allies, leverage, world })},
+      {role:"user",content:`How does ${holder.name} make their move? Return the JSON.`}
+    ],model,{temp:fnTemp("mem",0.6),max:fnTok("mem",300),dbg:"Contemplate · "+holder.name});
+    const j=parseJSON(out)||{};
+    const METHODS=new Set(["direct","public_spectacle","proxy","undermine_first","ambush_isolation","leverage"]);
+    let method=String(j.method||"").toLowerCase();
+    if(!METHODS.has(method))method="direct";
+    const GATES=new Set(["target_present","target_alone","in_public","prep_done","none"]);
+    let gate=String(j.gate||"").toLowerCase();
+    if(!GATES.has(gate))gate=(method==="ambush_isolation"?"target_alone":method==="public_spectacle"?"in_public":method==="undermine_first"?"prep_done":"target_present");
+    const params=(j.params&&typeof j.params==="object")?j.params:{};
+    // Resolve a proxy name → id if one was named and is real.
+    let proxyId=null;
+    if(method==="proxy"&&params.proxy){ const pid=(()=>{ const k=String(params.proxy).toLowerCase().trim(); const p=roster.find(x=>(x.name||"").toLowerCase().trim()===k); return p?p.id:null; })(); proxyId=pid; }
+    // The plan. Multi-step shape, single step for now. A method that needs cross-system execution
+    // (proxy/undermine_first) is recorded but, this slice, still EXECUTES directly — flagged via
+    // needsActivation so the next slice can light it up without reshaping anything.
+    // proxy and undermine_first are now ACTIVATED (this slice):
+    //  - proxy: the swap happens at surface time (pass 3) — the ALLY arrives carrying the holder's
+    //    cause. Recorded here via params.proxyId; no cross-system write, no idempotency risk.
+    //  - undermine_first: the PREP (a directed rumor) is planted now, ONCE, and the plan becomes a
+    //    genuine two-step prep→strike. The strike still surfaces directly this slice (the gated
+    //    "wait for prep to land" execution is the multi-step slice); but the groundwork is real and
+    //    already feeds the organic suspicion/confrontation system.
+    const steps=[{ phase:"strike", intent_action:(it.valence==="warm"?"offer":"confront"),
+                   gate:{type:gate, note:String(j.approach||"").slice(0,120)},
+                   status:"pending", result:null }];
+    let spawnedRumorId=null;
+    if(method==="undermine_first"){
+      // Plant the groundwork rumor once. If it succeeds, prepend a completed "prep" step so the plan
+      // reads as two-phase and the strike's gate becomes prep_done.
+      try{
+        spawnedRumorId=plantDirectedRumor(chat,it,roster,nameById,uid,params,j.approach);
+      }catch(e){ spawnedRumorId=null; }
+      if(spawnedRumorId){
+        steps[0].gate={type:"prep_done",note:"the groundwork must land before the move"};
+        steps.unshift({ phase:"prep", intent_action:"spread_gossip",
+                        gate:{type:"none",note:"sow doubt first"},
+                        status:"done", result:"rumor planted: "+spawnedRumorId });
+      }
+    }
+    it.plan={
+      method,
+      approach:String(j.approach||"").slice(0,240),
+      steps,
+      cursor:(method==="undermine_first"&&spawnedRumorId)?1:0,   // prep already done → point at strike
+      params:{ proxyId, proxyName:(method==="proxy"?(params.proxy||null):null),
+               leverage:(method==="leverage"?(params.leverage||null):null),
+               venue:(method==="public_spectacle"?(params.venue||null):null),
+               spawnedRumorId },
+      patience:(typeof j.patience==="number"?Math.max(0,Math.min(1,j.patience)):0.5),
+      expires:(chat.gameDay||1)+ (typeof j.patience==="number"&&j.patience>0.6?5:3),
+      formedDay:(chat.gameDay||1),
+      // Only the GATED strike (wait-for-the-moment execution) is still pending → that's the
+      // multi-step slice. proxy/undermine_first are otherwise active now.
+      needsActivation:false
+    };
+  }catch(e){/* no plan → pass 3 surfaces it directly */}
+}
+
+// Plant ONE directed rumor on behalf of a schemer (undermine_first prep). Unlike organic gossip
+// (a bystander spreading what they glimpsed), this is SEEDED by the holder to soften the target
+// before they strike. Reuses the exact GOSSIP/openSuspicion memory shape so the existing organic
+// confrontation-from-suspicion path picks it up for free — but marked source:"planted" and tied to
+// the intent id so it's traceable and, crucially, spawned only ONCE per plan (idempotency: the
+// caller stores the returned id on params.spawnedRumorId and never re-plants while it's set).
+// Recipient: someone in the holder's circle who is close to the TARGET (so the rumor reaches people
+// who'd care). Returns the new memory id, or null if it couldn't plant.
+function plantDirectedRumor(chat,it,roster,nameById,uid,params,approach){
+  if(!chat||!it)return null;
+  if(it.plan&&it.plan.params&&it.plan.params.spawnedRumorId)return it.plan.params.spawnedRumorId; // already planted
+  const holder=roster.find(p=>p.id===it.holderId); if(!holder)return null;
+  // Choose a recipient: prefer someone the holder knows who is ALSO tied to the target; else anyone
+  // in the holder's circle; never the holder, the target, or the player as recipient (v1 plants in NPCs).
+  const targetId=it.targetId;
+  const holderRels=holder.relationships||{};
+  const circle=Object.keys(holderRels).filter(id=>id&&id!==holder.id&&id!==targetId&&id!=="__user__"&&roster.some(p=>p.id===id));
+  if(!circle.length)return null;
+  const tiedToTarget=circle.filter(id=>{ const p=roster.find(x=>x.id===id); return p&&p.relationships&&p.relationships[targetId]; });
+  const rid=(tiedToTarget[0]||circle[0]);
+  const rp=roster.find(p=>p.id===rid); if(!rp)return null;
+  const targetName=targetId==="__user__"?state.user:(nameById(targetId)||"someone");
+  // The rumor text: a vague, planted suspicion about the target, in the recipient's first-person
+  // "I heard…" voice (matching organic gossip), seeded from the holder's angle. Kept generic enough
+  // to be genre-blind; the holder's approach colours it.
+  const seed=(approach||it.aim||"").toString().slice(0,140);
+  const rumor=`I heard something about ${targetName} — ${seed?seed:"that not everything about them adds up"}. I don't know if it's true, but it's stuck with me.`;
+  const strength=Math.max(0.5,Math.min(0.85,(it.strength!=null?it.strength:0.6)));
+  const mem={
+    id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
+    content:rumor, location:"", emotion:"suspicious",
+    importance:strength,
+    tags:["gossip","rumor","planted",(it.kind||"").toLowerCase()].filter(Boolean),
+    type:"GOSSIP",
+    ownerId:rid, character:rp.name, date:Date.now(), gameDay:(chat.gameDay||1), source:"planted",
+    gossipFrom:holder.name, gossipMotive:(it.kind||""), openSuspicion:true,
+    suspicion:strength, plantedByIntent:it.id, plantedAgainst:targetId,
+    universeId:uid, chatId:(chat&&chat.id)||null
+  };
+  // de-dupe by content within the recipient (mirrors organic gossip)
+  if(memoriesOf(rid).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase()))return null;
+  state.memory.push(mem); persistMemory();
+  return mem.id;
+}
+
 async function runIntentEngine(chat,day,uni){
   if(!chat||state.intentOn===false||!state.key||!state.mem)return;
   const uid=uni||(chat&&chat.universeId)||state.curUniverse||null;
@@ -10062,8 +10549,12 @@ async function runIntentEngine(chat,day,uni){
   const model=(state.gossipModel&&state.gossipModel.trim())?state.gossipModel:state.memModel;
   const cap=Math.max(0,(state.intentMax!=null?state.intentMax:4));
 
-  // ---- PASS 1: FORM new intents from each participant's charged memories of today ----
-  // Only characters who had a charged day are worth checking (cheap gating).
+  // ---- PASS 1: FORM new intents from each participant's charged day ----
+  // A holder is worth checking if EITHER source fired today:
+  //   (a) they formed a charged memory (an incident landed), OR
+  //   (b) a relationship of theirs swung today (feeling moved even with no single "event" — a slow
+  //       burn finally tipping, or a sudden wound). Memory-only gating misses motives that form from
+  //       accumulated feeling rather than a discrete event; the swing gate catches them.
   const dayChargedBy={};
   state.memory.forEach(m=>{
     if(m.gameDay!==day||(m.universeId&&uid&&m.universeId!==uid))return;
@@ -10071,31 +10562,61 @@ async function runIntentEngine(chat,day,uni){
     const ch=typeof m.charge==="number"?m.charge:0;
     if(imp>=0.55||ch>=0.5){ (dayChargedBy[m.ownerId]=dayChargedBy[m.ownerId]||[]).push(m); }
   });
+  // (b) holders whose feeling toward someone moved a slow axis today.
+  const swungToday=new Set();
+  if(chat.rel&&typeof chat.rel==="object"){
+    Object.keys(chat.rel).forEach(key=>{
+      const m=/^([^>]+)>/.exec(key); if(!m)return;
+      const o=chat.rel[key];
+      if(o && o.lastSlowDeltaDay===day && o.lastSlowDelta){
+        // require at least one slow axis to have meaningfully moved (≥3) so tiny drifts don't trigger
+        const moved=REL_SLOW.some(k=>Math.abs(o.lastSlowDelta[k]||0)>=3);
+        if(moved && roster.some(p=>p.id===m[1])) swungToday.add(m[1]);
+      }
+    });
+  }
+  // Union of both trigger sources → the set of holders to actually check.
+  const holdersToCheck=new Set([...Object.keys(dayChargedBy),...swungToday]);
   const liveCount=()=>chat.intents.filter(i=>i.status!=="spent").length;
-  for(const holderId in dayChargedBy){
+  for(const holderId of holdersToCheck){
     if(liveCount()>=cap)break;
     const holder=roster.find(p=>p.id===holderId); if(!holder)continue;
     // skip if this holder already has a live intent (don't pile them up)
     if(chat.intents.some(i=>i.holderId===holderId&&i.status!=="spent"))continue;
-    const mems=dayChargedBy[holderId].slice(0,6).map(m=>`- ${memText(m)}`).join("\n");
+    // A swing-only holder (triggered by feeling, not an event) has no charged memories — guard it.
+    const mems=(dayChargedBy[holderId]&&dayChargedBy[holderId].length)
+      ? dayChargedBy[holderId].slice(0,6).map(m=>`- ${memText(m)}`).join("\n")
+      : "(no single event stood out — judge from how the feelings below moved)";
     const rosterList=roster.filter(p=>p.id!==holderId).map(p=>p.name).concat(state.user).join(", ");
+    const relBlock=holderRelationshipBlock(chat,holder,day,nameById)||"(no notable relationships on record)";
     try{
       const out=await chatCompletion([
         {role:"system",content:fillTpl(up("intentForm"),{
           user:state.user, char:holder.name,
           nature:(holder.personality?String(holder.personality).slice(0,200):"ordinary")+(holder.goals?` | driven by: ${String(holder.goals).slice(0,200)}`:""),
-          day_memories:mems, roster:rosterList })},
-        {role:"user",content:`Does ${holder.name} now hold a motive worth acting on? Return the JSON.`}
+          day_memories:mems, relationships:relBlock, roster:rosterList })},
+        {role:"user",content:`Does ${holder.name} now hold a motive worth acting on — warm or hostile? Return the JSON.`}
       ],model,{temp:fnTemp("mem",0.5),max:fnTok("mem",250),dbg:"Intent form · "+holder.name});
       const j=parseJSON(out)||{};
       const arr=Array.isArray(j.intents)?j.intents:[];
       for(const it of arr.slice(0,1)){
         if(!it||!it.kind||typeof it.strength!=="number"||it.strength<0.35)continue;
         const tid=idByName(it.target); if(!tid||tid===holderId)continue;
+        // Valence: trust the model's field; if a custom/old prompt omitted it, infer from kind so
+        // nothing downstream ever sees undefined. Hostile kinds → hostile; warm kinds → warm; the
+        // self-serving kinds (ambition/scheme) default to self_serving.
+        const HOSTILE=new Set(["grievance","rivalry","resentment","scheme","revenge","vendetta"]);
+        const WARM=new Set(["courtship","reconciliation","loyalty","protection","alliance","friendship","desire"]);
+        let valence=String(it.valence||"").toLowerCase();
+        if(valence!=="warm"&&valence!=="hostile"&&valence!=="self_serving"){
+          const k=String(it.kind).toLowerCase();
+          valence=HOSTILE.has(k)?"hostile":WARM.has(k)?"warm":"self_serving";
+        }
         chat.intents.push({
           id:"intent_"+Date.now()+Math.random().toString(36).slice(2,5),
           holderId, holderName:holder.name, targetId:tid, targetName:nameById(tid),
-          kind:String(it.kind).toLowerCase(), trigger:String(it.trigger||"").slice(0,200),
+          kind:String(it.kind).toLowerCase(), valence,
+          trigger:String(it.trigger||"").slice(0,200),
           aim:String(it.aim||"").slice(0,200), strength:Math.max(0,Math.min(1,it.strength)),
           allies:[], status:"brewing", born:day, lastTick:day
         });
@@ -10106,6 +10627,7 @@ async function runIntentEngine(chat,day,uni){
   // ---- PASS 2: TICK each live intent (fester/fade, recruit) ----
   for(const it of chat.intents){
     if(it.status==="spent")continue;
+    if(it.status==="armed")continue;   // already matured & waiting on a gate — don't re-tick/clobber
     if(it.lastTick===day && it.born===day)continue;   // formed today → let it sit a day before ticking
     const holder=roster.find(p=>p.id===it.holderId); if(!holder){it.status="spent";continue;}
     // candidate allies: holder's circle who aren't already involved, aren't the target
@@ -10131,36 +10653,241 @@ async function runIntentEngine(chat,day,uni){
         if(rid&&rid!=="__user__"&&rid!==it.holderId&&rid!==it.targetId&&!(it.allies||[]).includes(rid)) it.allies.push(rid); });
       it.lastTick=day;
       if(it.strength<0.2){ it.status="spent"; }                 // faded away
-      else if(j.ready===true && it.strength>=0.55){ it.status="ready"; }
+      else if(j.ready===true && it.strength>=0.55){
+        it.status="ready";
+        // The motive has matured into a decision to act → CONTEMPLATE how (method + plan), once.
+        try{ await contemplatePlan(chat,it,roster,nameById,uid); }catch(e){}
+      }
       else { it.status="brewing"; }
     }catch(e){/* best-effort */}
   }
 
-  // ---- PASS 3: a READY intent targeting the PLAYER may surface as a confrontation ----
-  // (Intents targeting other characters stay as offstage state for now — they color how those
-  //  characters act, and can surface later; v1 only brings player-targeted intents to a scene.)
-  const ready=chat.intents.filter(i=>i.status==="ready"&&i.targetId==="__user__"&&i.strength>=0.55)
-    .sort((a,b)=>b.strength-a.strength);
-  if(ready.length && !(chat.activeEvent&&!chat.activeEvent.resolved) && state.confrontOn!==false){
-    const it=ready[0];
-    const holder=roster.find(p=>p.id===it.holderId);
-    if(holder){
-      it.status="spent";   // consumed by surfacing
-      const allyNames=(it.allies||[]).map(nameById).filter(Boolean);
-      const summary=allyNames.length
-        ? `${holder.name}${allyNames.length?` (with ${allyNames.join(", ")})`:""} comes for ${state.user} over a ${it.kind}`
-        : `${holder.name} comes for ${state.user} over a ${it.kind}`;
-      startConfrontation(chat,{
-        accuser:holder, intent:`${it.aim} — ${it.trigger}`, summary,
-        evidence:Math.max(0.5,Math.min(0.95,it.strength)),    // their conviction in their own grievance
+  // ---- PASS 3: a READY intent becomes ARMED — it now WAITS for its moment ----
+  // Gated execution lives in the live turn loop (checkArmedPlans). End Day arms the plan; the scene
+  // fires it when the gate opens. PLAYER-TARGETED intents surface as a direct overture/confrontation.
+  // CHAR-TO-CHAR intents (target is another character, not the player) CANNOT run as a player-judged
+  // scene with no player in the target seat — so instead they surface by PULLING THE PLAYER IN: the
+  // holder comes to the PLAYER *about* the third party (to recruit, warn, confide, or use them). The
+  // player stays central; we never play NPC-vs-NPC scenes the player only watches.
+  chat.intents.filter(i=>i.status==="ready"&&i.strength>=0.55)
+    .forEach(it=>{
+      const c2c = it.targetId && it.targetId!=="__user__";
+      it.status="armed";
+      it.c2c=!!c2c;   // marks "surface by pulling the player in about the target"
+      if(!it.plan){
+        // char-to-char default gate: holder with the player, target NOT in the room (you don't
+        // approach the player about someone who's standing right there). Player-targeted keeps target_present.
+        const defGate = c2c ? "holder_with_player_target_absent" : "target_present";
+        it.plan={ method:"direct", approach:"", steps:[{phase:"strike",intent_action:(it.valence==="warm"?"offer":"confront"),gate:{type:defGate,note:""},status:"pending",result:null}], cursor:0, params:{}, patience:0.5, expires:(day||1)+3, formedDay:(day||1), needsActivation:false };
+      } else if(c2c){
+        // An existing plan whose gate assumes the target is the one present needs the c2c gate instead
+        // (the target is the SUBJECT, not the person the holder addresses).
+        const step=it.plan.steps&&it.plan.steps[it.plan.cursor||0];
+        if(step&&step.gate&&(step.gate.type==="target_present"||step.gate.type==="target_alone")){
+          step.gate.type="holder_with_player_target_absent";
+        }
+      }
+      if(it.armedDay==null)it.armedDay=day;
+    });
+  // prune spent intents so the list doesn't grow forever (armed/brewing are kept)
+  chat.intents=chat.intents.filter(i=>i.status!=="spent").slice(-cap*2);
+  persistChats();
+}
+
+// Evaluate whether an armed plan's CURRENT step gate is satisfied by the live scene. Pure state read,
+// no AI call. The gate is the moment the plan has been waiting for.
+function evaluateGate(chat,plan,targetId,holderId){
+  if(!plan||!Array.isArray(plan.steps))return false;
+  const step=plan.steps[plan.cursor||0]; if(!step)return false;
+  if(step.status==="done")return true;   // already cleared (e.g. completed prep)
+  const gate=(step.gate&&step.gate.type)||"none";
+  const targetPresent = targetId==="__user__" ? true : isPresent(chat,targetId);  // player is always "in their own scene"
+  const present=presentCast(chat);                  // characters (not the player) in the room
+  switch(gate){
+    case "none":          return true;
+    case "target_present":return targetPresent;
+    case "target_alone":
+      // the target and the player, nobody else present to witness/protect. For a player-targeted
+      // plan, "alone" means it's just the player and the holder/actor about to arrive — i.e. no OTHER
+      // characters are currently in the room.
+      return present.length===0;
+    case "in_public":     return present.length>=1;  // at least one other character around as audience
+    case "prep_done":     return step.gate&&step.gate.type==="prep_done" ? true : false; // prep step set done at contemplation
+    case "holder_with_player_target_absent":
+      // CHAR-TO-CHAR: the holder comes to the PLAYER about the target. This can fire only when the
+      // TARGET is NOT present (you don't recruit/warn the player against someone standing right there).
+      // The holder need not already be here — the Scene Writer brings them in as the arriving character.
+      return !isPresent(chat,targetId);
+    default:              return true;
+  }
+}
+
+// Surface a single intent into the scene as an overture (warm) or confrontation (hostile), honoring
+// its contemplated plan (method framing + proxy swap). ONE code path, called by the per-turn
+// checkpoint (and reusable elsewhere) so End-Day and in-scene surfacing can never drift apart.
+function surfaceIntent(chat,it,roster,nameById){
+  const holder=roster.find(p=>p.id===it.holderId); if(!holder)return false;
+  const allyNames=(it.allies||[]).map(nameById).filter(Boolean);
+  const withWho=allyNames.length?` (with ${allyNames.join(", ")})`:"";
+  const plan=it.plan||null;
+  const method=plan&&plan.method||"direct";
+  const approach=plan&&plan.approach?` — their way: ${plan.approach}`:"";
+  const methodFrame={
+    public_spectacle:"openly, in front of others",
+    ambush_isolation:"catching them alone",
+    leverage:"using what they hold",
+    proxy:"through someone close",
+    undermine_first:"having sown doubt first",
+    direct:""
+  }[method]||"";
+  const frame=methodFrame?` (${methodFrame})`:"";
+  const intentText=`${it.aim} — ${it.trigger}${approach}`;
+  // PROXY: the ally arrives carrying the holder's cause (face = proxy, cause = holder).
+  let actor=holder, onBehalfOf="";
+  if(method==="proxy" && plan && plan.params && plan.params.proxyId){
+    const pr=roster.find(p=>p.id===plan.params.proxyId);
+    if(pr && pr.id!==it.targetId){ actor=pr; onBehalfOf=` on ${holder.name}'s behalf`; }
+  }
+  const actorNature=actor.personality?String(actor.personality).slice(0,200):"";
+  const carried=onBehalfOf?` (carried on ${holder.name}'s behalf)`:"";
+  // CHAR-TO-CHAR: the holder comes to the PLAYER *about* a third party (the target), who is NOT here.
+  // Reframe so the engine runs a normal player-addressed overture/confrontation whose TOPIC is the
+  // third party — and fence that third party off as absent (critical on a mid-range model, which will
+  // otherwise drag the named absent character into the room or voice them).
+  if(it.c2c){
+    const tName=it.targetName||nameById(it.targetId)||"someone";
+    const fence=`\n\nIMPORTANT: ${tName} is NOT here — this is ${actor.name} speaking to ${state.user} ABOUT ${tName}. Do NOT have ${tName} appear, speak, or be addressed directly. ${actor.name} is talking to ${state.user}, and ${state.user} responds.`;
+    if(it.valence==="warm"){
+      // warm c2c: the holder comes to the player to confide warmth about the target, ask the player's
+      // help to grow closer to them, or seek the player as an ally in winning them.
+      const intentC2C=`${actor.name} comes to ${state.user} about ${tName} (who is not present): ${it.aim} — ${it.trigger}${approach}. ${actor.name} wants ${state.user}'s help, blessing, or alliance regarding ${tName}.`+carried+fence;
+      const summary=`${actor.name}${withWho} comes to ${state.user} about ${tName} — a ${it.kind}`;
+      return startOverture(chat,{
+        accuser:actor, intent:intentC2C, summary,
+        evidence:Math.max(0.5,Math.min(0.95,it.strength)),
+        conviction:Math.max(0.45,Math.min(0.75,1-it.strength*0.4)),
+        accuserNature:actorNature
+      });
+    }else{
+      // hostile c2c: the holder comes to the player to recruit them against the target, warn them off,
+      // demand they take a side, or use them as leverage against the target.
+      const intentC2C=`${actor.name} comes to ${state.user} about ${tName} (who is not present): ${it.aim} — ${it.trigger}${approach}. ${actor.name} wants to recruit, warn, pressure, or use ${state.user} regarding ${tName}.`+carried+fence;
+      const summary=`${actor.name}${withWho} comes to ${state.user} about ${tName} — a ${it.kind}`;
+      return startConfrontation(chat,{
+        accuser:actor, intent:intentC2C, summary,
+        evidence:Math.max(0.5,Math.min(0.95,it.strength)),
         conviction:Math.max(0.55,Math.min(0.9,it.strength)),
-        accuserNature:holder.personality?String(holder.personality).slice(0,200):""
+        accuserNature:actorNature
       });
     }
   }
-  // prune spent intents so the list doesn't grow forever
-  chat.intents=chat.intents.filter(i=>i.status!=="spent").slice(-cap*2);
+  if(it.valence==="warm"){
+    const summary=`${actor.name}${onBehalfOf?onBehalfOf:withWho} reaches out to ${state.user}${frame} — a ${it.kind}`;
+    return startOverture(chat,{
+      accuser:actor, intent:intentText+carried, summary,
+      evidence:Math.max(0.5,Math.min(0.95,it.strength)),
+      conviction:Math.max(0.45,Math.min(0.75,1-it.strength*0.4)),
+      accuserNature:actorNature
+    });
+  }else{
+    const summary=`${actor.name}${onBehalfOf?onBehalfOf:withWho} comes for ${state.user}${frame} over a ${it.kind}`;
+    return startConfrontation(chat,{
+      accuser:actor, intent:intentText+carried, summary,
+      evidence:Math.max(0.5,Math.min(0.95,it.strength)),
+      conviction:Math.max(0.55,Math.min(0.9,it.strength)),
+      accuserNature:actorNature
+    });
+  }
+}
+
+// PER-TURN CHECKPOINT: does the current scene satisfy any armed plan's gate? If so, fire the most
+// pressing one. Also ages armed plans: one that waits past its patience/expiry either FORCES a worse
+// moment (impatient or strong holder) or DISSOLVES (patient/weak). Runs each turn alongside the
+// Gamemaster; never fires while an event is already active.
+function checkArmedPlans(chat){
+  if(!chat||state.intentOn===false||state.confrontOn===false||!state.sceneOn)return false;
+  if(chat.activeEvent && !chat.activeEvent.resolved)return false;
+  if(!Array.isArray(chat.intents))return false;
+  const uid=(chat&&chat.universeId)||state.curUniverse||null;
+  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  const nameById=id=>id==="__user__"?state.user:((roster.find(p=>p.id===id)||{}).name||null);
+  const today=chat.gameDay||1;
+  // BOTH player-targeted and char-to-char armed plans are eligible (c2c surfaces by pulling the
+  // player in about the target).
+  const armed=chat.intents.filter(i=>i.status==="armed"&&i.plan);
+  if(!armed.length)return false;
+  // First, expire/force the ones that have waited too long.
+  for(const it of armed){
+    const exp=it.plan.expires||((it.armedDay||today)+3);
+    if(today>exp){
+      // patience decides: an impatient OR strong holder forces the move now (worse moment); a patient,
+      // weaker one lets it dissolve.
+      const force=(it.plan.patience!=null?it.plan.patience:0.5)<0.4 || (it.strength||0)>=0.8;
+      if(force){ it._forceNow=true; }
+      else { it.status="spent"; }   // the moment never came; they let it go
+    }
+  }
+  // Candidates: gate satisfied now, OR forced. A forced char-to-char plan STILL requires the target
+  // to be absent (the holder can't come to the player about someone who's in the room) — forcing
+  // overrides patience, not physical possibility.
+  const fireable=armed.filter(it=>{
+    if(it.status!=="armed")return false;
+    const gateOpen=evaluateGate(chat,it.plan,it.targetId,it.holderId);
+    if(it._forceNow){
+      // forcing skips the waiting, but a c2c plan can't fire with the target present
+      if(it.c2c && isPresent(chat,it.targetId))return false;
+      return true;
+    }
+    return gateOpen;
+  }).sort((a,b)=>(b.strength||0)-(a.strength||0));
+  if(!fireable.length){ persistChats(); return false; }
+  const it=fireable[0];
+  it.status="spent";   // consumed by surfacing
+  const fired=surfaceIntent(chat,it,roster,nameById);
   persistChats();
+  return !!fired;
+}
+
+// Translate the armed plans waiting in the wings into STAGE DIRECTIONS for the Gamemaster — what
+// scene-condition each is waiting for, NOT its secret content. The GM is a stagehand: it learns "a
+// waiting moment needs the player alone with Leyla" so it can author a beat that thins the room — it
+// does NOT learn the scheme itself, and it never executes the plan (checkArmedPlans does that the
+// instant the condition is met). Returns "" when nothing is armed or nothing needs staging, so the
+// GM behaves exactly as before in ordinary scenes. Only surfaces plans whose gate is NOT already
+// satisfiable (those will just fire on their own next turn — no staging needed).
+function armedStagingSummary(chat){
+  if(!chat||state.intentOn===false||!Array.isArray(chat.intents))return "";
+  const uid=(chat&&chat.universeId)||state.curUniverse||null;
+  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  const armed=chat.intents.filter(i=>i.status==="armed"&&i.plan);
+  if(!armed.length)return "";
+  const lines=[];
+  for(const it of armed){
+    // Skip plans whose gate is already open — they fire on their own; no staging required.
+    if(evaluateGate(chat,it.plan,it.targetId,it.holderId))continue;
+    const step=it.plan.steps&&it.plan.steps[it.plan.cursor||0]; if(!step)continue;
+    const gate=(step.gate&&step.gate.type)||"none";
+    // Who would act: the proxy if one is set, else the holder. Use the actor's NAME only.
+    let actorName=it.holderName;
+    if(it.plan.method==="proxy"&&it.plan.params&&it.plan.params.proxyId){
+      const pr=roster.find(p=>p.id===it.plan.params.proxyId); if(pr)actorName=pr.name;
+    }
+    let need="";
+    if(gate==="target_alone")    need=`a private moment is needed — ${state.user} left alone (the others drift away, are called off, step out) so ${actorName} could find them unguarded`;
+    else if(gate==="in_public")  need=`an audience is needed — others gathering or present, so a public moment involving ${state.user} could land`;
+    else if(gate==="target_present") need=`${actorName} would need a natural reason to arrive where ${state.user} is`;
+    else if(gate==="holder_with_player_target_absent"){
+      // char-to-char: the holder wants the player WITHOUT the third party around. If that third party
+      // is currently here, staging = give them a reason to leave so the holder can get the player alone.
+      const tName=it.targetName||"that person";
+      if(isPresent(chat,it.targetId)) need=`${tName} stepping away or being called off, so ${actorName} could speak with ${state.user} privately (without ${tName})`;
+      else continue;   // target already absent → gate effectively open, no staging
+    }
+    else continue;   // prep_done/none are satisfiable states, not staging needs
+    lines.push(`- ${need}`);
+  }
+  if(!lines.length)return "";
+  return `WAITING MOMENTS (offstage forces are poised to act the instant the scene allows — you may, if it fits naturally, nudge the scene toward ONE of these conditions; do NOT name or reveal what's waiting, just let the situation shift):\n${lines.join("\n")}`;
 }
 async function endDayBackground(chat,day,uni,daySnapshot,fallbackName){
   // ---- DIARIES ---- one private entry per participating character, from the day's MEMORIES.
@@ -10274,6 +11001,13 @@ async function postTurn(chat){
     maybeBuildMemory(chat);
     return;
   }
+  // ARMED PLANS: before the Gamemaster considers a generic nudge, see if THIS scene is the moment a
+  // waiting scheme (or warm overture) has been holding out for — its gate (target present / alone /
+  // in public / prep landed) now satisfied. If one fires, it becomes the active event and the Scene
+  // Writer drives it; we DON'T also run the Gamemaster this turn (the scene already has its beat).
+  if(state.intentOn!==false && checkArmedPlans(chat)){
+    return;
+  }
   maybeGamemaster(chat);
 }
 
@@ -10296,13 +11030,19 @@ async function maybeGamemaster(chat,force){
     const ctx=directorContext(chat,"gm");
     const since=chat.messages.filter(m=>m.role!=='system'&&!m.sysError)
       .slice(-4).map(m=>`${m.role==='user'?state.user:(m.speaker||fallbackName)}: ${m.content}`).join("\n");
+    // STAGE-DIRECTION awareness: if any armed plan is waiting on a scene-condition (target alone, an
+    // audience, the holder present), the GM may nudge the scene toward it. Empty in ordinary scenes,
+    // so the GM behaves exactly as before when nothing is scheming. The GM never fires the plan or
+    // reveals it — checkArmedPlans (run before this) fires it the instant the condition is actually met.
+    const staging=(state.intentOn!==false)?armedStagingSummary(chat):"";
+    const stagingBlock=staging?("\n\n"+staging):"";
     // STAGE 1 — judge (skipped when manually forced; the user explicitly wants an event)
     var triggerContext="", energy="";
     if(!force){
       const judgeSys=fillTpl(up("gmJudge"),{user:state.user,sensitivity:state.gmSensitivity||"balanced"});
       const judgeOut=await chatCompletion([
         {role:"system",content:judgeSys},
-        {role:"user",content:(ctx?ctx+"\n\n":"")+`Recent exchange:\n${since}`}
+        {role:"user",content:(ctx?ctx+"\n\n":"")+`Recent exchange:\n${since}`+stagingBlock}
       ],state.gmModel,{temp:fnTemp("gm",0.2),max:fnTok("gm",120),dbg:"Gamemaster: judge"});
       const j=parseJSON(judgeOut);
       // The judge now reports TWO independent signals: staleness (the scene has stalled) and a
@@ -10335,7 +11075,7 @@ async function maybeGamemaster(chat,force){
     const offstageSheet=cast.filter(c=>!present.some(pc=>pc.id===c.id)).map(c=>c.name).join("; ");
     const nudge=await chatCompletion([
       {role:"system",content:authorSys},
-      {role:"user",content:(ctx?ctx+"\n\n":"")+`Characters present now: ${presentSheet}\n`+(offstageSheet?`Characters in this world who could arrive: ${offstageSheet}\n`:``)+`Day ${chat.gameDay||1}.\n\nRecent exchange:\n${since}`}
+      {role:"user",content:(ctx?ctx+"\n\n":"")+`Characters present now: ${presentSheet}\n`+(offstageSheet?`Characters in this world who could arrive: ${offstageSheet}\n`:``)+`Day ${chat.gameDay||1}.\n\nRecent exchange:\n${since}`+stagingBlock}
     ],state.gmModel,{temp:fnTemp("gm",0.9),max:fnTok("gm",160),dbg:"Gamemaster: event"});
     const clean=(nudge||"").trim().replace(/^["']|["']$/g,"");
     if(!clean)return;
@@ -10530,7 +11270,109 @@ function recordConfrontationAftermath(chat,ev){
   if(!memoriesOf(aid).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase())) state.memory.push(mem);
   persistMemory();
 }
-// Has this character already produced a turn SINCE the player's most recent message? Used to stop
+
+// ===== WARM SIBLINGS of the confrontation engine: the OVERTURE path =====
+// An overture reuses the SAME numeric field (ev.conviction) and the SAME machinery as a
+// confrontation, but the number means DISTANCE-FROM-LANDING: low = the offer is being accepted (the
+// warm win), high = it's being rebuffed. A receptive player turn LOWERS it; a cold turn RAISES it —
+// the same direction convention as confrontation, which is what lets one engine run both.
+async function runOvertureJudge(chat,ev,playerTurn){
+  if(!ev||ev.kind!=="overture")return 0;
+  const offerer=ev.accuserName||(ev.participant&&ev.participant.name)||"the one reaching out";
+  const sys=fillTpl(up("overtureJudge"),{
+    user:state.user, accuser:offerer, intent:ev.intent||ev.summary||"",
+    evidence:String(ev.evidence!=null?ev.evidence:0.5),
+    accuser_nature:ev.accuserNature||"ordinary; opens at a normal pace",
+    conviction:String((ev.conviction!=null?ev.conviction:0.6).toFixed(2)),
+    floor:String((ev.floor!=null?ev.floor:0).toFixed(2)),
+    ceiling:String((ev.ceiling!=null?ev.ceiling:1).toFixed(2)),
+    player_turn:(playerTurn||"(no response)").slice(0,600)
+  });
+  try{
+    const out=await chatCompletion([
+      {role:"system",content:sys},
+      {role:"user",content:`Score ${state.user}'s latest turn. Return the JSON.`}
+    ],state.gmModel,{temp:fnTemp("gm",0.1),max:fnTok("gm",120),dbg:"Overture judge"});
+    const j=parseJSON(out)||{};
+    let d=typeof j.delta==="number"?j.delta:0;
+    d=Math.max(-0.4,Math.min(0.4,d));
+    const floor=ev.floor!=null?ev.floor:0, ceil=ev.ceiling!=null?ev.ceiling:1;
+    const before=ev.conviction!=null?ev.conviction:0.6;
+    ev.conviction=Math.max(floor,Math.min(ceil,before+d));
+    const wc=String(j.player_warm_or_cold||"").toLowerCase();
+    ev._lastJudge={delta:d,reason:(j.reason||"").slice(0,200),cold:(wc==="cold")};
+    if(wc==="cold") ev._rebuffs=(ev._rebuffs||0)+1;
+    return ev.conviction-before;
+  }catch(e){ return 0; }
+}
+// Create an overture. The warm mirror of startConfrontation. `intent` is the warm thing the offerer
+// is acting on (a courtship, a wish to reconcile, a pledge of loyalty, an alliance, an offer of
+// protection). `evidence` is how genuine/strong the feeling is.
+function startOverture(chat,opts){
+  if(!chat||!state.sceneOn||state.confrontOn===false)return false;   // shares the confront toggle
+  if(chat.activeEvent && !chat.activeEvent.resolved)return false;    // never stack on a live event
+  opts=opts||{};
+  const offerer=opts.accuser; if(!offerer||!offerer.id)return false;
+  const evidence=Math.max(0,Math.min(1, opts.evidence!=null?opts.evidence:0.5));
+  // INVERTED floor/ceiling vs. confrontation. Here low=accepted, high=rebuffed.
+  // - floor stays near 0: a warm, receptive player CAN fully win them (offer fully lands).
+  // - ceiling is pulled DOWN by genuineness: a heartfelt offer can't be driven to total rejection
+  //   in the moment — even rebuffed, real feeling lingers. Strong feeling (0.9) → ceiling ~0.78;
+  //   a tentative gesture (0.3) → ceiling ~0.95 (easy to wave off completely).
+  const floor=0;
+  const ceiling=Math.max(0.6, Math.min(1, 1-(evidence-0.3)*0.3));
+  // Start partway from landing — a genuine offer opens with some hope already; weaker ones start
+  // more uncertain. (Higher evidence → starts LOWER, i.e. closer to landing.)
+  const startConv=Math.max(floor, Math.min(ceiling, opts.conviction!=null?opts.conviction:(0.65-evidence*0.25)));
+  const evMin=Math.max(2,state.sceneMin||3);
+  const ev={
+    kind:"overture",
+    valence:"warm",
+    summary:opts.summary||`${offerer.name} reaches out to ${state.user}`,
+    intent:opts.intent||opts.summary||`${offerer.name} wants to grow closer to ${state.user}`,
+    accuserId:offerer.id, accuserName:offerer.name,
+    accuserNature:opts.accuserNature||(offerer.personality?String(offerer.personality).slice(0,200):"ordinary; opens at a normal pace"),
+    evidence, conviction:startConv, floor, ceiling,
+    type:"character", turn:0, minTurns:evMin, maxTurns:Math.max(evMin,state.sceneMax||8),
+    resolved:false,
+    participant:{name:offerer.name,charId:offerer.id,temp:!!offerer.temp,approaching:true}
+  };
+  chat.activeEvent=ev;
+  persistChats();updateChatHeader();
+  Promise.resolve().then(async()=>{
+    try{
+      const broughtIn=await runSceneWriter(chat);
+      if(broughtIn) await playCharacterTurn(chat,broughtIn,"arriving");
+    }catch(e){}
+  });
+  return true;
+}
+// Persist how an overture landed: a warm memory for the offerer (accepted / gently declined / coldly
+// rebuffed). Mirrors recordConfrontationAftermath so layer 4 can read the aftermath and escalate or
+// let go. For an overture, LOW conviction = it landed.
+function recordOvertureAftermath(chat,ev){
+  if(!ev||ev.kind!=="overture")return;
+  const aid=ev.accuserId; if(!aid)return;
+  const ap=(state.personas||[]).find(p=>p.id===aid); if(!ap)return;
+  const c=ev.conviction!=null?ev.conviction:0.6;
+  const settled = c<=0.3
+    ? `I reached out to ${state.user} about ${ev.intent}. It landed — they met me warmly, and something real opened up.`
+    : c>=0.75
+    ? `I reached out to ${state.user} about ${ev.intent}. They rebuffed me. It stings, and I won't forget it.`
+    : `I reached out to ${state.user} about ${ev.intent}. It's left unsettled — neither embraced nor refused.`;
+  const mem={
+    id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
+    content:settled, location:(chat&&chat.location)||"",
+    emotion:c<=0.3?"warm":(c>=0.75?"hurt":"uncertain"),
+    importance:Math.max(0.55,Math.min(0.9, c<=0.3?(0.7+(0.3-c)):c)),
+    tags:["overture",ev._outcome||"unresolved"],
+    type:"EXPERIENCE", ownerId:aid, character:ap.name, date:Date.now(), gameDay:curGameDay(),
+    source:"overture", overtureOutcome:ev._outcome||"unresolved", residualReceptivity:c,
+    universeId:(chat&&chat.universeId)||state.curUniverse||null, chatId:(chat&&chat.id)||null
+  };
+  if(!memoriesOf(aid).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase())) state.memory.push(mem);
+  persistMemory();
+}
 // the Scene Writer from making an already-present, already-spoken character speak again in the same
 // turn (which produced duplicate/near-identical lines). Scans messages back to the last user line.
 function spokeSincePlayer(chat,charId){
@@ -10554,6 +11396,7 @@ async function runSceneWriter(chat){
     const stillHere=presentIds(chat).includes(ev.participant.charId);
     if(!stillHere){
       if(ev.kind==="confrontation"){ try{ ev._outcome="abandoned"; recordConfrontationAftermath(chat,ev); }catch(e){} }
+      else if(ev.kind==="overture"){ try{ ev._outcome="rebuffed"; recordOvertureAftermath(chat,ev); }catch(e){} }
       try{ await resolveActiveEvent(chat, ev._departHow || `${ev.participant.name} olay yerinden ayrıldı`); }catch(e){ chat.activeEvent=null; persistChats(); }
       return false;
     }
@@ -10591,6 +11434,19 @@ async function runSceneWriter(chat){
         `${ev.accuserName||(ev.participant&&ev.participant.name)||"The confronter"} is acting on: ${ev.intent||ev.summary}.\n`+
         `Their conviction is now ${band}. Write their words and manner to MATCH this exactly — if softening, show it (guarded relief, a half-step back); if hardening, show the pressure rising. Do NOT resolve warmly if conviction is still high, and do NOT stay furious if they've been genuinely reassured.`+
         (ev._lastJudge&&ev._lastJudge.reason?`\nWhy it moved: ${ev._lastJudge.reason}`:``);
+    }else if(ev.kind==="overture"){
+      // Warm mirror: the judge moves ev.conviction where LOW = the offer is landing. The band reads
+      // from the warm pole and the writer colours the offerer's manner to match how it's being met.
+      await runOvertureJudge(chat,ev,lastUserText);
+      const c=ev.conviction!=null?ev.conviction:0.6;
+      const band = c<=0.3?"landing — the offer is being met warmly; they're opening up, hopeful, drawing closer":
+                   c<=0.5?"warming — partly received; encouraged but not yet sure of their footing":
+                   c<=0.75?"uncertain — the warmth isn't being returned clearly; they're hesitating, exposed":
+                           "rebuffed — the offer is being refused; they're stung, pulling back, guarding the wound";
+      confrontGuidance=`\n\n# OVERTURE STATE (internal — never state these numbers in the scene)\n`+
+        `${ev.accuserName||(ev.participant&&ev.participant.name)||"They"} came to ${state.user} offering: ${ev.intent||ev.summary}.\n`+
+        `Their overture is now ${band}. Write their words and manner to MATCH this exactly — if landing, let warmth and relief show, let them step closer; if rebuffed, show the hurt and the retreat. This is NOT a confrontation: they are reaching out, not accusing. Do NOT have them press an accusation or demand answers. Do NOT force a warm ending if they're being rebuffed, and do NOT keep them cold once they've been genuinely met.`+
+        (ev._lastJudge&&ev._lastJudge.reason?`\nHow it was received: ${ev._lastJudge.reason}`:``);
     }
     const swMsgs=[{role:"system",content:sys+confrontGuidance+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(arriveNow?`\n\nThe event's character (${ev.participant.name}) is arriving — bring them fully into the room THIS turn with one entrance line and set "bring_in":"${ev.participant.name}".`:``)}];
     if(ctx)swMsgs.push({role:"user",name:"context",content:ctx});
@@ -10701,6 +11557,15 @@ async function runSceneWriter(chat){
       else if(force){ resolved=true; ev._outcome=(c>=0.6?"rupture":(c<=0.4?"defused":"unresolved")); }
       else { resolved=false; }   // stay open; conviction hasn't hit a threshold yet
     }
+    // OVERTURE: warm mirror. LOW conviction = the offer landed (accepted), HIGH = rebuffed. Same
+    // threshold structure, inverted meaning.
+    if(ev.kind==="overture" && !broughtIn){
+      const c=ev.conviction!=null?ev.conviction:0.6;
+      if(ev.turn>=ev.minTurns && c<=0.25){ resolved=true; ev._outcome="accepted"; }
+      else if(c>=ev.ceiling-0.001 && c>=0.7){ resolved=true; ev._outcome="rebuffed"; }
+      else if(force){ resolved=true; ev._outcome=(c<=0.4?"accepted":(c>=0.7?"rebuffed":"unresolved")); }
+      else { resolved=false; }
+    }
     if(resolved){
       // Count who would remain present after resolution (resolution may send the participant off).
       const presentNow=presentCast(chat);
@@ -10718,6 +11583,10 @@ async function runSceneWriter(chat){
         if(ev._outcome==="defused") how=j.resolution||`${state.user} talks them down; they let it go, though a faint doubt lingers`;
         else if(ev._outcome==="rupture") how=j.resolution||`it ends badly — they are not convinced, and act on it`;
         try{ recordConfrontationAftermath(chat,ev); }catch(e){}
+      }else if(ev.kind==="overture"){
+        if(ev._outcome==="accepted") how=j.resolution||`${state.user} meets them warmly; something opens between them`;
+        else if(ev._outcome==="rebuffed") how=j.resolution||`the offer is refused; they withdraw, stung`;
+        try{ recordOvertureAftermath(chat,ev); }catch(e){}
       }
       await resolveActiveEvent(chat,how);
     }
@@ -11651,8 +12520,8 @@ function saveSettings(notify){
   store.setRaw(K.steps,state.steps);
   store.setRaw(K.vidPrompt,state.vidPrompt);store.setRaw(K.vidDur,state.vidDur);store.setRaw(K.vidRes,state.vidRes);store.set(K.vidSound,state.vidSound);
   store.set(K.autoImg,state.autoImg);store.setRaw(K.rewritePrompt,state.rewritePrompt);
-  store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.gistBuild,state.gistBuild);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
-  store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);store.setRaw(K.memRecentCount,state.memRecentCount);store.setRaw(K.memDistantCount,state.memDistantCount);store.set(K.gossipOn,state.gossipOn);store.setRaw(K.gossipThreshold,state.gossipThreshold);store.setRaw(K.gossipMaxPerDay,state.gossipMaxPerDay);store.setRaw(K.gossipModel,state.gossipModel||"");store.setRaw(K.gossipPrompt,state.gossipPrompt);store.set(K.confrontOn,state.confrontOn);store.setRaw(K.confrontJudge,state.confrontJudge);store.set(K.intentOn,state.intentOn);store.setRaw(K.intentMax,state.intentMax);store.setRaw(K.intentForm,state.intentForm);store.setRaw(K.intentTick,state.intentTick);
+  store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.gistBuild,state.gistBuild);store.setRaw(K.poiGossip,state.poiGossip);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
+  store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);store.setRaw(K.memRecentCount,state.memRecentCount);store.setRaw(K.memDistantCount,state.memDistantCount);store.set(K.gossipOn,state.gossipOn);store.setRaw(K.gossipThreshold,state.gossipThreshold);store.setRaw(K.gossipMaxPerDay,state.gossipMaxPerDay);store.setRaw(K.gossipModel,state.gossipModel||"");store.setRaw(K.gossipPrompt,state.gossipPrompt);store.set(K.confrontOn,state.confrontOn);store.setRaw(K.confrontJudge,state.confrontJudge);store.setRaw(K.overtureJudge,state.overtureJudge);store.set(K.intentOn,state.intentOn);store.setRaw(K.intentMax,state.intentMax);store.setRaw(K.intentForm,state.intentForm);store.setRaw(K.intentTick,state.intentTick);store.setRaw(K.contemplate,state.contemplate);
   store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.setRaw(K.univPrompt,state.univPrompt);store.setRaw(K.directorAuthor,state.directorAuthor);store.setRaw(K.authorModel,state.authorModel||"");store.setRaw(K.promptTuner,state.promptTuner);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
   store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);store.setRaw(K.histTurns,state.histTurns);
   store.set(K.relOn,state.relOn);store.setRaw(K.relPrompt,state.relPrompt);store.setRaw(K.relShortPrompt,state.relShortPrompt);store.setRaw(K.relGenPrompt,state.relGenPrompt);store.setRaw(K.playerNarratePrompt,state.playerNarratePrompt);store.setRaw(K.playerNarrateModel,state.playerNarrateModel||"");store.set(K.trackOn,state.trackOn);store.setRaw(K.trackPrompt,state.trackPrompt);store.set(K.voiceCheckOn,state.voiceCheckOn);store.setRaw(K.voiceCheckPrompt,state.voiceCheckPrompt);store.set(K.recapOn,state.recapOn);
