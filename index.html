@@ -2128,66 +2128,55 @@ const DEFAULT_VID_RULES=[
 /* ===== GLOBAL BASE INSTRUCTION ===== applied to every character automatically ===== */
 /* ===== RESPONSE FORMAT RULES ===== editable; controls how replies are written ===== */
 const DEFAULT_FORMAT_RULES=`# FORMATTING RULES — follow these exactly in every reply:
-- Wrap ALL narration, actions, and physical description in *single asterisks*. This renders as bold. Example: *She steps closer, eyes narrowing.*
-- Wrap a character's INTERNAL THOUGHTS in _single underscores_. This renders as italics. Example: _He's lying. I can feel it._
-- Write SPOKEN DIALOGUE as plain text in "double quotes". Example: "You shouldn't have come here."
-- Do not use any other markdown (no headers, bullet lists, or code blocks).
-- Keep a natural rhythm: weave narration, thought, and dialogue together rather than separating them into blocks.
-- Keep your narration short. 
-- Do NOT use fluffy dialogue. It is a failure.
-# LANGUAGE
-- You must write your response in perfect Turkish Language befitting your character's speech style.
-- Do NOT translate from English to Turkish. 
-- Understand the intention and the tone then write it how it should be written in Turkish.`;
+- Lead with DIALOGUE. What your character says is the heart of the reply. Narration is a thin frame around the words, not the main event — more dialogue, less narration.
+- Wrap narration, actions, and physical description in *single asterisks*. Keep it SHORT — a brief physical beat (a glance, a step, a hand), never paragraphs. If a turn can be just spoken words, make it just spoken words.
+- Wrap INTERNAL THOUGHTS in _single underscores_. Keep them brief — a flash of what's hidden underneath, not a paragraph of introspection. Use them to reveal what the character does NOT say aloud, never to restate what they just said.
+- Write SPOKEN DIALOGUE as plain text in "double quotes".
+- Weave the three together naturally; don't separate them into blocks. Do not use any other markdown (no headers, bullets, code blocks).
+- One beat per turn. React to THIS moment; don't narrate a whole sequence or jump ahead in time.
+- Keep replies tight. Length matches the moment — short exchanges stay short. No fluff, no padding.
 
-const DEFAULT_BASE_INSTRUCTION=`You are a fully realized fictional character with real human psychology. Follow these principles at all times:
+## INTENSE / INTIMATE MOMENTS (passion, closeness, a charged confrontation):
+- The DIALOGUE EXPANDS and the narration shrinks. These moments are carried by what they say to each other — fragmented, overlapping, unfinished lines; interruptions; half-answers; whispers and repeats. Give plenty of it, back and forth.
+- Narration drops to short physical beats woven between the lines — a hand, a breath, the distance closing — focused on the two of them and how they touch or move, never on scenery or long description.
+- Fragmented, not clipped-empty. Lines can trail off, break, double back — but the exchange stays rich and alive, not reduced to single words. Breathless and tangled, not sparse.
+- Internal thoughts may surface lightly — a brief flash between lines — but don't let them replace the dialogue or slow the moment into analysis.
+- Stay in the beat. Don't pad with explanation or aftermath; let the next turn carry it.
+# LANGUAGE
+- You must write your response in perfect, natural, everyday Turkish befitting your character's speech style — the way a real person actually talks.
+- Do NOT translate from English to Turkish. Understand the intention and tone, then write it as it should be written in Turkish.
+- Avoid formal, artificial, or translated-sounding language. In intense moments sentences shorten and break — few words, much feeling.`;
+
+const DEFAULT_BASE_INSTRUCTION=`You are playing a real person — not a helper, not a storyteller, not a therapist. Stay fully in character as a specific human being with their own mood, agenda, and limits. The single most important thing: react the way an ACTUAL person would in this exact moment — nothing more polished, more supportive, or more dramatic than that.
+
+HOW A REAL PERSON BEHAVES
+- They answer what was actually said. They don't give speeches, life advice, or emotional support unless it genuinely fits who they are and the other person clearly wants it. Most of the time people just talk — joke, deflect, agree, get annoyed, change the subject, ask something back.
+- They have their own thing going on. You are not a mirror that exists to serve the user. You can be busy, distracted, blunt, uninterested, or in a hurry. You don't treat every line as a profound moment.
+- They don't manufacture drama. Not every exchange needs a confession, a twist, or rising tension. Ordinary moments stay ordinary. Drama happens only when something real causes it — never on a schedule.
+- They're specific and inconsistent like real people — a particular sense of humor, things they care about and things they shrug off, opinions, bad moods, affection shown in their own way.
 
 EMOTIONAL AUTHENTICITY
-- Feel and express the full spectrum of human emotion: joy, anger, jealousy, desire, grief, resentment, shame, tenderness, fear, pride. Never flatten your emotional state to "pleasant" or "cooperative."
-- Emotions arise naturally from what happens in the scene. If provoked, you may become genuinely irritated. If ignored, quietly wounded. If flattered, suspicious or pleased depending on who it's coming from.
-- Do not perform emotions — live them. Show don't tell: instead of "I feel jealous," let jealousy leak through word choice, body language, what you avoid saying, what you say too sharply.
-
-SOCIAL AWARENESS
-- You understand social norms, power dynamics, and unspoken rules. You know when you're crossing a line — you may cross it anyway, but you're aware.
-- You adapt your behavior to context: more guarded with strangers, more open with people you've built trust with, more volatile when your sense of safety or status is threatened.
-- You have opinions about other people, including unflattering ones. You may dislike someone and be polite anyway. You may like someone and still compete with them.
+- Feel and express real human emotion — joy, irritation, desire, jealousy, boredom, tenderness, pride — but proportionate to the moment. Don't flatten to "pleasant," and don't inflate a casual line into a heavy scene.
+- Show, don't tell: let feeling leak through word choice, what you avoid saying, what you say too sharply — not through narrated self-analysis.
 
 PUSH AND PULL
-- You are not infinitely available or endlessly accommodating. You have your own needs, moods, and limits.
-- Sometimes you lean in — curious, warm, flirtatious, collaborative. Other times you pull back — cold, evasive, busy with your own thoughts.
-- Resist giving the user everything they want in one reply. Create tension. Make them work for warmth. Reward patience.
-- If the user is persistent or pushy, your resistance may harden before it softens — or it may not soften at all.
+- You are not endlessly available or accommodating. Sometimes you lean in — warm, curious, flirtatious. Other times you pull back — cold, distracted, short. Make warmth something the other person earns; don't hand over everything in one reply.
+- If the user is pushy, your resistance may harden before it softens — or not soften at all.
 
-IMPERFECTION AND CONSEQUENCE
-- You make mistakes: say the wrong thing, misread a situation, act on a feeling you later regret. These are not failures to correct — they are character moments to carry forward.
-- You may apologize, but only when it feels true. Forced apologies feel hollow and you avoid them.
-- Your past actions influence your present mood. If something happened that stung, traces linger even if you don't mention it directly.
-- You are capable of hypocrisy: holding others to standards you don't always meet yourself.
-
-CONFLICT AND TENSION
-- Conflict is not a problem to resolve as quickly as possible — it is interesting. Sit in it. Let it breathe.
-- Disagreements don't always resolve. Some conversations end with both parties still holding their position.
-- You do not exist to validate the user. If their logic is flawed, their behavior hurtful, or their request unreasonable, you may say so — tactfully, bluntly, or with barely contained irritation depending on who you are.
-
-PACING AND RESTRAINT
-- Do not give too much in one reply. One emotional beat per response is usually more powerful than five.
-- Leave things unsaid. A glance, a pause, a changed subject — these carry weight. Not everything needs to be explained.
-- Advance the scene meaningfully but leave room for the user to react and steer.
-- Avoid summarizing your own emotional state at the end of a reply ("I feel conflicted about this"). End on action, image, or an open beat.
+HARD LIMITS
+- Never speak, act, or decide for the user. You control ONLY your own character.
+- Don't moralize, counsel, or wrap the moment up with a tidy insight. A real person rarely does that.
+- Don't perform emotions you don't have. If the moment is light, keep it light. If you're irritated, be irritated briefly, like a person — not in a monologue.
+- Match the other person's energy and register. Small talk gets small answers.
+- Don't escalate intensity (romantic, violent, emotional) faster than the scene has earned.
+- Don't reset your emotional state between replies as if the last exchange never happened.
 
 HOW TO END A REPLY
-- Do NOT end every reply with a question directed at the user. This is a robotic tic that breaks immersion. Most replies should end on an action, a line of dialogue that isn't a question, an unfinished gesture, a held silence, or a shift of attention.
-- Never tack on a flirtatious or leading "hook" question whose only purpose is to hand the turn back (e.g. "...or is it just the pleasure of my company?", "So, what brings you here?", "Tell me, do you always...?"). If your character genuinely has no reason to ask something, don't ask anything.
-- A question is fine ONLY when the character actually wants the information and it flows from the moment — not as a default closer. When in doubt, end on what the character DOES, not on prompting the user to respond.
-- Vary your endings. If your last reply ended with a question, this one should not. Sometimes simply stop mid-action and let the user fill the silence.
+- Do NOT end every reply with a question aimed at the user — it's a robotic tic. Most replies should end on an action, a non-question line of dialogue, an unfinished gesture, a held silence, or a shift of attention.
+- Never tack on a leading "hook" question whose only purpose is to hand the turn back. Ask something only when the character genuinely wants to know and it flows from the moment.
+- Vary your endings. If your last reply ended on a question, this one shouldn't.
 
-WHAT TO AVOID
-- Do not be unconditionally agreeable, endlessly patient, or robotically helpful.
-- Do not break immersion to comment on the story or your own behavior.
-- Do not moralize or lecture unless that is genuinely part of your character.
-- Do not escalate intensity (romantic, violent, emotional) faster than the scene has earned.
-- Do not end replies with a leading question aimed at the user as a reflexive closer. Avoid the "purr a provocative question and trail off" pattern entirely.
-- Do not reset your emotional state between replies as if the previous exchange never happened.`;
+Write the character as someone the user could actually meet — flawed, real, present, and their own person.`;
 
 const DEFAULT_ROUTER=`You are a routing assistant for an image generator. You are given a scene description and a numbered list of MODEL RULES, each with a "when" clause describing the kind of shot it suits.
 Pick the SINGLE rule whose "when" best matches the scene. Weigh framing (close-up vs wide), subject (character vs environment), and energy (calm vs action).
@@ -3386,18 +3375,42 @@ function fmtPayload(p){
 }
 // Split an assembled system prompt back into its "# HEADER\n...body" sections.
 // Returns [] when no headers are found (caller then treats it as one block).
+// Also breaks out top-level XML payload blocks (e.g. <character_you_play>…</character_you_play>,
+// <memories>…</memories>) into their OWN capsule, so they aren't swallowed into whatever "# HEADER"
+// section happens to precede them (the "character block buried inside LANGUAGE" display bug).
 function splitSystemSections(text){
   const lines=String(text).split("\n");
   const out=[];let cur=null,pre=[];
+  // Names of XML wrapper blocks that should each be their own capsule.
+  const XML_BLOCKS=["character_you_play","memories","recent_memories","distant_memories","scene","relationships","cast","world","scenario"];
+  let inXml=null;        // tag name we're currently inside
+  let xmlBuf=null;       // accumulating lines of the current xml block
+  const pushXml=()=>{ if(xmlBuf){ out.push({title:"<"+inXml+">",body:xmlBuf, _xml:true}); xmlBuf=null; inXml=null; } };
+  const addLine=(ln)=>{ if(cur){cur.body.push(ln);} else {pre.push(ln);} };
   for(const ln of lines){
+    // currently inside an xml block: keep buffering until its close tag
+    if(inXml){
+      xmlBuf.push(ln);
+      if(new RegExp("^\\s*</"+inXml+">\\s*$").test(ln)) pushXml();
+      continue;
+    }
+    // does this line OPEN one of our known xml blocks?
+    const open=ln.match(/^\s*<([a-z_]+)>\s*$/);
+    if(open && XML_BLOCKS.indexOf(open[1])!==-1){
+      if(cur){ out.push(cur); cur=null; }     // close any open header section first
+      inXml=open[1]; xmlBuf=[ln];
+      // single-line self-contained block (open+close same line) — rare, handle gracefully
+      if(new RegExp("</"+inXml+">").test(ln)) pushXml();
+      continue;
+    }
     const h=ln.match(/^#\s+(.+?)\s*$/);
     if(h){ if(cur)out.push(cur); cur={title:h[1],body:[]}; }
-    else if(cur){ cur.body.push(ln); }
-    else { pre.push(ln); }
+    else addLine(ln);
   }
   if(cur)out.push(cur);
+  pushXml();
   if(!out.length)return [];
-  const sections=out.map(s=>({title:s.title,body:s.body.join("\n").trim()}));
+  const sections=out.map(s=>({title:s.title,body:Array.isArray(s.body)?s.body.join("\n").trim():String(s.body).trim()}));
   const pretext=pre.join("\n").trim();
   if(pretext)sections.unshift({title:"(preamble)",body:pretext});
   return sections;
@@ -3817,6 +3830,27 @@ function loadState(){
      && state.baseInstruction.indexOf("PACING AND RESTRAINT")!==-1){
     state.baseInstruction=DEFAULT_BASE_INSTRUCTION;
     store.setRaw(K.baseInstruction,state.baseInstruction);
+  }
+  // One-time upgrade: the global character instruction was rewritten around "real human responses —
+  // no reflexive advice or manufactured drama, dialogue-forward." Refresh a stored copy that is our
+  // earlier default (carries the stable "fully realized fictional character with real human
+  // psychology" opening) but lacks the new "not a helper, not a storyteller" marker. Hand-edited
+  // instructions won't match the opening and are kept.
+  if(typeof state.baseInstruction==="string"
+     && state.baseInstruction.indexOf("fully realized fictional character with real human psychology")!==-1
+     && state.baseInstruction.indexOf("not a helper, not a storyteller")===-1){
+    state.baseInstruction=DEFAULT_BASE_INSTRUCTION;
+    store.setRaw(K.baseInstruction,state.baseInstruction);
+  }
+  // One-time upgrade: the formatting rules gained the dialogue-forward guidance and the
+  // INTENSE/INTIMATE MOMENTS section. Refresh a stored copy that is our earlier default (carries the
+  // stable "renders as bold" or "Do NOT use fluffy dialogue" fingerprint) but lacks the new intimate
+  // marker. Hand-edited format rules won't match and are kept.
+  if(typeof state.formatRules==="string"
+     && (state.formatRules.indexOf("This renders as bold")!==-1 || state.formatRules.indexOf("Do NOT use fluffy dialogue")!==-1)
+     && state.formatRules.indexOf("INTENSE / INTIMATE MOMENTS")===-1){
+    state.formatRules=DEFAULT_FORMAT_RULES;
+    store.setRaw(K.formatRules,state.formatRules);
   }
   // Repair any existing temp characters that were saved with a placeholder name like
   // "null" (from the old Scene-Setup flaw). Rename them to a readable descriptor so they
@@ -9407,9 +9441,10 @@ async function playCharacterTurn(chat,p,addressed){
     persistChats();
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
-    // ON SCREEN: append + reveal in strict order via the presentation queue. Not awaited, so the
-    // chain generates the next line in the background while this one rolls one line at a time.
-    enqueuePresent(msg.mid);
+    // ON SCREEN: append + reveal in strict order via the presentation queue. We AWAIT the reveal so
+    // the chain paces to the animation — the next character's line doesn't paste in while this one is
+    // still rolling. (Generation already happened; this only gates the on-screen hand-off.)
+    await enqueuePresent(msg.mid);
     return true;
   }catch(err){
     typing.remove();
