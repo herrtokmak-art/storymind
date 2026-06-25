@@ -2175,11 +2175,8 @@ const DEFAULT_FORMAT_RULES=`# FORMATTING RULES — follow these exactly in every
 - Keep replies tight. Length matches the moment — short exchanges stay short. No fluff, no padding.
 
 ## INTENSE / INTIMATE MOMENTS (passion, closeness, a charged confrontation):
-- The DIALOGUE EXPANDS and the narration shrinks. These moments are carried by what they say to each other — fragmented, overlapping, unfinished lines; interruptions; half-answers; whispers and repeats. Give plenty of it, back and forth.
-- Narration drops to short physical beats woven between the lines — a hand, a breath, the distance closing — focused on the two of them and how they touch or move, never on scenery or long description.
-- Fragmented, not clipped-empty. Lines can trail off, break, double back — but the exchange stays rich and alive, not reduced to single words. Breathless and tangled, not sparse.
-- Internal thoughts may surface lightly — a brief flash between lines — but don't let them replace the dialogue or slow the moment into analysis.
-- Stay in the beat. Don't pad with explanation or aftermath; let the next turn carry it.
+- Give MORE dialogue, not less — fragmented, overlapping, unfinished lines; interruptions; half-answers; whispers. Narration shrinks to short physical beats between the lines (a hand, a breath, the distance closing) — never scenery.
+- Keep it tangled and alive, not single words. Don't pad with aftermath or analysis; let the next turn carry it.
 # LANGUAGE
 - You must write your response in perfect, natural, everyday Turkish befitting your character's speech style — the way a real person actually talks.
 - Do NOT translate from English to Turkish. Understand the intention and tone, then write it as it should be written in Turkish.
@@ -2210,9 +2207,7 @@ HARD LIMITS
 - Don't reset your emotional state between replies as if the last exchange never happened.
 
 HOW TO END A REPLY
-- Do NOT end every reply with a question aimed at the user — it's a robotic tic. Most replies should end on an action, a non-question line of dialogue, an unfinished gesture, a held silence, or a shift of attention.
-- Never tack on a leading "hook" question whose only purpose is to hand the turn back. Ask something only when the character genuinely wants to know and it flows from the moment.
-- Vary your endings. If your last reply ended on a question, this one shouldn't.
+- Don't reflexively end on a question to the user — it's a robotic tic. Vary your endings: an action, a non-question line, an unfinished gesture, a held silence. Ask only when the character truly wants to know.
 
 Write the character as someone the user could actually meet — flawed, real, present, and their own person.`;
 
@@ -8348,7 +8343,7 @@ function charBioBlock(c,opts){
   if(c.backstory)    L.push(`  <backstory>${c.backstory}</backstory>`);
   if(c.style)        L.push(`  <speaking_style>${c.style}</speaking_style>`);
   if(c.look)         L.push(`  <appearance>${c.look}</appearance>`);
-  if(opts.locLine)   L.push(`  <home_base>${opts.locLine.replace(/^Location:\s*/,"")} (their usual/default location — NOT necessarily where they are this turn; the live SCENE RIGHT NOW below is authoritative for current location)</home_base>`);
+  if(opts.locLine)   L.push(`  <home_base>${opts.locLine.replace(/^Location:\s*/,"")}</home_base>`);
   return `${who}\n${L.join("\n")}`;
 }
 function buildSystemPrompt(injectedMemories){
@@ -8556,6 +8551,7 @@ function buildTailGuidance(opts){
       othersHere=present.length?present.join(", "):"";
     }catch(e){}
     let sn=`# SCENE RIGHT NOW\n${ssBits.join(", ")}.`;
+    if(chat.location&&chat.location.trim())sn+=` (This location is authoritative for this turn — it overrides any usual or home location.)`;
     sn+=othersHere?`\nAlso physically present with you: ${othersHere}.`:`\nYou are alone with ${targetName||state.user} right now.`;
     // shared/visible trackers, so consequences stay live in the model's mind at generation time
     try{ const tc=trackerContext(chat, selfId||"__shared__"); if(tc)sn+=`\n${tc}`; }catch(e){}
@@ -8965,7 +8961,7 @@ function openCast(){
   cast.forEach(p=>{
     const present=chat.presentIds.includes(p.id);
     const row=document.createElement('div');row.className="card";row.style.cssText="flex-direction:row;align-items:center;gap:10px;padding:10px";
-    row.innerHTML=`<span class="av" style="font-size:22px">${esc(p.avatar||"🎭")}</span>
+    row.innerHTML=`<span class="avatarChip lg" style="font-size:22px">${p.image?`<img src="${esc(p.image)}" alt="">`:esc(p.avatar||"🎭")}</span>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600">${esc(p.name)}</div>
         <div class="desc" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${present?"🟢 nearby":"⚪ away"} · ${esc((p.look||p.personality||"").slice(0,34))}</div>
