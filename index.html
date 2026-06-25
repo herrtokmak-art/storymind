@@ -10,24 +10,32 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>StoryMind</title>
-<meta name="theme-color" content="#0D0F14">
+<meta name="theme-color" content="#0B0810">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="StoryMind">
 <!-- App icon: inline SVG data-URI so the whole app stays one self-contained file. -->
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230D0F14'/%3E%3Ccircle cx='256' cy='256' r='150' fill='none' stroke='%236B8CFF' stroke-width='18'/%3E%3Ctext x='256' y='330' font-size='200' text-anchor='middle' fill='%236B8CFF'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230D0F14'/%3E%3Ctext x='256' y='360' font-size='300' text-anchor='middle'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230B0810'/%3E%3Ccircle cx='256' cy='256' r='150' fill='none' stroke='%23E0489E' stroke-width='18'/%3E%3Ctext x='256' y='330' font-size='200' text-anchor='middle' fill='%23E0489E'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230B0810'/%3E%3Ctext x='256' y='360' font-size='300' text-anchor='middle'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
 <style>
   :root{
-    --bg:#0D0F14; --surface:#161920; --card:#1E2130; --user:#2D4A8A;
-    --ai:#1A1E2E; --accent:#6B8CFF; --text:#F0F2FF; --muted:#8B91A8;
-    --danger:#E5484D; --good:#3DD68C; --border:#262A38;
+    --bg:#0B0810; --surface:#161320; --card:#1E1A2C; --user:#7A2E8F;
+    --ai:#181426; --accent:#E0489E; --accent2:#8B5CF6; --text:#F4F0FA; --muted:#9A93AD;
+    --danger:#E5484D; --good:#3DD68C; --border:#2A2438;
+    --grad:linear-gradient(135deg,#E0489E 0%,#8B5CF6 100%);
+    --grad-soft:linear-gradient(135deg,rgba(224,72,158,.18),rgba(139,92,246,.18));
+    --glow:0 0 0 1px rgba(224,72,158,.35),0 8px 28px -6px rgba(224,72,158,.45);
+    --accent-rgb:224,72,158; --accent2-rgb:139,92,246;
   }
   [data-theme="light"]{
-    --bg:#F5F6FA; --surface:#FFFFFF; --card:#ECEEF5; --user:#4F6FD8;
-    --ai:#FFFFFF; --accent:#4F6FD8; --text:#1A1E2E; --muted:#6B7280;
-    --danger:#D92D20; --good:#15803D; --border:#E2E5EE;
+    --bg:#F7F5FB; --surface:#FFFFFF; --card:#F1EDF8; --user:#B5439A;
+    --ai:#FFFFFF; --accent:#C0277F; --accent2:#7C3AED; --text:#1C1726; --muted:#6B6478;
+    --danger:#D92D20; --good:#15803D; --border:#E7E1F0;
+    --grad:linear-gradient(135deg,#C0277F 0%,#7C3AED 100%);
+    --grad-soft:linear-gradient(135deg,rgba(192,39,127,.10),rgba(124,58,237,.10));
+    --glow:0 0 0 1px rgba(192,39,127,.25),0 8px 24px -8px rgba(192,39,127,.35);
+    --accent-rgb:192,39,127; --accent2-rgb:124,58,237;
   }
   /* Inline line-icon system: thin monochrome SVGs that inherit text color & font size, so they sit
      in headers, buttons and labels like a glyph. Replaces emoji chrome for a cleaner look. */
@@ -48,11 +56,12 @@
   .avatarChip img{width:100%;height:100%;object-fit:cover;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;overflow:hidden;}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100dvh;font-size:16px;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100dvh;font-size:16px;
+      background-image:radial-gradient(ellipse 90% 50% at 50% -8%,rgba(var(--accent-rgb),.14),transparent 60%),radial-gradient(ellipse 70% 50% at 100% 0%,rgba(var(--accent2-rgb),.10),transparent 55%);background-attachment:fixed;}
   .screen{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;flex-direction:column;}
   .screen.active{display:flex;}
   #screen-chat{position:relative;}
-  header{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-weight:600;font-size:17px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;position:relative;}
+  header{padding:12px 16px;background:rgba(var(--accent-rgb),.04);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);border-bottom:1px solid var(--border);font-weight:600;font-size:17px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;position:relative;}
   header .hl{display:flex;align-items:center;gap:10px;min-width:0;}
   header .hl{flex:1;}
   .chatActions{display:flex;gap:6px;flex-shrink:0;align-items:center;}
@@ -62,14 +71,16 @@
   .chatMenu button:active{background:var(--surface);}
   header .av{font-size:26px;}
   header .sub{font-size:12px;color:var(--muted);font-weight:400;}
-  nav{display:flex;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;}
-  nav button{flex:1;background:none;border:none;color:var(--muted);padding:9px 4px 11px;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
-  nav button.active{color:var(--accent);}
-  nav button .ico{font-size:20px;}
+  nav{display:flex;background:rgba(var(--accent-rgb),.05);backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3);border-top:1px solid var(--border);flex-shrink:0;padding:4px 4px env(safe-area-inset-bottom,4px);}
+  nav button{flex:1;background:none;border:none;color:var(--muted);padding:8px 4px 9px;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:14px;transition:color .15s,background .15s;position:relative;}
+  nav button.active{color:#fff;}
+  nav button.active .ico{background:var(--grad);box-shadow:var(--glow);}
+  nav button .ico{font-size:18px;width:38px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:12px;transition:.18s;}
+  [data-theme="light"] nav button.active{color:var(--accent);}
   /* chat */
   #chatList{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;}
   .bubble{max-width:88%;padding:12px 14px;border-radius:20px;line-height:1.5;word-wrap:break-word;}
-  .bubble.user{align-self:flex-end;background:var(--user);color:#fff;border-bottom-right-radius:6px;max-width:82%;}
+  .bubble.user{align-self:flex-end;background:var(--grad);color:#fff;border-bottom-right-radius:6px;max-width:82%;box-shadow:0 6px 18px -8px rgba(var(--accent-rgb),.6);}
   .bubble.ai{align-self:flex-start;background:var(--ai);border:1px solid var(--border);border-bottom-left-radius:6px;width:88%;}
   .bubble .meta{font-size:11px;color:var(--muted);margin-bottom:5px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
   .chatAv{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);}
@@ -90,29 +101,32 @@
   .typing span{display:inline-block;width:7px;height:7px;margin:0 2px;background:var(--muted);border-radius:50%;animation:blink 1.2s infinite;}
   .typing span:nth-child(2){animation-delay:.2s;}.typing span:nth-child(3){animation-delay:.4s;}
   @keyframes blink{0%,60%,100%{opacity:.25;}30%{opacity:1;}}
-  .inputBar{display:flex;gap:8px;padding:10px 12px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;align-items:flex-end;}
+  .inputBar{display:flex;gap:8px;padding:10px 12px;background:rgba(var(--accent-rgb),.04);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);border-top:1px solid var(--border);flex-shrink:0;align-items:flex-end;}
   .inputBar textarea{flex:1;resize:none;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:18px;padding:11px 14px;font-size:16px;font-family:inherit;max-height:120px;line-height:1.3;}
-  .iconBtn{background:var(--accent);color:#fff;border:none;width:44px;height:44px;border-radius:50%;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
-  #autoRpBtn{background:var(--surface);color:var(--muted);}
-  #autoRpBtn.on{background:var(--accent);color:#fff;}
+  .inputBar textarea:focus{outline:none;border-color:rgba(var(--accent-rgb),.6);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.12);}
+  .iconBtn{background:var(--grad);color:#fff;border:none;width:44px;height:44px;border-radius:50%;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:var(--glow);}
+  #autoRpBtn{background:var(--surface);color:var(--muted);box-shadow:none;border:1px solid var(--border);}
+  #autoRpBtn.on{background:var(--grad);color:#fff;box-shadow:var(--glow);border-color:transparent;}
   .iconBtn:disabled{opacity:.4;}
   /* generic */
   .pad{padding:16px;display:flex;flex-direction:column;gap:14px;}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 16px -10px rgba(0,0,0,.5);}
   .card h3{margin:0;font-size:15px;}
   .card .desc{font-size:13px;color:var(--muted);}
   label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px;}
   input[type=text],input[type=password],textarea.fld,select{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:11px 12px;font-size:15px;font-family:inherit;}
+  input[type=text]:focus,input[type=password]:focus,textarea.fld:focus,select:focus{outline:none;border-color:rgba(var(--accent-rgb),.6);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.12);}
   textarea.fld{resize:vertical;min-height:64px;}
-  .btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:12px;font-size:15px;font-weight:600;cursor:pointer;width:100%;}
-  .btn.sec{background:var(--surface);border:1px solid var(--border);color:var(--text);}
+  .btn{background:var(--grad);color:#fff;border:none;border-radius:12px;padding:12px;font-size:15px;font-weight:600;cursor:pointer;width:100%;box-shadow:0 4px 14px -6px rgba(var(--accent-rgb),.55);}
+  .btn:active{transform:translateY(1px);}
+  .btn.sec{background:var(--surface);border:1px solid var(--border);color:var(--text);box-shadow:none;}
   .btn.danger{background:var(--danger);}
   .btn.small{width:auto;padding:8px 14px;font-size:13px;}
   .row{display:flex;gap:8px;}
   .pill{font-size:11px;padding:3px 8px;border-radius:10px;background:var(--surface);border:1px solid var(--border);color:var(--muted);}
   .seg{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
   .seg button{flex:1;padding:10px;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;}
-  .seg button.on{background:var(--accent);color:#fff;}
+  .seg button.on{background:var(--grad);color:#fff;}
   input[type=range]{width:100%;accent-color:var(--accent);}
   .kvline{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0;}
   .acc summary{cursor:pointer;font-size:14px;font-weight:600;padding:6px 0;}
@@ -146,7 +160,7 @@
   .statusStrip .ss-trk{color:var(--text);opacity:.7;}
   .relCard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin:6px 0;}
   .relWho{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .relTag{font-size:10px;font-weight:600;color:var(--accent);background:rgba(124,131,253,.12);padding:2px 8px;border-radius:20px;text-transform:lowercase;}
+  .relTag{font-size:10px;font-weight:600;color:var(--accent);background:rgba(var(--accent-rgb),.12);padding:2px 8px;border-radius:20px;text-transform:lowercase;}
   .relDesc{font-size:12.5px;line-height:1.45;color:var(--text);margin:5px 0 8px;opacity:.92;}
   .relAxes{display:flex;flex-direction:column;gap:3px;}
   .relFacet{display:flex;flex-direction:column;gap:1px;margin:8px 0 3px;font-size:12px;line-height:1.4;}
@@ -158,7 +172,7 @@
   .relBar{position:relative;flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden;}
   .relBar::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.18);}
   .relBarFill{position:absolute;top:0;bottom:0;left:0;border-radius:3px;}
-  .calBadge{position:absolute;top:-4px;right:-4px;background:var(--accent);color:#fff;font-size:9px;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
+  .calBadge{position:absolute;top:-4px;right:-4px;background:var(--grad);color:#fff;font-size:9px;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
   .empty .big{font-size:48px;}
   .toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);color:var(--text);padding:11px 18px;border-radius:24px;font-size:14px;z-index:200;opacity:0;transition:.25s;pointer-events:none;max-width:88%;text-align:center;}
   .toast.show{opacity:1;}
@@ -179,15 +193,16 @@
   /* ---- modern character grid (chatbot-style cards) ---- */
   .charGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
   @media(min-width:560px){.charGrid{grid-template-columns:repeat(3,1fr);}}
-  .charCard{position:relative;border-radius:18px;overflow:hidden;background:var(--card);border:1px solid var(--border);cursor:pointer;aspect-ratio:3/4;display:flex;flex-direction:column;justify-content:flex-end;transition:transform .12s ease,border-color .12s ease;}
+  .charCard{position:relative;border-radius:18px;overflow:hidden;background:var(--card);border:1px solid var(--border);cursor:pointer;aspect-ratio:3/4;display:flex;flex-direction:column;justify-content:flex-end;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;}
   .charCard:active{transform:scale(.975);}
+  @media(hover:hover){.charCard:hover{transform:translateY(-3px);box-shadow:0 14px 30px -12px rgba(var(--accent-rgb),.5);border-color:rgba(var(--accent-rgb),.45);}}
   .charCard .cc-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
-  .charCard .cc-emoji{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:70px;background:radial-gradient(circle at 50% 35%,rgba(107,140,255,.25),transparent 70%);}
+  .charCard .cc-emoji{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:70px;background:radial-gradient(circle at 50% 35%,rgba(var(--accent-rgb),.30),rgba(var(--accent2-rgb),.12) 55%,transparent 75%);}
   .charCard .cc-grad{position:absolute;left:0;right:0;bottom:0;height:62%;background:linear-gradient(to top,rgba(0,0,0,.88),rgba(0,0,0,.45) 45%,transparent);}
   .charCard .cc-info{position:relative;padding:11px 12px 12px;z-index:2;}
   .charCard .cc-name{color:#fff;font-weight:700;font-size:15px;line-height:1.2;display:flex;align-items:center;gap:6px;text-shadow:0 1px 3px rgba(0,0,0,.6);}
   .charCard .cc-desc{color:rgba(255,255,255,.8);font-size:11.5px;line-height:1.35;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 2px rgba(0,0,0,.6);}
-  .charCard .cc-active{position:absolute;top:9px;left:9px;z-index:3;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;}
+  .charCard .cc-active{position:absolute;top:9px;left:9px;z-index:3;background:var(--grad);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;box-shadow:0 2px 10px -2px rgba(var(--accent-rgb),.7);}
   .charCard .cc-edit{position:absolute;top:7px;right:7px;z-index:3;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
   .charCard.add{align-items:center;justify-content:center;border-style:dashed;}
   .charCard.add .cc-plus{font-size:40px;color:var(--muted);}
@@ -238,6 +253,8 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
 <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
 <symbol id="i-chart" viewBox="0 0 24 24"><line x1="3" y1="3" x2="3" y2="21"/><line x1="3" y1="21" x2="21" y2="21"/><rect x="7" y="11" width="3" height="7"/><rect x="13" y="7" width="3" height="11"/></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
 <symbol id="i-masks" viewBox="0 0 24 24"><path d="M3 5h8v6a4 4 0 0 1-8 0z"/><path d="M13 9h8v6a4 4 0 0 1-8 0z" opacity=".55"/></symbol>
 <symbol id="i-scale" viewBox="0 0 24 24"><line x1="12" y1="3" x2="12" y2="21"/><line x1="7" y1="21" x2="17" y2="21"/><path d="M6 7h12"/><path d="M6 7l-3 6h6z"/><path d="M18 7l-3 6h6z"/></symbol>
 <symbol id="i-brain" viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 1 4 3 3 0 0 0 3 4 2 2 0 0 0 3-1.7V5.7A2 2 0 0 0 9 4z"/><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-1 4 3 3 0 0 1-3 4 2 2 0 0 1-3-1.7V5.7A2 2 0 0 1 15 4z" opacity=".55"/></symbol>
@@ -321,25 +338,24 @@
 <div class="screen active" id="screen-chat">
   <header>
     <div class="hl">
-      <span class="av" id="chatAv">🌙</span>
       <div style="min-width:0">
         <div id="chatName">Character</div>
         <div class="sub" id="chatScene" onclick="setSceneState()" style="cursor:pointer">—</div>
       </div>
     </div>
     <div class="chatActions">
-      <button class="btn sec small" onclick="openCalendar()" style="position:relative" title="Calendar"><svg class="ic"><use href="#i-calendar"/></svg><span id="calBadge" class="calBadge" style="display:none"></span></button>
-      <button class="btn sec small" onclick="openTravel()" title="Travel"><svg class="ic"><use href="#i-map"/></svg></button>
-      <button class="btn sec small" onclick="toggleChatMenu(event)" title="More">⋯</button>
+      <button class="btn sec small" onclick="toggleChatMenu(event)" title="Menu" style="position:relative">Menu <svg class="ic"><use href="#i-chevron-down"/></svg><span id="calBadge" class="calBadge" style="display:none"></span></button>
     </div>
     <div id="chatMenu" class="chatMenu hide">
+      <button onclick="openCalendar();closeChatMenu()"><svg class="ic"><use href="#i-calendar"/></svg> Calendar</button>
+      <button onclick="openTravel();closeChatMenu()"><svg class="ic"><use href="#i-map"/></svg> Travel</button>
       <button onclick="forceGamemaster();closeChatMenu()"><svg class="ic"><use href="#i-film"/></svg> Nudge the story (Gamemaster)</button>
       <button onclick="manualConfront();closeChatMenu()"><svg class="ic"><use href="#i-scale"/></svg> Trigger a confrontation</button>
       <button onclick="endDay();closeChatMenu()"><svg class="ic"><use href="#i-moon"/></svg> End Day</button>
       <button onclick="openStoryState();closeChatMenu()"><svg class="ic"><use href="#i-chart"/></svg> Story State</button>
       <button onclick="openCast();closeChatMenu()"><svg class="ic"><use href="#i-masks"/></svg> Nearby characters</button>
       <button onclick="setSceneState();closeChatMenu()"><svg class="ic"><use href="#i-clock"/></svg> Set time / place</button>
-      <button onclick="restartScene();closeChatMenu()">↺ Restart scene</button>
+      <button onclick="restartScene();closeChatMenu()"><svg class="ic"><use href="#i-refresh"/></svg> Restart scene</button>
     </div>
   </header>
   <div id="recapBanner" class="hide"></div>
@@ -361,7 +377,7 @@
     </div>
     <!-- inside a single universe -->
     <div id="charsView" class="hide" style="flex-direction:column;gap:14px;display:flex">
-      <button class="btn sec small" style="width:auto;align-self:flex-start" onclick="closeUniverse()">← All universes</button>
+      <button class="btn sec small" style="width:auto;align-self:flex-start" onclick="closeUniverse()"><svg class="ic"><use href="#i-arrow-up" style="transform:rotate(-90deg)"/></svg> All universes</button>
       <div class="card">
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:30px" id="uvAv">🌌</span>
@@ -967,7 +983,7 @@
     <textarea class="fld" id="peEditText" style="min-height:240px"></textarea>
     <div class="row" style="margin-top:4px">
       <button class="btn sec" type="button" onclick="openWriteAi()"><svg class="ic"><use href="#i-sparkle"/></svg> Write with AI</button>
-      <button class="btn sec" type="button" id="peEditReset" onclick="promptEditReset()">↺ Reset to default</button>
+      <button class="btn sec" type="button" id="peEditReset" onclick="promptEditReset()"><svg class="ic"><use href="#i-refresh"/></svg> Reset to default</button>
     </div>
     <div class="row">
       <button class="btn sec" onclick="closeModal('promptEditModal')">Cancel</button>
@@ -1448,7 +1464,7 @@ function exportData(includeKeys){
     a.href=url;a.download=`storymind-backup-${stamp}.json`;
     document.body.appendChild(a);a.click();
     setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1500);
-    toast("Backup downloaded ✓");
+    toast("Backup downloaded");
   }catch(e){toast("Export failed: "+(e.message||e));}
 }
 function triggerImport(){
@@ -1483,7 +1499,7 @@ function handleImportFile(input){
         if(typeof v!=="string")v=JSON.stringify(v); // tolerate already-parsed values
         localStorage.setItem(k,v);
       });
-      toast("Restored ✓ Reloading…");
+      toast("Restored Reloading…");
       setTimeout(()=>location.reload(),700);
     }catch(e){
       toast("Import failed: "+(e.message||e));
@@ -3671,7 +3687,7 @@ function renderDebug(){
     });
     card.querySelector('[data-copy]').addEventListener('click',ev=>{
       ev.stopPropagation();
-      navigator.clipboard?.writeText(payloadView);toast((capStr?"JSON":"Payload")+" copied ✓");
+      navigator.clipboard?.writeText(payloadView);toast((capStr?"JSON":"Payload")+" copied");
     });
     el.appendChild(card);
   });
@@ -3730,7 +3746,7 @@ function exportDebug(limit=30){
     a.download="storymind_debug_"+new Date().toISOString().replace(/[:.]/g,"-").slice(0,19)+".json";
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-    toast("Exported "+entries.length+" payloads ✓");
+    toast("Exported "+entries.length+" payloads");
   }catch(e){toast("Export failed: "+(e.message||"unknown error"));}
 }
 function loadState(){
@@ -4177,7 +4193,7 @@ function persistChatsNow(){ return perf("persistChatsNow",()=>{
       // corrupt the cache (and thus future exports/loads).
       const fb=JSON.parse(JSON.stringify(slim));
       if(!store.set(K.chats,fb)){
-        toast("⚠️ Storage full — trimming oldest messages");
+        toast("Storage full — trimming oldest messages");
         const ids=Object.keys(fb).sort((a,b)=>(fb[b].messages.length)-(fb[a].messages.length));
         let saved=false;
         for(let pass=0; pass<20 && !saved; pass++){
@@ -4981,7 +4997,7 @@ async function loadModels(force){
   const c=store.get("sm_modelcache",null);
   if(c&&!force&&Date.now()-c.t<864e5){fillModels(c.list);return;}
   try{const r=await fetch(OR+"/models");const d=await r.json();const list=(d.data||[]).map(m=>m.id).sort();
-    store.set("sm_modelcache",{t:Date.now(),list});fillModels(list);if(force)toast("Models updated ✓");}
+    store.set("sm_modelcache",{t:Date.now(),list});fillModels(list);if(force)toast("Models updated");}
   catch(e){if(c)fillModels(c.list);if(force)toast("Couldn't refresh — using cache");}
 }
 function fillModels(list){const dl=document.getElementById('modelList');dl.innerHTML="";list.forEach(id=>{const o=document.createElement('option');o.value=id;dl.appendChild(o);});}
@@ -5016,79 +5032,79 @@ function curUniverseObj(){
    prompts demand a structured JSON output, which the "Write with AI" generator is
    told to preserve when it rewrites them. */
 const PROMPT_REGISTRY=[
-  {key:"baseInstruction", label:"🌍 Global Base Instruction", def:()=>DEFAULT_BASE_INSTRUCTION, json:false,
+  {key:"baseInstruction", label:"Global Base Instruction", def:()=>DEFAULT_BASE_INSTRUCTION, json:false,
    hint:"Applied to every character before their individual details."},
-  {key:"formatRules", label:"✍️ Response Format Rules", def:()=>DEFAULT_FORMAT_RULES, json:false,
+  {key:"formatRules", label:"Response Format Rules", def:()=>DEFAULT_FORMAT_RULES, json:false,
    hint:"How replies are written: *narration*, _thoughts_, \"dialogue\"."},
-  {key:"rewritePrompt", label:"🖼️ Image-prompt rewriter", def:()=>DEFAULT_REWRITE, json:false,
+  {key:"rewritePrompt", label:"Image-prompt rewriter", def:()=>DEFAULT_REWRITE, json:false,
    hint:"Turns each roleplay reply into a vivid image-generation prompt."},
-  {key:"vidPrompt", label:"🎬 Video-prompt rewriter", def:()=>DEFAULT_VIDPROMPT, json:false,
+  {key:"vidPrompt", label:"Video-prompt rewriter", def:()=>DEFAULT_VIDPROMPT, json:false,
    hint:"Turns a still scene into a motion prompt on Animate."},
-  {key:"routerPrompt", label:"🧭 Image/Video router", def:()=>DEFAULT_ROUTER, json:false,
+  {key:"routerPrompt", label:"Image/Video router", def:()=>DEFAULT_ROUTER, json:false,
    hint:"Picks which image/video model rule fits the scene."},
-  {key:"memBuild", label:"🛠️ Memory builder", def:()=>DEFAULT_MEMBUILD, json:true,
+  {key:"memBuild", label:"Memory builder", def:()=>DEFAULT_MEMBUILD, json:true,
    hint:"Produces a structured JSON memory. Use {{char}} and {{user}}."},
-  {key:"poiGossip", label:"🗣️ Location gossip (on exit)", def:()=>DEFAULT_POI_GOSSIP, json:true,
+  {key:"poiGossip", label:"Location gossip (on exit)", def:()=>DEFAULT_POI_GOSSIP, json:true,
    hint:"When the player LEAVES a public location and its gossip-chance rolls a hit, the place produces a vague 'people are saying…' rumor about the visit, planted (as an OBSERVATION) in every character ticked at that location — including the person it's about, so they can hear they're being talked about. Feeds the gossip/intent pipeline. Use {{user}}, {{place}}, {{place_desc}}, {{others}}, {{visit}}."},
-  {key:"gistBuild", label:"👁️ Bystander gist (perception)", def:()=>DEFAULT_GIST_BUILD, json:true,
+  {key:"gistBuild", label:"Bystander gist (perception)", def:()=>DEFAULT_GIST_BUILD, json:true,
    hint:"A bystander's fuzzy outside impression when present but not in the conversation. Use {{char}}, {{user}}."},
-  {key:"gossipPrompt", label:"🗣️ Gossip propagation (Living Universe)", def:()=>DEFAULT_GOSSIP, json:true,
+  {key:"gossipPrompt", label:"Gossip propagation (Living Universe)", def:()=>DEFAULT_GOSSIP, json:true,
    hint:"At End Day, decides who tells whom about charged things bystanders saw. Use {{user}}, {{witness}}, {{impression}}, {{charge}}, {{location}}, {{witness_ties}}, {{candidates}}."},
-  {key:"intentForm", label:"🎯 Intent formation (offstage agency)", def:()=>DEFAULT_INTENT_FORM, json:true,
+  {key:"intentForm", label:"Intent formation (offstage agency)", def:()=>DEFAULT_INTENT_FORM, json:true,
    hint:"At End Day, decides if a character now privately wants something — warm (courtship/loyalty/protection) or hostile (grievance/rivalry/scheme) — reasoning from how the relationship moved. Returns valence. Use {{char}}, {{nature}}, {{day_memories}}, {{relationships}}, {{roster}}, {{user}}."},
-  {key:"intentTick", label:"♟️ Intent tick (fester & recruit)", def:()=>DEFAULT_INTENT_TICK, json:true,
+  {key:"intentTick", label:"Intent tick (fester & recruit)", def:()=>DEFAULT_INTENT_TICK, json:true,
    hint:"Each End Day, develops a live intent: hardens/fades, recruits allies, signals readiness. Use {{holder}}, {{nature}}, {{kind}}, {{target}}, {{aim}}, {{trigger}}, {{strength}}, {{allies}}, {{candidates}}."},
-  {key:"contemplate", label:"🧠 Contemplation (strategy planner)", def:()=>DEFAULT_CONTEMPLATE, json:true,
+  {key:"contemplate", label:"Contemplation (strategy planner)", def:()=>DEFAULT_CONTEMPLATE, json:true,
    hint:"When a motive is ready to act on, the holder chooses HOW (direct, public spectacle, proxy, undermine first, ambush, leverage) — genre-blind, warm or hostile. Returns a method + approach + gate. Use {{holder}}, {{nature}}, {{kind}}, {{valence}}, {{target}}, {{aim}}, {{trigger}}, {{strength}}, {{allies}}, {{leverage}}, {{world}}."},
-  {key:"queryGen", label:"🔍 Memory query generator", def:()=>DEFAULT_QUERYGEN, json:false,
+  {key:"queryGen", label:"Memory query generator", def:()=>DEFAULT_QUERYGEN, json:false,
    hint:"Turns the current moment into a search query."},
-  {key:"ranker", label:"📊 Memory ranker", def:()=>DEFAULT_RANKER, json:true,
+  {key:"ranker", label:"Memory ranker", def:()=>DEFAULT_RANKER, json:true,
    hint:"Picks the most relevant memories. Use {{maxCount}}."},
-  {key:"condensePrompt", label:"🗜️ Memory condenser", def:()=>DEFAULT_CONDENSE, json:true,
+  {key:"condensePrompt", label:"Memory condenser", def:()=>DEFAULT_CONDENSE, json:true,
    hint:"Merges old low-importance memories. Use {{char}} and {{user}}."},
-  {key:"bioPrompt", label:"🪪 Character bio generator", def:()=>DEFAULT_BIO, json:true,
+  {key:"bioPrompt", label:"Character bio generator", def:()=>DEFAULT_BIO, json:true,
    hint:"Turns a brief into a full character card as JSON."},
-  {key:"univPrompt", label:"🌌 Universe generator", def:()=>DEFAULT_UNIV, json:true,
+  {key:"univPrompt", label:"Universe generator", def:()=>DEFAULT_UNIV, json:true,
    hint:"Turns a brief into a full universe as JSON."},
-  {key:"directorAuthor", label:"🎭 Director-notes author (per-universe)", def:()=>DEFAULT_DIRECTOR_AUTHOR, json:false,
+  {key:"directorAuthor", label:"Director-notes author (per-universe)", def:()=>DEFAULT_DIRECTOR_AUTHOR, json:false,
    hint:"Writes the world's 'how drama works here' notes from its setting + cast, fed to the GM & Scene Writer. Use {{setting}}, {{cast}}, {{user}}, {{user_bio}}."},
-  {key:"promptTuner", label:"🛠️ Per-universe prompt tuner", def:()=>DEFAULT_PROMPT_TUNER, json:false,
+  {key:"promptTuner", label:"Per-universe prompt tuner", def:()=>DEFAULT_PROMPT_TUNER, json:false,
    hint:"Lightly adjusts a working director prompt to fit a world (preserves structure & placeholders). Use {{setting}}, {{directing}}, {{base}}."},
-  {key:"relPrompt", label:"❤️ Relationship tracker (long-term)", def:()=>DEFAULT_REL, json:true,
+  {key:"relPrompt", label:"Relationship tracker (long-term)", def:()=>DEFAULT_REL, json:true,
    hint:"End-of-day: evaluates the slow axes (trust, affection, respect) over the whole day. Returns JSON deltas."},
-  {key:"relShortPrompt", label:"⚡ Short-term feelings", def:()=>DEFAULT_REL_SHORT, json:true,
+  {key:"relShortPrompt", label:"Short-term feelings", def:()=>DEFAULT_REL_SHORT, json:true,
    hint:"Frequent: reads fast in-the-moment axes (desire, comfort, fear, agitation). Returns JSON deltas."},
-  {key:"trackPrompt", label:"📊 Freeform tracker", def:()=>DEFAULT_TRACK, json:true,
+  {key:"trackPrompt", label:"Freeform tracker", def:()=>DEFAULT_TRACK, json:true,
    hint:"Judges soft deltas and detects trigger phrases."},
-  {key:"voiceCheckPrompt", label:"⚠️ Voice consistency", def:()=>DEFAULT_VOICECHECK, json:true,
+  {key:"voiceCheckPrompt", label:"Voice consistency", def:()=>DEFAULT_VOICECHECK, json:true,
    hint:"Flags out-of-character replies. Returns {ok, note}."},
-  {key:"travelPrompt", label:"🗺️ Travel narration", def:()=>DEFAULT_TRAVEL, json:false,
+  {key:"travelPrompt", label:"Travel narration", def:()=>DEFAULT_TRAVEL, json:false,
    hint:"Narrates a journey between places. Use {{user}}."},
-  {key:"calPrompt", label:"🗓️ Future-events detector", def:()=>DEFAULT_CAL, json:true,
+  {key:"calPrompt", label:"Future-events detector", def:()=>DEFAULT_CAL, json:true,
    hint:"Extracts meetings, promises & conditionals from conversation as JSON."},
-  {key:"gmJudge", label:"⚖️ Gamemaster staleness judge", def:()=>DEFAULT_GM_JUDGE, json:true,
+  {key:"gmJudge", label:"Gamemaster staleness judge", def:()=>DEFAULT_GM_JUDGE, json:true,
    hint:"Returns JSON {stale, reason, energy}. Use {{user}}, {{sensitivity}}."},
-  {key:"gmAuthor", label:"✍️ Gamemaster event author", def:()=>DEFAULT_GM_AUTHOR, json:false,
+  {key:"gmAuthor", label:"Gamemaster event author", def:()=>DEFAULT_GM_AUTHOR, json:false,
    hint:"Writes the hidden nudge. Use {{user}} and {{reason}}."},
-  {key:"daySummaryPrompt", label:"📔 End-of-day diary", def:()=>DEFAULT_DAY_SUMMARY, json:false,
+  {key:"daySummaryPrompt", label:"End-of-day diary", def:()=>DEFAULT_DAY_SUMMARY, json:false,
    hint:"Each character writes a private diary entry at day's end. Use {{char}}, {{user}}."},
-  {key:"relGenPrompt", label:"🕸️ Relationship generator", def:()=>DEFAULT_RELGEN, json:false,
+  {key:"relGenPrompt", label:"Relationship generator", def:()=>DEFAULT_RELGEN, json:false,
    hint:"Writes a character's factual ties (kinship, address, cohabitation, standing) to everyone. Use {{char}}, {{user}}."},
-  {key:"playerNarratePrompt", label:"🪶 Auto-RP player narrator", def:()=>DEFAULT_PLAYER_NARRATE, json:false,
+  {key:"playerNarratePrompt", label:"Auto-RP player narrator", def:()=>DEFAULT_PLAYER_NARRATE, json:false,
    hint:"Rewrites the player's terse input into a short, in-voice player turn. Use {{user}}, {{player_profile}}, {{scene}}."},
-  {key:"sceneSetup", label:"🧩 Scene Writer setup", def:()=>DEFAULT_SCENE_SETUP, json:true,
+  {key:"sceneSetup", label:"Scene Writer setup", def:()=>DEFAULT_SCENE_SETUP, json:true,
    hint:"Classifies a new event. Returns JSON."},
-  {key:"sceneWriter", label:"✍️ Scene Writer advance", def:()=>DEFAULT_SCENE_WRITER, json:true,
+  {key:"sceneWriter", label:"Scene Writer advance", def:()=>DEFAULT_SCENE_WRITER, json:true,
    hint:"Returns JSON. Use {{user}}, {{summary}}, {{turn}}, {{min}}, {{max}}."},
-  {key:"confrontJudge", label:"⚖️ Confrontation judge (referee)", def:()=>DEFAULT_CONFRONT_JUDGE, json:true,
+  {key:"confrontJudge", label:"Confrontation judge (referee)", def:()=>DEFAULT_CONFRONT_JUDGE, json:true,
    hint:"Unbiased referee: scores the player's last turn in a confrontation → conviction delta. Use {{user}}, {{accuser}}, {{intent}}, {{evidence}}, {{accuser_nature}}, {{conviction}}, {{floor}}, {{ceiling}}, {{player_turn}}."},
-  {key:"overtureJudge", label:"💗 Overture judge (warm referee)", def:()=>DEFAULT_OVERTURE_JUDGE, json:true,
+  {key:"overtureJudge", label:"Overture judge (warm referee)", def:()=>DEFAULT_OVERTURE_JUDGE, json:true,
    hint:"Warm mirror of the confrontation judge: scores whether the player was receptive to or rebuffed a warm overture (courtship, reconciliation, loyalty, alliance, protection). Same fields as the confrontation judge."},
-  {key:"routerPlayer", label:"🗣️ Multi-char router 1 (player)", def:()=>DEFAULT_ROUTER_PLAYER, json:true,
+  {key:"routerPlayer", label:"Multi-char router 1 (player)", def:()=>DEFAULT_ROUTER_PLAYER, json:true,
    hint:"Returns JSON {addressed, responders}. Use {{user}}."},
-  {key:"routerChar", label:"↔️ Multi-char router 2 (character)", def:()=>DEFAULT_ROUTER_CHAR, json:true,
+  {key:"routerChar", label:"Multi-char router 2 (character)", def:()=>DEFAULT_ROUTER_CHAR, json:true,
    hint:"Returns JSON {continue, responder, addressed}. Use {{user}}, {{speaker}}."},
-  {key:"presencePrompt", label:"🚶 Presence tracker", def:()=>DEFAULT_PRESENCE_TRACKER, json:true,
+  {key:"presencePrompt", label:"Presence tracker", def:()=>DEFAULT_PRESENCE_TRACKER, json:true,
    hint:"Detects entrances/exits. Returns JSON {exit, enter}. Use {{user}}."}
 ];
 const PROMPT_BY_KEY=Object.fromEntries(PROMPT_REGISTRY.map(p=>[p.key,p]));
@@ -5286,7 +5302,7 @@ function renderUniverses(){
     c.innerHTML=`
       ${u.image?`<img src="${esc(u.image)}" class="cc-img" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:`<div class="cc-emoji">${esc(u.avatar||"🌌")}</div>`}
       <div class="cc-grad"></div>
-      <button class="cc-edit" title="Edit" data-edit>✎</button>
+      <button class="cc-edit" title="Edit" data-edit><svg class="ic"><use href="#i-edit"/></svg></button>
       <div class="cc-info">
         <div class="cc-name">${esc(u.name)}</div>
         <div class="cc-desc">${count} character${count===1?"":"s"}${u.setting&&u.setting.trim()?" · has setting":""}</div>
@@ -5512,7 +5528,7 @@ function openTravel(){
   }
   const m=document.createElement('div'); m.id="travelModal"; m.className="modal show";
   m.innerHTML=`<button class="x" onclick="_travelClose()">×</button>
-   <div class="card editCard"><h3>🗺️ Travel</h3>${body}
+   <div class="card editCard"><h3>Travel</h3>${body}
    <button class="btn sec small" style="margin-top:10px" onclick="_travelClose()">Close</button></div>`;
   m.addEventListener('click',e=>{if(e.target===m)_travelClose();});
   document.body.appendChild(m);
@@ -5604,7 +5620,7 @@ function offstageRoster(chat){
 function chatCalendar(chat){ const c=chat||curChat(); if(!c)return []; if(!Array.isArray(c.calendar))c.calendar=[]; return c.calendar; }
 function addCalendarEntry(chat,entry){
   const cal=chatCalendar(chat);
-  cal.push(Object.assign({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,4),kind:"meeting",done:false,source:"manual"},entry));
+  cal.push(Object.assign({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8),kind:"meeting",done:false,source:"manual"},entry));
   persistChats();
 }
 // Significant-word overlap for calendar dedup. Strips common English + Turkish filler words,
@@ -5643,9 +5659,16 @@ async function runCalendarEngine(chat){
   if(!state.calOn||!chat||!state.key)return;
   try{
     const today=chat.gameDay||1;
+    // Feed the detector the items already tracked so it can self-deduplicate. The model cannot
+    // avoid re-emitting standing promises it can't see; showing the open calendar fixes the root
+    // cause of duplicates. Done items are excluded; cap the list so a long chat can't blow the
+    // small model's context window.
+    const openItems=chatCalendar(chat).filter(e=>!e.done)
+      .map(e=>`- [${e.kind||"meeting"}] ${e.title}${e.who?` (${e.who})`:""}${e.day!=null?` day ${e.day}`:""}`)
+      .slice(-40).join("\n");
     const msgs=[{role:"system",content:up("calPrompt")}];
     recentExchangeMsgs(chat,6).forEach(m=>msgs.push(m));
-    msgs.push({role:"user",content:`Current: Day ${today}, ${chatPeriod(chat)}.\n\nBased ONLY on the exchange above, return the JSON array of any future-binding items (meetings, promises, conditionals, custom).`});
+    msgs.push({role:"user",content:`Current: Day ${today}, ${chatPeriod(chat)}.\n\nALREADY TRACKED (do NOT re-emit these, nor any re-wording or translation of them):\n${openItems||"(none yet)"}\n\nBased ONLY on the exchange above, return the JSON array of any future-binding items (meetings, promises, conditionals, custom) that are GENUINELY NEW and not already listed above.`});
     const out=await chatCompletion(msgs,state.memModel,{temp:fnTemp("mem",0.2),max:fnTok("mem",320),dbg:"Future events tracker"});
     const arr=parseJSON(out);
     if(!Array.isArray(arr)||!arr.length)return;
@@ -5678,7 +5701,7 @@ async function runCalendarEngine(chat){
           if(ek!=="meeting")return false;
           const sameTitle=e.title.toLowerCase()===title.toLowerCase();
           if(sameTitle && Math.abs((e.day||0)-(day||0))<=1) return true;
-          if(_titleSimilar(e.title,title) && sameWho && Math.abs((e.day||0)-(day||0))<=1) return true;
+          if(_titleSimilar(e.title,title) && Math.abs((e.day||0)-(day||0))<=1) return true;
           if(sameWho && e.day===day) return true;
           return false;
         }
@@ -5692,7 +5715,7 @@ async function runCalendarEngine(chat){
       });
       if(dup)continue;
       const loc=(kind==="meeting")?locByName(p.where||""):null;
-      cal.push({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,4),
+      cal.push({id:"cal_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
         kind, title, who,
         day, period:(kind==="meeting"?(p.period||null):null),
         where:(kind==="meeting"?String(p.where||"").trim():""), locationId:loc?loc.id:null,
@@ -5803,7 +5826,7 @@ function openCalendar(){
         <div style="display:flex;gap:4px;flex-shrink:0">
           ${canAttend?`<button class="btn small" title="Attend now" onclick="attendPlan('${e.id}')">▶</button>`:""}
           <button class="btn sec small" title="${e.done?'reopen':'mark done'}" onclick="toggleCalDone('${e.id}')">${e.done?'↺':'✓'}</button>
-          <button class="btn danger sec small" onclick="delCalEntry('${e.id}')">✕</button>
+          <button class="btn danger sec small" onclick="delCalEntry('${e.id}')"><svg class="ic"><use href="#i-x"/></svg></button>
         </div></div></div>`;
   };
   let rows;
@@ -5821,7 +5844,7 @@ function openCalendar(){
   }
   const m=document.createElement('div'); m.id="calModal"; m.className="modal show";
   m.innerHTML=`<button class="x" onclick="_calClose()">×</button>
-   <div class="card editCard"><h3>🗓️ Future Events — Day ${today}, ${esc(chatPeriod(chat))}</h3>
+   <div class="card editCard"><h3>Future Events — Day ${today}, ${esc(chatPeriod(chat))}</h3>
    ${rows}
    <button class="btn small" style="margin-top:10px" onclick="addCalManual()">＋ Add event</button>
    <button class="btn sec small" style="margin-top:6px" onclick="_calClose()">Close</button></div>`;
@@ -6828,7 +6851,7 @@ function closeUniverse(){showUniverseGrid();}
 function saveUniverseSetting(){
   const u=universeById(state.curUniverse);if(!u)return;
   u.setting=document.getElementById('uvSetting').value.trim();
-  persistUniverses();toast("Universe setting saved ✓");
+  persistUniverses();toast("Universe setting saved");
 }
 let editingUniverse=null;
 function editUniverse(id){
@@ -6874,7 +6897,7 @@ function renderTrackerEditor(){
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button class="btn sec small" type="button" data-edit>Edit</button>
-        <button class="btn danger sec small" type="button" data-del>✕</button>
+        <button class="btn danger sec small" type="button" data-del><svg class="ic"><use href="#i-x"/></svg></button>
       </div></div>`;
     row.querySelector('[data-edit]').onclick=()=>editTracker(i);
     row.querySelector('[data-del]').onclick=()=>{ if(confirm(`Delete tracker "${t.name}"?`)){_ueTrackers.splice(i,1);renderTrackerEditor();} };
@@ -6957,7 +6980,7 @@ function _teRenderStages(){
     const row=document.createElement('div'); row.style.cssText="display:flex;gap:6px;align-items:flex-start";
     row.innerHTML=`<input type="number" class="fld" style="max-width:80px" value="${s.at!=null?s.at:0}" data-at>
       <input type="text" class="fld" style="flex:1" placeholder="text injected at/above this value" value="${esc(s.text||"")}" data-text>
-      <button class="btn danger sec small" type="button" data-del>✕</button>`;
+      <button class="btn danger sec small" type="button" data-del><svg class="ic"><use href="#i-x"/></svg></button>`;
     row.querySelector('[data-at]').onchange=e=>{ s.at=+e.target.value||0; };
     row.querySelector('[data-text]').onchange=e=>{ s.text=e.target.value; };
     row.querySelector('[data-del]').onclick=()=>{ _teStages.splice(i,1); _teRenderStages(); };
@@ -7041,14 +7064,14 @@ function saveTrackerEdit(){
     _ueTrackers.splice(_teIndex,1,...made);
     closeModal('trackerEditModal');
     renderTrackerEditor();
-    toast(`Saved for ${made.length} character${made.length===1?"":"s"} ✓ — Save the universe to keep`);
+    toast(`Saved for ${made.length} character${made.length===1?"":"s"} — Save the universe to keep`);
     return;
   }
   // Story or User: a single tracker.
   Object.assign(t,base,{owner:(_teOwnerType==="__user__")?"__user__":"__story__"});
   closeModal('trackerEditModal');
   renderTrackerEditor();
-  toast("Tracker saved ✓ — Save the universe to keep");
+  toast("Tracker saved — Save the universe to keep");
 }
 // ---- Location editor (draft copy until the universe is saved) ----
 let _ueLocs=[];
@@ -7070,7 +7093,7 @@ function renderLocEditor(){
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button class="btn sec small" type="button" data-img>${l.image?'🔄':'✨'}</button>
         <button class="btn sec small" type="button" data-edit>Edit</button>
-        <button class="btn danger sec small" type="button" data-del>✕</button>
+        <button class="btn danger sec small" type="button" data-del><svg class="ic"><use href="#i-x"/></svg></button>
       </div></div>`;
     row.querySelector('[data-edit]').onclick=()=>editLocation(i);
     row.querySelector('[data-del]').onclick=()=>{ if(confirm(`Delete location "${l.name}"?`)){_ueLocs.splice(i,1);renderLocEditor();} };
@@ -7088,9 +7111,9 @@ async function genLocationImage(i,btn){
   toast("Generating location image…");
   try{
     const url=await generateLocationImage(l);
-    if(url){ l.image=url; renderLocEditor(); toast("Location image ✓"); }
-    else toast("⚠️ Image failed — check your image provider & key");
-  }catch(e){ toast("🖼️ "+(e.friendly||"Couldn't generate image")); }
+    if(url){ l.image=url; renderLocEditor(); toast("Location image"); }
+    else toast("Image failed — check your image provider & key");
+  }catch(e){ toast(""+(e.friendly||"Couldn't generate image")); }
   finally{ btn.textContent=old; btn.disabled=false; }
 }
 function addLocation(){
@@ -7111,8 +7134,8 @@ async function genLocations(){
   if(locs&&locs.length){
     _ueLocs=_ueLocs.concat(locs);
     renderLocEditor();
-    toast(`Added ${locs.length} location${locs.length===1?"":"s"} ✓ — Save to keep`);
-  }else{ toast("⚠️ Couldn't generate locations"); }
+    toast(`Added ${locs.length} location${locs.length===1?"":"s"} — Save to keep`);
+  }else{ toast("Couldn't generate locations"); }
 }
 async function genAllSchedules(){
   const uni=editingUniverse||universeById(state.curUniverse);
@@ -7143,9 +7166,9 @@ async function genAllSchedules(){
     await new Promise(r=>setTimeout(r,350));
   }
   if(sBtn){sBtn.disabled=false;sBtn.textContent=sOld;}
-  if(done && !failed) toast(`✓ Schedules generated for ${done} character${done===1?"":"s"}`);
-  else if(done && failed) toast(`✓ ${done} done · ⚠️ ${failed} failed (${lastErr})`);
-  else toast(`⚠️ Couldn't generate schedules — ${lastErr||"check API key & model"}`);
+  if(done && !failed) toast(`Schedules generated for ${done} character${done===1?"":"s"}`);
+  else if(done && failed) toast(`${done} done · ${failed} failed (${lastErr})`);
+  else toast(`Couldn't generate schedules — ${lastErr||"check API key & model"}`);
 }
 let _leIndex=null, _leType="poi";
 function leSetType(t){
@@ -7190,7 +7213,7 @@ function saveLocationEdit(){
   l.residents=Array.from(document.querySelectorAll('#leResidents .leResChk:checked')).map(c=>c.value);
   closeModal('locEditModal');
   renderLocEditor();
-  toast("Location saved ✓ — Save the universe to keep");
+  toast("Location saved — Save the universe to keep");
 }
 async function leGenPic(btn){
   const l=_ueLocs[_leIndex]; if(!l)return;
@@ -7198,8 +7221,8 @@ async function leGenPic(btn){
   l.name=document.getElementById('leName').value.trim()||l.name;
   l.description=document.getElementById('leDesc').value.trim();
   const old=btn.textContent; btn.textContent="✨ Generating…"; btn.disabled=true;
-  try{ const url=await generateLocationImage(l); if(url){ l.image=url; toast("Location image ✓"); } else toast("⚠️ Image failed"); }
-  catch(e){ toast("🖼️ "+(e.friendly||"Couldn't generate")); }
+  try{ const url=await generateLocationImage(l); if(url){ l.image=url; toast("Location image"); } else toast("Image failed"); }
+  catch(e){ toast(""+(e.friendly||"Couldn't generate")); }
   finally{ btn.textContent=old; btn.disabled=false; }
 }
 
@@ -7216,7 +7239,7 @@ async function runUniverseGenerator(){
   if(btn){btn.disabled=true;btn.textContent="Building world…";}
   try{
     const u=await generateUniverse(brief.trim(),count);
-    if(!u){ toast("⚠️ Generation failed — try again"); return; }
+    if(!u){ toast("Generation failed — try again"); return; }
     const uid="u_"+Date.now();
     const universe={id:uid,name:u.name,avatar:u.avatar,setting:u.setting,
       userName:u.userName,userLook:u.userLook,userBio:u.userBio,trackers:[],locations:[]};
@@ -7244,7 +7267,7 @@ async function runUniverseGenerator(){
     }
     persistUniverses();persistPersonas();
     closeModal('universeGenModal');
-    toast(`Created "${u.name}" with ${made} character${made===1?"":"s"} ✓`);
+    toast(`Created "${u.name}" with ${made} character${made===1?"":"s"}`);
     // Jump straight into the ready-to-play universe.
     state.curUniverse=uid;applyUniverseProfile(uid);
     // If the model didn't return locations, generate them now from the setting + cast.
@@ -7265,11 +7288,11 @@ async function runUniverseGenerator(){
       // LAYER 5b: lightly tune the flavorable director prompts to this world (structure preserved,
       // validated). Uses the directing notes above, so it runs after them.
       try{ const nt=await tuneUniversePrompts(universe); if(nt){ persistUniverses(); } }catch(e){}
-      toast("Universe ready ✓");
+      toast("Universe ready");
     })();
     if(typeof openUniverse==="function"){ openUniverse(uid); }
     else { renderUniverses(); }
-  }catch(e){ console.warn("universe gen failed",e); toast("⚠️ Generation failed"); }
+  }catch(e){ console.warn("universe gen failed",e); toast("Generation failed"); }
   finally{ if(btn){btn.disabled=false;btn.textContent="✨ Generate universe";} }
 }
 function saveUniverse(){
@@ -7304,7 +7327,7 @@ function saveUniverse(){
       document.getElementById('uvName').textContent=cur.name;
       document.getElementById('uvSetting').value=cur.setting||"";}
   }else{renderUniverses();}
-  toast("Universe saved ✓");
+  toast("Universe saved");
 }
 /* ---- Per-universe prompt overrides (draft state on the universe editor) ---- */
 let _uePrompts={};            // draft: { promptKey: overrideText }
@@ -7367,7 +7390,7 @@ function promptEditSave(){
     // Persist the single global prompt immediately.
     const Kk=K[_promptEditKey]; if(Kk)store.setRaw(Kk,val);
     if(typeof syncSettingsUI==="function")syncSettingsUI();
-    toast("Global prompt saved ✓");
+    toast("Global prompt saved");
   }
   closeModal('promptEditModal');
 }
@@ -7417,22 +7440,22 @@ Write the full prompt text only — no preamble, no explanation, no surrounding 
     if(targetTaId){
       const ta=document.getElementById(targetTaId);
       if(ta){ ta.value=cleaned; ta.dispatchEvent(new Event('input',{bubbles:true})); wrote=(ta.value===cleaned); }
-      if(wrote){ closeModal('writeAiModal'); toast("Drafted ✓ — review, then Save Settings"); }
+      if(wrote){ closeModal('writeAiModal'); toast("Drafted — review, then Save Settings"); }
     }else{
       const ta=document.getElementById('peEditText');
       if(ta){ ta.value=cleaned; wrote=(ta.value===cleaned); }
-      if(wrote){ closeModal('writeAiModal'); openModal('promptEditModal'); toast("Drafted ✓ — review, then Save"); }
+      if(wrote){ closeModal('writeAiModal'); openModal('promptEditModal'); toast("Drafted — review, then Save"); }
     }
     if(!wrote){
       // Last-resort: don't lose the user's generated text. Keep the modal open and offer copy.
       console.warn("Write-with-AI: target textarea not found (",targetTaId||'peEditText',") — draft preserved");
-      try{ await navigator.clipboard.writeText(cleaned); toast("Drafted ✓ — copied to clipboard (paste into the prompt box)"); }
+      try{ await navigator.clipboard.writeText(cleaned); toast("Drafted — copied to clipboard (paste into the prompt box)"); }
       catch(_){ toast("Drafted, but couldn't reach the prompt box — see payload viewer to copy it"); }
     }
     _writeAiTargetTextarea=null;
   }catch(e){
     console.warn("runWriteAi failed:",e);
-    toast("✗ "+(e&&e.friendly||"Couldn't generate"));
+    toast(""+(e&&e.friendly||"Couldn't generate"));
   }finally{ btn.disabled=false; btn.textContent="✨ Generate"; }
 }
 
@@ -7466,7 +7489,7 @@ function renderPersonas(){
     c.innerHTML=`
       ${visual}
       <div class="cc-grad"></div>
-      <button class="cc-edit" title="Edit" data-edit>✎</button>
+      <button class="cc-edit" title="Edit" data-edit><svg class="ic"><use href="#i-edit"/></svg></button>
       <div class="cc-info">
         <div class="cc-name">${esc(p.name)}</div>
         <div class="cc-desc">${esc(desc)}</div>
@@ -7573,9 +7596,9 @@ async function genScheduleForCharacter(btn){
   const old=btn?btn.textContent:""; if(btn){btn.disabled=true;btn.textContent="🗓️ Generating…";}
   try{
     const sc=await generateSchedule(p,p.routine,uni);
-    if(sc){ p.schedule=sc; persistPersonas(); renderPeLocations(p); toast("Whereabouts generated ✓"); }
-    else toast("⚠️ Couldn't generate — the model returned nothing usable");
-  }catch(e){ toast("🗓️ "+(e&&e.friendly||"Couldn't generate")); }
+    if(sc){ p.schedule=sc; persistPersonas(); renderPeLocations(p); toast("Whereabouts generated"); }
+    else toast("Couldn't generate — the model returned nothing usable");
+  }catch(e){ toast(""+(e&&e.friendly||"Couldn't generate")); }
   finally{ if(btn){btn.disabled=false;btn.textContent=old;} }
 }
 async function generateProfilePic(){
@@ -7594,9 +7617,9 @@ async function generateProfilePic(){
             :(state.imgProvider==="atlascloud"?await atlasImage(prompt,neg,null)
              :state.imgProvider==="modelslab"?await modelslabImage(prompt,neg,null)
              :await imageCompletion(prompt,state.imgModel,RATIOS[state.ratio]||"576x1024"));}
-    peImageData=url;renderAvatarPreview();toast("Profile picture ready ✓");
+    peImageData=url;renderAvatarPreview();toast("Profile picture ready");
   }catch(e){
-    toast("🖼️ "+(e.friendly||"Couldn't generate picture"));
+    toast(""+(e.friendly||"Couldn't generate picture"));
   }finally{btn.textContent=old;btn.disabled=false;}
 }
 /* ---- MODELSLAB: fixed-model text-to-image (used for universe pictures) ----
@@ -7633,16 +7656,16 @@ async function generateUniversePic(){
   try{
     const neg="people, person, characters, faces, text, watermark, signature, low quality, blurry, deformed";
     const url=await modelslabImageFixed(prompt,neg,"juggernaut-xl-9","background-outdoor-world-city-v2-0",true);
-    uvImageData=url;renderUniversePicPreview();toast("Universe picture ready ✓");
+    uvImageData=url;renderUniversePicPreview();toast("Universe picture ready");
   }catch(e){
-    toast("🖼️ "+(e.friendly||"Couldn't generate picture"));
+    toast(""+(e.friendly||"Couldn't generate picture"));
   }finally{btn.textContent=old;btn.disabled=false;}
 }
 function saveUniversePic(){
   const u=universeById(state.curUniverse);if(!u)return;
   u.image=uvImageData||null;
   u.imagePrompt=document.getElementById('uvImgPrompt').value.trim();
-  persistUniverses();renderUniversePicPreview();toast("Universe picture saved ✓");
+  persistUniverses();renderUniversePicPreview();toast("Universe picture saved");
 }
 /* ===== Character bio generator (Stages 5/6) =====
    Shared engine: takes a short brief (+ optional conversation context) and returns a filled
@@ -7916,9 +7939,9 @@ async function genRelationshipsForCharacter(id,btn){
       const box=document.getElementById('peRelGen');
       if(box && editingPersona && editingPersona.id===p.id){ box.value=txt; box.parentElement&&(box.parentElement.style.display="block"); }
       const wrap=document.getElementById('peRelGenWrap'); if(wrap)wrap.style.display="block";
-      toast("Relationships generated ✓");
-    } else toast("⚠️ Couldn't generate — check API key & model");
-  }catch(e){ toast("🕸️ "+(e&&e.friendly||"Couldn't generate")); }
+      toast("Relationships generated");
+    } else toast("Couldn't generate — check API key & model");
+  }catch(e){ toast(""+(e&&e.friendly||"Couldn't generate")); }
   finally{ if(btn){btn.disabled=false;btn.textContent=old;} }
 }
 
@@ -8063,9 +8086,9 @@ async function regenDirectingNotes(){
       u.directingNotes=notes; persistUniverses();
       // Also lightly tune this world's director prompts now that notes exist.
       let nt=0; try{ nt=await tuneUniversePrompts(u); persistUniverses(); }catch(e2){}
-      toast(`Director notes written ✓${nt?` · ${nt} prompt${nt===1?"":"s"} tuned`:""}`);
-    }else{ toast("⚠️ Couldn't write notes — try again"); }
-  }catch(e){ toast("⚠️ Generation failed"); }
+      toast(`Director notes written${nt?` · ${nt} prompt${nt===1?"":"s"} tuned`:""}`);
+    }else{ toast("Couldn't write notes — try again"); }
+  }catch(e){ toast("Generation failed"); }
   finally{ if(btn){btn.disabled=false;btn.textContent="✨ Write from world & cast";} }
 }
 // LAYER 5b: lightly tune a universe's director prompts to its genre. For each flavorable prompt we
@@ -8127,7 +8150,7 @@ async function generateBioIntoEditor(){
   const btn=document.getElementById('peAiGo'); if(btn){btn.disabled=true;btn.textContent="Generating…";}
   try{
     const bio=await generateBio(brief,null);
-    if(!bio){ toast("⚠️ Generation failed — try again"); return; }
+    if(!bio){ toast("Generation failed — try again"); return; }
     const set=(id,v)=>{const el=document.getElementById(id); if(el&&v) el.value=v;};
     set('peName',bio.name); set('peAvatar',bio.avatar); set('pePersonality',bio.personality);
     set('peTraits',bio.traits); set('peGoals',bio.goals);
@@ -8135,8 +8158,8 @@ async function generateBioIntoEditor(){
     set('peInstructions',bio.instructions); set('peInterject',bio.interject);
     if(bio.routine)_peRoutine=bio.routine;   // stashed; used to build a schedule on save
     renderAvatarPreview();
-    toast("Character generated ✓ — review & save");
-  }catch(e){ toast("⚠️ Generation failed"); }
+    toast("Character generated — review & save");
+  }catch(e){ toast("Generation failed"); }
   finally{ if(btn){btn.disabled=false;btn.textContent="✨ Generate character";} }
 }
 // Shared portrait generator from an appearance string → image url (or null). Never throws.
@@ -8249,7 +8272,7 @@ function savePersona(){
   }
   // Refresh the open universe (if its list is showing) and keep grid counts fresh.
   if(state.curUniverse&&!document.getElementById('charsView').classList.contains('hide'))renderPersonas();
-  closeModal('personaModal');toast("Character saved ✓");
+  closeModal('personaModal');toast("Character saved");
 }
 function deletePersona(){
   if(!editingPersona)return;
@@ -8290,16 +8313,21 @@ function visibleMemories(){
 }
 // Render the two-tier memory section for a payload. Accepts the new {recent,distant} shape OR a
 // legacy flat array (treated as recent). Returns an array of "# HEADER\n..." blocks (0, 1, or 2).
-function memoryBlocks(injectedMemories){
+// which: "all" (default), "distant" (head placement), or "recent" (tail placement).
+// Recent memories are placed in the post-dialogue tail (closest to generation) so their
+// freshness can override contradicting transcript; distant memories stay in the head as
+// low-priority background. Legacy array callers are treated as recent.
+function memoryBlocks(injectedMemories,which){
   if(!state.mem||!injectedMemories)return [];
+  which=which||"all";
   let recent=[], distant=[];
   if(Array.isArray(injectedMemories)){ recent=injectedMemories; }       // legacy callers
   else { recent=injectedMemories.recent||[]; distant=injectedMemories.distant||[]; }
   const fmt=m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;};
   const out=[];
-  if(recent.length)
+  if(which!=="distant" && recent.length)
     out.push(`# RECENT MEMORIES\nFresh, specific things you remember — stay consistent with these:\n`+recent.map(fmt).join("\n"));
-  if(distant.length)
+  if(which!=="recent" && distant.length)
     out.push(`# DISTANT MEMORIES\nOlder, fuzzier — the gist of what came before. Treat as background, less precise than recent memory:\n`+distant.map(fmt).join("\n"));
   return out;
 }
@@ -8318,7 +8346,7 @@ function charBioBlock(c,opts){
   if(c.backstory)    L.push(`  <backstory>${c.backstory}</backstory>`);
   if(c.style)        L.push(`  <speaking_style>${c.style}</speaking_style>`);
   if(c.look)         L.push(`  <appearance>${c.look}</appearance>`);
-  if(opts.locLine)   L.push(`  <location>${opts.locLine.replace(/^Location:\s*/,"")}</location>`);
+  if(opts.locLine)   L.push(`  <home_base>${opts.locLine.replace(/^Location:\s*/,"")} (their usual/default location — NOT necessarily where they are this turn; the live SCENE RIGHT NOW below is authoritative for current location)</home_base>`);
   return `${who}\n${L.join("\n")}`;
 }
 function buildSystemPrompt(injectedMemories){
@@ -8389,8 +8417,9 @@ function buildSystemPrompt(injectedMemories){
   // OUT OF CHARACTER COMMANDS — placed low (rare edge case; doesn't deserve prime attention up top).
   blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
 
-  // 11) MEMORIES — two tiers (recent verbatim + distant condensed).
-  memoryBlocks(injectedMemories).forEach(b=>blocks.push(b));
+  // 11) MEMORIES — DISTANT tier only here (background). RECENT memories are placed in the
+  //     post-dialogue tail by buildTailGuidance so their freshness sits closest to generation.
+  memoryBlocks(injectedMemories,"distant").forEach(b=>blocks.push(b));
 
   if(multi){
     const names=cast.map(c=>c.name);
@@ -8462,8 +8491,9 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   // OUT OF CHARACTER COMMANDS — placed low (rare edge case; doesn't deserve prime attention up top).
   blocks.push(`# OUT OF CHARACTER COMMANDS\n${DEFAULT_OOC.replace(/\{\{user\}\}/g,state.user)}`);
 
-  // 11) MEMORIES — two tiers (recent verbatim + distant condensed).
-  memoryBlocks(injectedMemories).forEach(b=>blocks.push(b));
+  // 11) MEMORIES — DISTANT tier only here (background). RECENT memories are placed in the
+  //     post-dialogue tail by buildTailGuidance so their freshness sits closest to generation.
+  memoryBlocks(injectedMemories,"distant").forEach(b=>blocks.push(b));
 
   // Situational entrance/exit note only (the generic "voice only your turn" rules now live
   // in the post-dialogue FINAL GUARDRAILS so they fire closest to generation).
@@ -8485,7 +8515,10 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
    tagLastForTarget(history, targetName): returns a COPY of the mapped-history array with
    the final entry annotated inline ("Name — THIS IS WHO YOU ARE RESPONDING TO" /
    "...content... — THIS IS WHAT YOU ARE RESPONDING TO"). The original stored messages are
-   never mutated, so memory/condensation never see these tags. */
+   never mutated, so memory/condensation never see these tags.
+   NOTE: the tag is applied ONLY to the structured `name` field — NOT spliced into `content`.
+   Appending to content caused weaker models to echo "— THIS IS WHAT YOU ARE RESPONDING TO"
+   into their prose. The target is also re-stated cleanly in buildTailGuidance's RESPONSE GUIDANCE. */
 function tagLastForTarget(history){
   if(!Array.isArray(history)||!history.length) return history;
   const out=history.slice();
@@ -8494,17 +8527,16 @@ function tagLastForTarget(history){
   const nm=last.name||"";
   if(nm && !/THIS IS WHO YOU ARE RESPONDING TO/.test(nm))
     last.name=`${nm} — THIS IS WHO YOU ARE RESPONDING TO`;
-  if(typeof last.content==="string" && !/THIS IS WHAT YOU ARE RESPONDING TO/.test(last.content))
-    last.content=`${last.content} — THIS IS WHAT YOU ARE RESPONDING TO`;
   out[i]=last;
   return out;
 }
 
 /* Build the single system message that goes AFTER the dialogue.
-   opts: { chat, selfId, selfName, targetName, targetId, multi }
-   - targetId === "__user__" for the player, otherwise a character id (or null/unknown). */
+   opts: { chat, selfId, selfName, targetName, targetId, multi, injected }
+   - targetId === "__user__" for the player, otherwise a character id (or null/unknown).
+   - injected: { recent, distant } — RECENT memories are emitted here in the tail. */
 function buildTailGuidance(opts){
-  const {chat,selfName,selfId,targetName,targetId,multi}=opts||{};
+  const {chat,selfName,selfId,targetName,targetId,multi,injected}=opts||{};
   const blocks=[];
 
   // (0) SCENE RIGHT NOW — placed in the tail (closest to generation) so the model can't drift on
@@ -8553,10 +8585,17 @@ function buildTailGuidance(opts){
     }
   }catch(e){}
 
+  // (0c) RECENT MEMORIES — moved here from the head so their freshness sits closest to generation
+  //      and can override anything in the transcript they contradict. Distant memories stay in the head.
+  try{ memoryBlocks(injected,"recent").forEach(b=>blocks.push(b)); }catch(e){}
+
   // (1) RESPONSE GUIDANCE
   let g=`# RESPONSE GUIDANCE\nYou are ${selfName}. Continue the scene with your single next turn`;
   if(targetName) g+=`, responding to ${targetName}`;
   g+=`. Advance the moment and leave room for ${targetName||state.user} to react.`;
+  // Explicitly name who/what is being replied to (replaces the old inline em-dash tag that
+  // weaker models echoed into prose). The last message in the transcript is their line.
+  if(targetName) g+=`\nYou are replying to ${targetName}'s most recent message — the final line in the transcript above.`;
   blocks.push(g);
 
   // (2) HOW YOU FEEL TOWARD <target> — THREE labeled facets, prose only, never any numbers:
@@ -8664,7 +8703,7 @@ async function maybeShowRecap(chat){
     ],state.memModel,{temp:fnTemp("mem",0.5),max:fnTok("mem",80),dbg:"Scene recap"});
     const txt=(out||"").trim().replace(/^["']|["']$/g,"");
     if(txt){
-      bn.innerHTML=`<div class="recap"><span class="recapTag">Previously…</span> ${esc(txt)} <button class="recapX" onclick="document.getElementById('recapBanner').classList.add('hide')">✕</button></div>`;
+      bn.innerHTML=`<div class="recap"><span class="recapTag">Previously…</span> ${esc(txt)} <button class="recapX" onclick="document.getElementById('recapBanner').classList.add('hide')"><svg class="ic"><use href="#i-x"/></svg></button></div>`;
     }else{ bn.classList.add('hide'); }
   }catch(e){ bn.classList.add('hide'); }
 }
@@ -8830,13 +8869,13 @@ function updateChatHeader(){
   const av=document.getElementById('chatAv');
   const nm=document.getElementById('chatName');
   if(present.length===0){
-    av.textContent=(u&&u.avatar)||"🌌";
+    if(av)av.textContent=(u&&u.avatar)||"🌌";
     nm.textContent=(u&&u.name)||"Story";
   }else if(present.length===1){
-    av.textContent=present[0].avatar||"🎭";
+    if(av)av.textContent=present[0].avatar||"🎭";
     nm.textContent=present[0].name;
   }else{
-    av.textContent=present.map(c=>c.avatar||"🎭").slice(0,3).join("");
+    if(av)av.textContent=present.map(c=>c.avatar||"🎭").slice(0,3).join("");
     nm.textContent=present.map(c=>c.name).join(" & ");
   }
   const cast=curCast();
@@ -8847,8 +8886,8 @@ function updateChatHeader(){
   const ev=chat&&chat.activeEvent&&!chat.activeEvent.resolved;
   let loc="";
   if(chat){ const t=chatPeriod(chat), l=(chat.location||"").trim();
-    if(t||l)loc=" · "+[t,l?("📍"+l):""].filter(Boolean).join(" "); }
-  document.getElementById('chatScene').textContent=(ev?`🎬 event · `:"")+`Day ${day}${loc} · ${base}`;
+    if(t||l)loc=" · "+[t,l].filter(Boolean).join(" · "); }
+  document.getElementById('chatScene').textContent=(ev?`event · `:"")+`Day ${day}${loc} · ${base}`;
   if(typeof updateCalendarBadge==="function")updateCalendarBadge();
 }
 // Quick editor for the scene's period + location (per-chat state).
@@ -8910,7 +8949,7 @@ function saveSceneState(){
   chat.locationId=matchLoc?matchLoc.id:(newLoc?null:chat.locationId);
   markChatDirty(chat); persistChats(); updateChatHeader();
   if(typeof applyLocationBackground==="function")applyLocationBackground();
-  closeModal('sceneStateModal'); toast("Scene updated ✓");
+  closeModal('sceneStateModal'); toast("Scene updated");
 }
 function openCast(){
   const chat=curChat();
@@ -9212,7 +9251,7 @@ function bubble(m){
     if(strip) b.insertAdjacentHTML('beforeend',strip);
   }
   let timer;
-  b.addEventListener('touchstart',()=>{timer=setTimeout(()=>{navigator.clipboard?.writeText(m.content);toast("Copied ✓");},550);});
+  b.addEventListener('touchstart',()=>{timer=setTimeout(()=>{navigator.clipboard?.writeText(m.content);toast("Copied");},550);});
   b.addEventListener('touchend',()=>clearTimeout(timer));
   return b;
 }
@@ -9240,7 +9279,7 @@ function saveEditMessage(){
   if(node){ const body=node.querySelector('.body'); if(body) body.innerHTML=md(val); }
   else renderChat();
   persistChats();
-  toast("Edited ✓");
+  toast("Edited");
 }
 function deleteMessage(mid){
   if(!confirm("Delete this message? This can't be undone.")) return;
@@ -9251,7 +9290,7 @@ function deleteMessage(mid){
   const node=document.querySelector('[data-mid="'+mid+'"]');
   if(node) node.remove(); else renderChat();
   persistChats();
-  toast("Deleted ✓");
+  toast("Deleted");
 }
 function sceneHTML(m){
   const mid=m.mid;
@@ -9494,7 +9533,7 @@ async function sendMessage(){
     const taggedHistory=tagLastForTarget(history);
     const tailMsg={role:"system",content:buildTailGuidance({
       chat, selfId:solo.id, selfName:solo.name,
-      targetName:state.user, targetId:"__user__", multi:false
+      targetName:state.user, targetId:"__user__", multi:false, injected
     })};
     const messages=[sysMsg,...taggedHistory,tailMsg];
     if(chat.pendingGmNudge){
@@ -9506,7 +9545,7 @@ async function sendMessage(){
     // Empty reply even after the token-bump retry — surface a clear hint instead of a blank bubble.
     if(!reply||!reply.trim()){
       document.getElementById('sendBtn').disabled=false;
-      toast("⚠️ Empty reply — try raising Max tokens in Settings (reasoning models need headroom)");
+      toast("Empty reply — try raising Max tokens in Settings (reasoning models need headroom)");
       return;
     }
     const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
@@ -9762,7 +9801,7 @@ async function playCharacterTurn(chat,p,addressed){
     const baseHist=castHistory(chat,p);
     const taggedHist=tagLastForTarget(baseHist);
     const tailMsg={role:"system",content:buildTailGuidance({
-      chat, selfId:p.id, selfName:p.name, targetName, targetId, multi:true
+      chat, selfId:p.id, selfName:p.name, targetName, targetId, multi:true, injected
     })};
     const messages=[sys,...taggedHist,tailMsg];
     if(chat.pendingGmNudge){
@@ -9776,7 +9815,7 @@ async function playCharacterTurn(chat,p,addressed){
     const cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
     // Empty reply (model returned nothing even after the token-bump retry) — don't push a blank
     // bubble or run image/voice on nothing. Skip this character's turn cleanly.
-    if(!cleaned){ toast("⚠️ "+p.name+": empty reply (try raising Max tokens in Settings)"); return false; }
+    if(!cleaned){ toast(""+p.name+": empty reply (try raising Max tokens in Settings)"); return false; }
     const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     // BACKGROUND: persist + fire image pipeline immediately (text is ready) + voice check. The
@@ -9792,7 +9831,7 @@ async function playCharacterTurn(chat,p,addressed){
   }catch(err){
     typing.remove();
     // Don't abort the whole multi-character turn if one character's reply fails.
-    toast("⚠️ "+p.name+": "+(err.friendly||"reply failed"));
+    toast(""+p.name+": "+(err.friendly||"reply failed"));
     return false;
   }
 }
@@ -10013,7 +10052,7 @@ async function illustrate(mid,replyText){
     persistImages();persistChats();refreshBubble(mid);updateStorage();
   }catch(err){
     msg.imgState="error";msg.imgErr=err.friendly||"";persistChats();refreshBubble(mid);
-    if(err.friendly) toast("🖼️ "+err.friendly);
+    if(err.friendly) toast(""+err.friendly);
   }
 }
 function reIllustrate(mid){const m=findMsg(mid);if(!m)return;illustrate(mid,m.content);}
@@ -10077,7 +10116,7 @@ async function animateScene(mid){
     persistVideos();persistChats();refreshBubble(mid);
   }catch(err){
     msg.vidState="error";persistChats();refreshBubble(mid);
-    toast("🎬 "+(err.friendly||"Video failed"));
+    toast(""+(err.friendly||"Video failed"));
   }
 }
 async function submitVideo(prompt,firstFrameDataUrl){
@@ -10127,7 +10166,7 @@ async function pollVideo(job,setStat){
 }
 function downloadVideo(mid){
   const m=findMsg(mid);if(!m||(!m.video&&!m.videoSrc))return;
-  const a=document.createElement('a');a.href=m.video||m.videoSrc;a.download="storymind_scene.mp4";a.click();toast("Saving video ✓");
+  const a=document.createElement('a');a.href=m.video||m.videoSrc;a.download="storymind_scene.mp4";a.click();toast("Saving video");
 }
 
 /* ---- scene image viewer ---- */
@@ -10152,7 +10191,7 @@ function viewGalleryImage(id){
   document.getElementById('imgModalCap').textContent=`${r.character} — ${r.prompt}`;
   openModal('imgModal');
 }
-function downloadCurrent(){if(_curImg){const a=document.createElement('a');a.href=_curImg.url;a.download="storymind_scene.png";a.click();toast("Saved ✓");}}
+function downloadCurrent(){if(_curImg){const a=document.createElement('a');a.href=_curImg.url;a.download="storymind_scene.png";a.click();toast("Saved");}}
 
 /* ---- gallery ---- */
 function renderGallery(){
@@ -11159,7 +11198,7 @@ async function playGamemasterBeat(chat,nudge){
     else if(cast.length===1) await playSingleReaction(chat,cast[0],text);
     maybeBuildMemory(chat);
   }catch(err){
-    toast("🎬 "+(err.friendly||"Gamemaster couldn't continue the scene."));
+    toast(""+(err.friendly||"Gamemaster couldn't continue the scene."));
   }finally{chat._gmBusy=false;}
 }
 
@@ -11217,7 +11256,7 @@ async function setupActiveEvent(chat,eventText){
     }
     chat.activeEvent=ev;persistChats();updateChatHeader();
   }catch(e){/* if setup fails, no active event — behaves like before */
-    toast("🎬 "+(e.friendly||"Scene Writer setup failed — event won't be tracked."));}
+    toast(""+(e.friendly||"Scene Writer setup failed — event won't be tracked."));}
 }
 
 // Called each player turn while an event is active: advance the arc, maybe resolve.
@@ -11635,7 +11674,7 @@ async function runSceneWriter(chat){
       await resolveActiveEvent(chat,how);
     }
     return broughtIn;   // returns the character to let them speak their entrance
-  }catch(e){toast("🎬 "+(e.friendly||"Scene Writer couldn't continue the scene.")); return false;}
+  }catch(e){toast(""+(e.friendly||"Scene Writer couldn't continue the scene.")); return false;}
 }
 
 // Wind down an active event and offer to keep any temp character.
@@ -11665,7 +11704,7 @@ function offerSaveTemp(chatId,tid){
       universeId:_uid,
       personality:t.personality||"",backstory:"",style:"",scenario:"",look:t.look||"",greeting:"",image:null};
     state.personas.push(np);persistPersonas();
-    toast(t.name+" saved as a character ✓");
+    toast(t.name+" saved as a character");
   }
   // either way, drop the temp record (memories they formed are kept separately)
   chat.tempChars=(chat.tempChars||[]).filter(x=>x.id!==tid);
@@ -11717,7 +11756,7 @@ async function playSingleReaction(chat,p,eventText){
     const taggedHistory=tagLastForTarget(history);
     const tailMsg={role:"system",content:buildTailGuidance({
       chat, selfId:p.id, selfName:p.name,
-      targetName:state.user, targetId:"__user__", multi:false
+      targetName:state.user, targetId:"__user__", multi:false, injected
     })};
     const reply=await chatCompletion([sysMsg,...taggedHistory,tailMsg],state.model,{dbg:"Roleplay reply (gamemaster reaction)"});
     typing.remove();
@@ -11726,7 +11765,7 @@ async function playSingleReaction(chat,p,eventText){
     persistChats();appendNewBubbles();
     if(state.autoImg) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
-  }catch(err){typing.remove();toast("⚠️ "+(err.friendly||"reaction failed"));}
+  }catch(err){typing.remove();toast(""+(err.friendly||"reaction failed"));}
 }
 // Manual TEST trigger for a confrontation: pick a character who has an open suspicion about the
 // player (or, failing that, any nearby/known character) and have them come settle it. Lets you
@@ -11773,7 +11812,7 @@ async function forceGamemaster(){
   // authoring a new event on top of it (which would abandon the in-progress arc).
   if(chat.activeEvent && !chat.activeEvent.resolved && state.sceneOn){
     if(chat._gmBusy)return;chat._gmBusy=true;
-    toast("🎬 Advancing the scene…");
+    toast("Advancing the scene…");
     try{
       const broughtIn=await runSceneWriter(chat);
       if(broughtIn){ await playCharacterTurn(chat,broughtIn,"arriving"); }
@@ -11786,7 +11825,7 @@ async function forceGamemaster(){
     }catch(e){/* best-effort */}finally{chat._gmBusy=false;}
     return;
   }
-  toast("🎬 Gamemaster thinking…");
+  toast("Gamemaster thinking…");
   maybeGamemaster(chat,true);
 }
 
@@ -11935,8 +11974,8 @@ async function condenseAllNow(){
         if(memoriesOf(id).length<=state.condenseThreshold) break; // within bounds → done
       }
     }
-    toast("Condensed ✓");
-  }catch(e){ toast("⚠️ Condense failed"); }
+    toast("Condensed");
+  }catch(e){ toast("Condense failed"); }
   finally{ state.condenseOn=prev; renderMemory(); }
 }
 
@@ -12152,12 +12191,12 @@ async function genDiaryCover(ownerId,btn){
     const prompt=`A closed personal diary / leather journal book cover that belongs to ${p.name}. ${desc?("Evoking: "+desc+". "):""}Worn cover, embossed detail, moody lighting, no text, no readable letters, book closed, object only.`;
     let url=null;
     if(typeof generatePicForLook==="function"){ url=await generatePicForLook(prompt); }
-    if(url){ p.diaryCover=url; persistPersonas(); openDiaryReader(ownerId,_diaryReaderDay); renderDiary(); toast("Cover ready ✓"); }
-    else toast("⚠️ Couldn't generate cover");
-  }catch(e){ toast("🎨 "+(e&&e.friendly||"Couldn't generate cover")); }
+    if(url){ p.diaryCover=url; persistPersonas(); openDiaryReader(ownerId,_diaryReaderDay); renderDiary(); toast("Cover ready"); }
+    else toast("Couldn't generate cover");
+  }catch(e){ toast(""+(e&&e.friendly||"Couldn't generate cover")); }
   finally{ if(btn){btn.disabled=false;btn.textContent=old;} }
 }
-function addMemoryManual(){const t=prompt("Remember that…");if(t&&t.trim()){const owner=presentCast()[0]||curCast()[0];if(!owner){toast("Bring a character nearby first");return;}const _ch=curChat();state.memory.push({id:"m_"+Date.now(),content:t.trim(),location:"",emotion:"neutral",importance:0.6,tags:[],type:"EXPERIENCE",ownerId:owner.id,character:owner.name,date:Date.now(),gameDay:curGameDay(),source:"manual",universeId:(_ch&&_ch.universeId)||state.curUniverse||null,chatId:(_ch&&_ch.id)||state.curChat||null});persistMemory();renderMemory();show('memory');toast("Added to "+owner.name+"'s memory ✓");}}
+function addMemoryManual(){const t=prompt("Remember that…");if(t&&t.trim()){const owner=presentCast()[0]||curCast()[0];if(!owner){toast("Bring a character nearby first");return;}const _ch=curChat();state.memory.push({id:"m_"+Date.now(),content:t.trim(),location:"",emotion:"neutral",importance:0.6,tags:[],type:"EXPERIENCE",ownerId:owner.id,character:owner.name,date:Date.now(),gameDay:curGameDay(),source:"manual",universeId:(_ch&&_ch.universeId)||state.curUniverse||null,chatId:(_ch&&_ch.id)||state.curChat||null});persistMemory();renderMemory();show('memory');toast("Added to "+owner.name+"'s memory");}}
 
 /* ---- settings ---- */
 /* ===== Editable model-routing rules (add/remove as many as you want) ===== */
@@ -12600,7 +12639,7 @@ function saveSettings(notify){
   store.set(K.fnCfg,state.fnCfg||{});
   store.setRaw(K.style,state.style);store.setRaw(K.ratio,state.ratio);store.setRaw(K.font,state.font);
   applyTheme();updateChatHeader();
-  if(notify)toast("Settings saved ✓");
+  if(notify)toast("Settings saved");
 }
 function updateStorage(){let b=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);b+=(localStorage.getItem(k)||"").length+k.length;}
   const el=document.getElementById('storageUsed');if(el)el.textContent=(b/1024).toFixed(0)+" KB";
@@ -12613,10 +12652,10 @@ function updateStorage(){let b=0;for(let i=0;i<localStorage.length;i++){const k=
   }
 }
 function testConnection(){saveSettings(false);const b=document.getElementById('testBtn');b.textContent="Testing…";b.disabled=true;
-  chatCompletion([{role:"user",content:"Say OK"}],state.model,{max:5,dbg:"Connection test"}).then(()=>toast("Connected ✓")).catch(e=>toast("✗ "+(e.friendly||"Failed"))).finally(()=>{b.textContent="Test Connection";b.disabled=false;});}
+  chatCompletion([{role:"user",content:"Say OK"}],state.model,{max:5,dbg:"Connection test"}).then(()=>toast("Connected")).catch(e=>toast(""+(e.friendly||"Failed"))).finally(()=>{b.textContent="Test Connection";b.disabled=false;});}
 
 /* ---- data ---- */
-function exportChats(){const blob=new Blob([JSON.stringify({chats:state.chats,memory:state.memory},null,2)],{type:"application/json"});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download="storymind_story.json";a.click();toast("Exported ✓");}
+function exportChats(){const blob=new Blob([JSON.stringify({chats:state.chats,memory:state.memory},null,2)],{type:"application/json"});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download="storymind_story.json";a.click();toast("Exported");}
 
 /* ===================== Full backup: Export / Import EVERYTHING =====================
    One bundle = all settings/prompts (localStorage) + the growing collections (chats,
@@ -12644,8 +12683,8 @@ async function exportAll(){
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
     const d=new Date(); const stamp=d.getFullYear()+""+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")+"_"+String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0");
     a.download="storymind_backup_"+stamp+".json"; a.click();
-    toast("Backup exported ✓");
-  }catch(e){ console.warn("exportAll failed",e); toast("⚠️ Export failed"); }
+    toast("Backup exported");
+  }catch(e){ console.warn("exportAll failed",e); toast("Export failed"); }
 }
 /* ---- Automatic rolling backup (kept inside IndexedDB) ----
    A safety net that needs no user action: after meaningful changes (debounced) and on
@@ -12696,9 +12735,9 @@ async function importAllFile(file){
       await mediaDB.putAll("images",b.media.images||[]);
       await mediaDB.putAll("videos",b.media.videos||[]);
     }
-    toast("Imported ✓ — reloading");
+    toast("Imported — reloading");
     setTimeout(()=>location.reload(),700);
-  }catch(e){ console.warn("importAll failed",e); toast("⚠️ Import failed: "+(e.message||"bad file")); }
+  }catch(e){ console.warn("importAll failed",e); toast("Import failed: "+(e.message||"bad file")); }
 }
 /* ===== Granular export / import sets ===== */
 function _downloadJSON(obj,name){
@@ -12720,8 +12759,8 @@ function exportRoleplay(){
     if(!Object.keys(chats).length && !memory.length){ toast("No roleplay in this universe to export"); return; }
     _downloadJSON({app:"StoryMind",kind:"roleplay",version:BACKUP_VERSION,date:Date.now(),
       universe, personas, chats, memory, curChat:state.curChat}, "storymind_roleplay");
-    toast("Roleplay exported ✓");
-  }catch(e){ console.warn("exportRoleplay failed",e); toast("⚠️ Export failed"); }
+    toast("Roleplay exported");
+  }catch(e){ console.warn("exportRoleplay failed",e); toast("Export failed"); }
 }
 async function importRoleplayFile(b){
   if(!b||b.kind!=="roleplay") throw new Error("Not a roleplay export");
@@ -12741,13 +12780,13 @@ function exportUniverses(){
   try{
     _downloadJSON({app:"StoryMind",kind:"universes",version:BACKUP_VERSION,date:Date.now(),
       universes:state.universes||[], personas:state.personas||[]}, "storymind_universes");
-    toast("Universes exported ✓");
-  }catch(e){ console.warn("exportUniverses failed",e); toast("⚠️ Export failed"); }
+    toast("Universes exported");
+  }catch(e){ console.warn("exportUniverses failed",e); toast("Export failed"); }
 }
 async function importUniversesFile(b){
   if(!b||b.kind!=="universes") throw new Error("Not a universes export");
   let incoming=b.universes||[];
-  if(!incoming.length){ toast("⚠️ No universes in that file"); return false; }
+  if(!incoming.length){ toast("No universes in that file"); return false; }
   const names=incoming.map(u=>u.name||u.id).join(", ");
   // Offer REPLACE (make these the only worlds) vs MERGE (add to existing). Replace is what you want
   // when restoring a backup; merge keeps everything.
@@ -12829,7 +12868,7 @@ async function importUniversesFile(b){
     (b.personas||[]).forEach(p=>{ const i=state.personas.findIndex(x=>x.id===p.id); if(i>=0)state.personas[i]=p; else state.personas.push(p); });
   }
   persistUniverses(); persistPersonas();
-  toast(`Imported ${incoming.length} universe(s)${replace?" (replaced)":""}${stripped?` · ${stripped} stale prompt override(s) reset to current`:""} ✓`);
+  toast(`Imported ${incoming.length} universe(s)${replace?" (replaced)":""}${stripped?` · ${stripped} stale prompt override(s) reset to current`:""}`);
   return true;
 }
 // ⚙️ PROMPTS: all prompt overrides + model/toggle settings (the "prompt pack"). Pulls from the
@@ -12850,8 +12889,8 @@ function exportPrompts(){
     PROMPT_PACK_KEYS.forEach(key=>{ const kk=K[key]; if(kk){ const v=store.raw(kk,null); if(v!=null)settings[key]=v; } });
     _downloadJSON({app:"StoryMind",kind:"prompts",version:BACKUP_VERSION,date:Date.now(),
       prompts, settings}, "storymind_prompts");
-    toast("Prompts exported ✓");
-  }catch(e){ console.warn("exportPrompts failed",e); toast("⚠️ Export failed"); }
+    toast("Prompts exported");
+  }catch(e){ console.warn("exportPrompts failed",e); toast("Export failed"); }
 }
 async function importPromptsFile(b){
   if(!b||b.kind!=="prompts") throw new Error("Not a prompts export");
@@ -12873,8 +12912,8 @@ async function importDispatch(file){
     if(_importMode==="roleplay")  ok=await importRoleplayFile(b);
     else if(_importMode==="universes") ok=await importUniversesFile(b);
     else if(_importMode==="prompts")   ok=await importPromptsFile(b);
-    if(ok){ toast("Imported ✓ — reloading"); setTimeout(()=>location.reload(),700); }
-  }catch(e){ console.warn("import failed",e); toast("⚠️ Import failed: "+(e.message||"bad file")); }
+    if(ok){ toast("Imported — reloading"); setTimeout(()=>location.reload(),700); }
+  }catch(e){ console.warn("import failed",e); toast("Import failed: "+(e.message||"bad file")); }
 }
 function confirmClear(w){
   if(w==='chats'&&confirm("Delete ALL chats?")){state.chats={};state.curChat=null;flushPersistChats();try{localStorage.removeItem(K.chats);}catch(e){}startSceneFor(state.curUniverse);renderChat();toast("Cleared");updateStorage();}
@@ -12901,7 +12940,7 @@ function wipeUniverseMemory(){
   persistChats();
   if(document.getElementById('screen-memory').classList.contains('active'))renderMemory();
   updateStorage();
-  toast(`Wiped ${before-state.memory.length} mem\u200bories ✓`);
+  toast(`Wiped ${before-state.memory.length} mem\u200bories`);
 }
 
 /* ---- onboarding ---- */
@@ -12921,7 +12960,7 @@ function renderObPersonas(){
   });
 }
 function obTestKey(){const k=document.getElementById('obKey').value.trim();if(!k){toast("Paste a key first");return;}state.key=k;const b=document.getElementById('obTest');b.textContent="Testing…";b.disabled=true;
-  chatCompletion([{role:"user",content:"Say OK"}],state.model,{max:5,dbg:"Connection test"}).then(()=>toast("Connected ✓")).catch(e=>toast("✗ "+(e.friendly||"Failed"))).finally(()=>{b.textContent="Test Connection";b.disabled=false;});}
+  chatCompletion([{role:"user",content:"Say OK"}],state.model,{max:5,dbg:"Connection test"}).then(()=>toast("Connected")).catch(e=>toast(""+(e.friendly||"Failed"))).finally(()=>{b.textContent="Test Connection";b.disabled=false;});}
 function obSaveKey(){const k=document.getElementById('obKey').value.trim();if(k){state.key=k;store.setRaw(K.key,k);}const sk=document.getElementById('obSegKey').value.trim();if(sk){state.segkey=sk;store.setRaw(K.segkey,sk);}obGo(3);}
 function finishOnboard(){
   state.user=document.getElementById('obUser').value.trim()||"You";store.setRaw(K.user,state.user);
@@ -12983,12 +13022,12 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 (function(){
   // ---- Inline web app manifest (Blob URL) so the app stays a single self-contained file.
   // Chrome on Android accepts a blob: manifest for install/Add-to-Home-Screen.
-  const ICON="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230D0F14'/%3E%3Ccircle cx='256' cy='256' r='150' fill='none' stroke='%236B8CFF' stroke-width='18'/%3E%3Ctext x='256' y='330' font-size='200' text-anchor='middle' fill='%236B8CFF'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E";
+  const ICON="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230B0810'/%3E%3Ccircle cx='256' cy='256' r='150' fill='none' stroke='%23E0489E' stroke-width='18'/%3E%3Ctext x='256' y='330' font-size='200' text-anchor='middle' fill='%23E0489E'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E";
   const manifest={
     name:"StoryMind", short_name:"StoryMind",
     description:"StoryMind roleplay",
     start_url:".", scope:".", display:"standalone",
-    orientation:"portrait", background_color:"#0D0F14", theme_color:"#0D0F14",
+    orientation:"portrait", background_color:"#0B0810", theme_color:"#0B0810",
     icons:[
       {src:ICON, sizes:"192x192", type:"image/svg+xml", purpose:"any"},
       {src:ICON, sizes:"512x512", type:"image/svg+xml", purpose:"any maskable"}
@@ -13027,7 +13066,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
     deferredPrompt.prompt();
     deferredPrompt.userChoice.finally(()=>{ deferredPrompt=null; const b=document.getElementById('installBtn'); if(b) b.style.display='none'; });
   };
-  window.addEventListener('appinstalled',()=>{ toast("Installed ✓"); });
+  window.addEventListener('appinstalled',()=>{ toast("Installed"); });
 })();
 
 init();
