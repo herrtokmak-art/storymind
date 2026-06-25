@@ -451,9 +451,24 @@
           <div><label>Creativity (temperature): <span id="tempVal">0.85</span></label><input type="range" id="setTemp" min="0" max="1" step="0.05" value="0.85"></div>
           <div><label>Max tokens: <span id="tokVal">1200</span></label><input type="range" id="setTokens" min="500" max="4000" step="100" value="1200"></div>
           <div class="desc">This is the base creativity &amp; length. Other functions fall back to these when set to Auto. <b>Using a reasoning model</b> (e.g. deepseek-v4-pro)? Keep this at 1200+ — reasoning models spend hidden tokens thinking before they answer, and a low limit can make them return nothing.</div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+            <div class="kvline" style="padding:0 0 6px"><label style="margin:0"><svg class="ic"><use href="#i-bulb"/></svg> Model reasoning / thinking <span class="desc" style="display:inline">(off is best for this app — faster, no leaked thoughts)</span></label>
+              <label class="switchLbl"><input type="checkbox" id="setReasoningOn"><span class="sl"></span></label></div>
+            <div class="desc" style="margin:-2px 0 10px">These four apply to <b>every</b> model/call below. Leave on <b>Auto</b> to use each provider's own default (nothing sent).</div>
+            <div><label>Top-P: <span id="topPVal">Auto</span></label>
+              <div class="kvline" style="padding:0"><label class="switchLbl" style="transform:scale(.85)"><input type="checkbox" id="setTopPOn"><span class="sl"></span></label>
+              <input type="range" id="setTopP" min="0.1" max="1" step="0.05" value="1" style="flex:1;opacity:.35;pointer-events:none"></div></div>
+            <div><label>Frequency penalty: <span id="freqPenVal">Auto</span></label>
+              <div class="kvline" style="padding:0"><label class="switchLbl" style="transform:scale(.85)"><input type="checkbox" id="setFreqPenOn"><span class="sl"></span></label>
+              <input type="range" id="setFreqPen" min="-2" max="2" step="0.1" value="0" style="flex:1;opacity:.35;pointer-events:none"></div></div>
+            <div><label>Presence penalty: <span id="presPenVal">Auto</span></label>
+              <div class="kvline" style="padding:0"><label class="switchLbl" style="transform:scale(.85)"><input type="checkbox" id="setPresPenOn"><span class="sl"></span></label>
+              <input type="range" id="setPresPen" min="-2" max="2" step="0.1" value="0" style="flex:1;opacity:.35;pointer-events:none"></div></div>
+          </div>
         </div>
 
         <div class="card">
+
           <h3><svg class="ic"><use href="#i-feather"/></svg> Prompt Rewriter</h3>
           <div class="desc">Turns each reply into image &amp; video generation prompts.</div>
           <div><label>Model</label><input type="text" id="setRewriter" list="modelList" placeholder="openai/gpt-4o-mini"></div>
@@ -1249,6 +1264,7 @@
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
+  reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",
   memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",poiGossip:"sm_poigossip",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
@@ -3741,6 +3757,10 @@ function loadState(){
     // by applyUniverseProfile() whenever a universe is opened (see openUniverse/enterUniverseChat).
     tokens:+store.raw(K.tokens,1200),
     temp:+store.raw(K.temp,0.7),
+    reasoningOn:store.get(K.reasoningOn,false),
+    topP:store.raw(K.topP,""),            // "" = Auto (omit, use provider default)
+    freqPenalty:store.raw(K.freqPenalty,""),
+    presPenalty:store.raw(K.presPenalty,""),
     mem:store.get(K.mem,true),
     autoImg:store.get(K.autoImg,true),
     rewritePrompt:store.raw(K.rewritePrompt,DEFAULT_REWRITE),
@@ -4497,6 +4517,27 @@ function extractCompletionText(d){
 async function chatCompletion(messages,model,opts={}){
   if(!state.key)throw{friendly:"No API key set. Add your OpenRouter key in Settings."};
   const body={model,messages,temperature:opts.temp??state.temp,max_tokens:opts.max??state.tokens};
+  // REASONING CONTROL. Hybrid models on OpenRouter (e.g. deepseek/deepseek-v4-pro) default to
+  // thinking-ON, which both wastes the token budget on hidden reasoning AND can leak that reasoning
+  // into the visible answer when the provider bakes it into `content` in a format our strip layer
+  // misses. Our pipeline is all structured JSON / judgment work that does NOT want chain-of-thought,
+  // so we explicitly DISABLE reasoning by default (kills the leak at the source). Overridable:
+  //   • per call: opts.reasoning === true  → let the model think (rare; e.g. a future deep task)
+  //   • globally: state.reasoningOn === true → opt the whole app back into thinking mode
+  // OpenRouter ignores this field for models that don't support thinking, so it's safe to always send.
+  const wantReasoning = (opts.reasoning===true) || (opts.reasoning!==false && state.reasoningOn===true);
+  body.reasoning = wantReasoning ? {enabled:true} : {enabled:false, exclude:true};
+  // GLOBAL SAMPLING CONTROLS (apply to ALL calls). Each is sent ONLY when the user has set it — left
+  // at "Auto" (null/undefined) it's omitted entirely, so the provider's own default stands and
+  // behaviour is unchanged until you opt in. Per-call opts can still override.
+  {
+    const tp = opts.top_p ?? state.topP;
+    if(tp!==undefined && tp!==null && tp!=="") body.top_p=+tp;
+    const fp = opts.frequency_penalty ?? state.freqPenalty;
+    if(fp!==undefined && fp!==null && fp!=="") body.frequency_penalty=+fp;
+    const pp = opts.presence_penalty ?? state.presPenalty;
+    if(pp!==undefined && pp!==null && pp!=="") body.presence_penalty=+pp;
+  }
   const entry=dbg(opts.dbg||"Chat / roleplay","OpenRouter",OR+"/chat/completions",body);
   // Retry transient failures (rate-limit 429 / 5xx) a couple of times with backoff. This is what
   // turned a burst of schedule calls into "Network error" rows — too many requests at once.
@@ -10176,6 +10217,9 @@ function parseJSON(raw){
   try{return JSON.parse(body);}catch(e){}
   // last resort: original greedy grab
   const g=t.match(/[{[][\s\S]*[}\]]/);if(g){try{return JSON.parse(g[0]);}catch(e){}}
+  // All parse strategies failed — this is a genuine "model returned unparseable output" signal, so
+  // leave a breadcrumb (the silent no-op the debugger flagged). Truncated so the console stays usable.
+  try{ console.warn("[parseJSON] unparseable model output:", String(raw).slice(0,160)); }catch(_){}
   return null;
 }
 function fillTpl(s,map){return s.replace(/\{\{(\w+)\}\}/g,(m,k)=>map[k]!==undefined?map[k]:m);}
@@ -10922,7 +10966,7 @@ async function endDayBackground(chat,day,uni,daySnapshot,fallbackName){
   // ---- LIVING UNIVERSE: OFFSTAGE INTENT & AGENCY (layer 4) ---- characters form charged motives
   // from the day, fester them offstage, recruit allies, and when one is ready it surfaces as a
   // confrontation (which no-ops if a confrontation already fired above — they won't stack).
-  try{ await runIntentEngine(chat,day,uni); }catch(e){}
+  try{ await runIntentEngine(chat,day,uni); }catch(e){ try{ console.warn("[runIntentEngine] engine bailed:",e); }catch(_){} }
 
   // Refresh any open views that show this data.
   if(document.getElementById('screen-memory')&&document.getElementById('screen-memory').classList.contains('active'))renderMemory();
@@ -10987,7 +11031,7 @@ async function postTurn(chat){
     runCalendarEngine(chat).catch(()=>{});
     // A meeting may have come due this turn — ask the player (blocking) before the scene
     // continues, so an accepted meeting can travel them before the next beat is generated.
-    try{ await checkDuePlans(chat); }catch(e){}
+    try{ await checkDuePlans(chat); }catch(e){ try{ console.warn("[checkDuePlans] bailed:",e); }catch(_){} }
   }
   if(chat.activeEvent && !chat.activeEvent.resolved && state.sceneOn){
     const broughtIn=await runSceneWriter(chat);
@@ -12401,6 +12445,18 @@ function syncSettingsUI(){
   document.getElementById('setVidPrompt').value=state.vidPrompt;
   document.getElementById('setTokens').value=state.tokens;document.getElementById('tokVal').textContent=state.tokens;
   document.getElementById('setTemp').value=state.temp;document.getElementById('tempVal').textContent=state.temp;
+  // Global sampling controls: reasoning toggle + top_p / freq / presence (each Auto when "")
+  document.getElementById('setReasoningOn').checked=!!state.reasoningOn;
+  (function(){
+    const trip=[['topP','setTopP','setTopPOn','topPVal',1],['freqPenalty','setFreqPen','setFreqPenOn','freqPenVal',0],['presPenalty','setPresPen','setPresPenOn','presPenVal',0]];
+    trip.forEach(([key,rngId,onId,valId,def])=>{
+      const set=(state[key]!==""&&state[key]!=null);
+      const on=document.getElementById(onId), rng=document.getElementById(rngId), val=document.getElementById(valId);
+      on.checked=set; rng.value=set?state[key]:def;
+      rng.style.opacity=set?'1':'.35'; rng.style.pointerEvents=set?'auto':'none';
+      val.textContent=set?(+state[key]).toFixed(2):'Auto';
+    });
+  })();
   document.getElementById('setMem').checked=state.mem;
   document.getElementById('setFont').value=state.font;document.getElementById('fontVal').textContent=state.font;
   {const sr=document.getElementById('setStreamReveal'); if(sr)sr.checked=state.streamReveal!==false;}
@@ -12507,6 +12563,13 @@ function saveSettings(notify){
   state.vidPrompt=document.getElementById('setVidPrompt').value.trim()||DEFAULT_VIDPROMPT;
   state.tokens=+document.getElementById('setTokens').value;
   state.temp=+document.getElementById('setTemp').value;
+  // Global sampling controls
+  state.reasoningOn=document.getElementById('setReasoningOn').checked;
+  state.topP       = document.getElementById('setTopPOn').checked    ? +document.getElementById('setTopP').value    : "";
+  state.freqPenalty= document.getElementById('setFreqPenOn').checked ? +document.getElementById('setFreqPen').value : "";
+  state.presPenalty= document.getElementById('setPresPenOn').checked ? +document.getElementById('setPresPen').value : "";
+  store.set(K.reasoningOn,state.reasoningOn);
+  store.setRaw(K.topP,state.topP);store.setRaw(K.freqPenalty,state.freqPenalty);store.setRaw(K.presPenalty,state.presPenalty);
   state.mem=document.getElementById('setMem').checked;
   state.font=+document.getElementById('setFont').value;
   {const sr=document.getElementById('setStreamReveal'); if(sr)state.streamReveal=sr.checked;}
@@ -12897,6 +12960,16 @@ document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==='
 ['setTokens','setTemp','setFont','setSteps','setGmEvery','setMcCap','setSceneMin','setSceneMax'].forEach(id=>document.getElementById(id).addEventListener('input',e=>{
   const map={setTokens:'tokVal',setTemp:'tempVal',setFont:'fontVal',setSteps:'stepsVal',setGmEvery:'gmEveryVal',setMcCap:'mcCapVal',setSceneMin:'sceneMinVal',setSceneMax:'sceneMaxVal'};document.getElementById(map[id]).textContent=e.target.value;
   if(id==='setFont')document.body.style.fontSize=e.target.value+'px';}));
+// Global sampling sliders: live value label on drag; on-toggle enables/disables the slider.
+[['setTopP','setTopPOn','topPVal'],['setFreqPen','setFreqPenOn','freqPenVal'],['setPresPen','setPresPenOn','presPenVal']].forEach(([rngId,onId,valId])=>{
+  const rng=document.getElementById(rngId), on=document.getElementById(onId), val=document.getElementById(valId);
+  if(!rng||!on||!val)return;
+  rng.addEventListener('input',()=>{ if(on.checked) val.textContent=(+rng.value).toFixed(2); });
+  on.addEventListener('change',()=>{
+    rng.style.opacity=on.checked?'1':'.35'; rng.style.pointerEvents=on.checked?'auto':'none';
+    val.textContent=on.checked?(+rng.value).toFixed(2):'Auto';
+  });
+});
 document.querySelectorAll('#themeSeg button').forEach(b=>b.onclick=()=>{state.theme=b.dataset.t;document.querySelectorAll('#themeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');applyTheme();});
 document.querySelectorAll('#imgProvSeg button').forEach(b=>b.onclick=()=>{state.imgProvider=b.dataset.p;setProvSeg('imgProvSeg',state.imgProvider);updateProvVis();});
 document.querySelectorAll('#vidProvSeg button').forEach(b=>b.onclick=()=>{state.vidProvider=b.dataset.p;setProvSeg('vidProvSeg',state.vidProvider);updateProvVis();});
