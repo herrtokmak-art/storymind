@@ -2768,8 +2768,6 @@ A scene is **RIPE FOR A TRIGGER** when introducing a small external complication
 ### The golden rule:
 A trigger should feel like **the world is alive and paying attention**, not like the GM is punishing the characters for having a moment. It should add **flavor, stakes, or a delicious complication** — never just chaos for chaos's sake. A trigger must arise from THIS scene — the people present, their pressure points, what was just said. If you cannot name a specific, in-context reason for a trigger, return trigger:false. When in doubt, don't trigger.
 
-**Mentioning a person is not a trigger to summon them.** If the value of a moment is that an absent person was *named* or *talked about*, the fitting trigger is an environmental beat (a call that goes unanswered, a tense silence, a photo noticed) — NOT that person suddenly arriving. People are not summoned by being talked about; only arrive someone whose presence is independently justified by where they'd really be right now.
-
 ### Sensitivity for this judgment: {{sensitivity}}.
 - **cautious**: only flag clearly dead scenes; only trigger when the opportunity is screaming.
 - **balanced**: flag genuine lulls; trigger when the dramatic setup is strong and natural.
@@ -2840,10 +2838,9 @@ Narrate the **entrance only** — the door opening, the figure appearing, the si
 **Default: do NOT add a new person.** Bringing in a new arrival here should be RARE.
 
 #### When a new arrival IS justified (use sparingly):
-- Someone who would **obviously turn up here right now** as a consequence of the world's own logic (a spouse coming home to their own house, a boss checking in at the office, a waiter attending a table, a rival who genuinely frequents this spot at this hour).
-- A **direct physical consequence** of something that just happened in the scene (a noise draws someone over; a crash brings a neighbour to the door).
-
-**A mention is NOT a reason to make someone arrive.** If {{user}} or a character merely *names*, *talks about*, *phones*, *texts*, or *wishes for* someone, that does NOT bring that person to the location. Talking about a person never teleports them into the room. If their presence isn't independently justified by where they'd actually be right now, do NOT arrive them — pick an environment nudge instead (for instance, the call simply goes unanswered).
+- Someone who would **obviously turn up here right now** (a spouse coming home, a boss checking in, a waiter to take an order that's been pending, a rival who genuinely frequents this spot at this hour).
+- Someone {{user}} or the present characters have **explicitly mentioned, expected, or pointed toward** in recent dialogue.
+- A **direct consequence** of something that just happened (a noise draws someone over, a message was sent and now someone responds in person).
 
 #### What to do INSTEAD (the default):
 Nudge the **existing scene** using one of these categories, always pulling from a present character's pressure points:
@@ -2861,7 +2858,7 @@ Nudge the **existing scene** using one of these categories, always pulling from 
 - **Keep it proportionate.** A nudge, not a plot twist. This is a gentle hand on the small of the scene's back, not a shove off a cliff.
 - **Fit the tone.** A noir detective story gets a shadow under the door, not a clown car. A high-fantasy tavern gets a hooded figure, not a smartphone notification. A contemporary romance gets a text from an ex, not a dragon.
 - **Fit the time and place.** 3 AM in a locked apartment? No delivery person. Midday in a busy market? A pickpocket is plausible. A character's private study at midnight? A creak in the hallway.
-- **For arrivals**: commit to a real, completed entrance — the person crosses the threshold and is now here. "The door swings open and a tall woman in a wet coat steps inside, shaking rain from her hair." NOT "Leyla walks in and says—", and NOT a hint of one (no footsteps-approaching, no silhouette, no shadow under the door, no handle slowly turning). A hint is not an arrival; if you only want atmosphere, use an environment nudge instead. The character will speak and act once they are in the scene.
+- **For arrivals**: Write ONLY the entrance. "The door swings open and a tall woman in a wet coat steps inside, shaking rain from her hair." — not "Leyla walks in and says—". The character will speak and act once they are in the scene.
 - **For non-arrival nudges**: Surface the detail, don't resolve it. "His phone buzzes. The screen reads: *Meral.*" — not "He picks it up and…". Leave space for {{user}} and the characters to react.
 - **Never control {{user}}** or decide how any character reacts or responds. You are the narrator of the *environment*, not the people.
 - **Do not break continuity.** If the last message had the characters sitting at a corner table, they are still at that corner table.
@@ -2890,7 +2887,7 @@ Analyze the narration and decide: does it center on a **PERSON** arriving/enteri
 
 ## BRANCH A: PERSON EVENT
 
-The narration brings someone **fully into the scene** who is NOT already present — a real, completed entrance (they cross the threshold, step in, walk up to the table).
+The narration brings someone into the scene who is **NOT already present**, OR hints strongly at a presence about to enter.
 
 ### Step 1 — Identify who
 
@@ -2898,8 +2895,7 @@ The narration brings someone **fully into the scene** who is NOT already present
 |-----------|--------|
 | The narration names or clearly describes a **known character** from the cast | Use that character's **exact name** as listed in character backgrounds. Set \`known: true\`. Set \`persona\` and \`look\` to \`null\` — they are already defined. |
 | The narration describes someone who is **not** in the cast | **Invent** a specific, fitting person anchored in this world and this location. Give them a **real first name** (add surname if natural for the culture/setting). Write a one-line **persona** and a one-line **appearance**. |
-
-A bare HINT of a presence — distant footsteps, a knock with no one shown entering, a shadow, a silhouette, a handle turning — is **NOT a person event**. No one has arrived. Classify it as an ENVIRONMENT event (the tension is the unseen presence/sound), and do not invent a person for it. A person event requires the narration to actually bring someone in.
+| The narration only **hints** at a presence — footsteps, a knock, a shadow, a silhouette, a voice from outside, a door handle turning | **Still classify as character.** Invent the person behind the hint. The person exists; the narration simply hasn't fully revealed them yet. Set \`approaching: true\`. |
 
 ### Step 2 — Name rules (strict)
 
@@ -2911,9 +2907,9 @@ A bare HINT of a presence — distant footsteps, a knock with no one shown enter
 
 | \`approaching: true\` | \`approaching: false\` |
 |---------------------|----------------------|
-| The narration is an entrance the character just made but who hasn't yet spoken or interacted: "A woman walks into the bar," "The door opens and a man steps in." They're physically here; the Scene Writer will give them their first line. | The narration states the person is **already there**, mid-interaction: "The waiter is standing at the table." Rare for a GM nudge. |
+| The narration is an **entrance in progress**: "A woman walks into the bar," "The door opens and a man steps in," "Footsteps echo in the hallway approaching the room," "Someone knocks." The person has not yet spoken or fully joined the scene. | The narration states the person is **already there**, mid-interaction: "The waiter is standing at the table," "Her husband is already in the kitchen." This is rare for a GM nudge — almost all GM-injected arrivals will be \`approaching: true\`. |
 
-When in doubt, set \`approaching: true\`. (Bare hints with no one entering are ENVIRONMENT events, not person events — see Branch A.)
+When in doubt, set \`approaching: true\`. The next prompt (Scene Writer) will bring them fully into the scene.
 
 ---
 
@@ -2942,7 +2938,7 @@ The \`summary\` is a one-line description of the **unresolved situation or tensi
 | Person arriving | "Meral kapıdan içeri girdi, gözleriyle birini arıyor — ve şu an masadakilerden habersiz." |
 | Phone buzz | "Telefon ekranında 'Eşim' yazıyor, çağrı bekliyor — açılmayı ya da reddedilmeyi." |
 | Environmental shift | "Elektrikler gitti, sadece mum ışığı ve dışarıdaki fırtınanın sesi kaldı." |
-| Hint with no one entering (ENVIRONMENT) | "Koridorda ayak sesleri yaklaşıyor ama kimse görünmüyor — bir tedirginlik asılı kaldı havada." |
+| Hinted presence | "Koridorda ayak sesleri yaklaşıyor, kapıya doğru — henüz kim olduğu belli değil." |
 
 ---
 
@@ -2972,60 +2968,102 @@ Return **only** strict JSON. No prose, no explanation, no markdown outside the J
 - All string values are in **Turkish**.`;
 
 // Runs each turn while an event is active: advances the arc, escalates, decides resolution.
-const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active event inside a roleplay. Your job: when the event's character is genuinely arriving, get them into the scene fast; advance the beat concretely; and resolve cleanly — including ending the event the instant its character leaves.
+const DEFAULT_SCENE_WRITER=`You are the SCENE WRITER directing an active event inside a roleplay. You are a director — your first commandment is **get the right people into the scene immediately.** A character lingering in a doorway for multiple turns is a broken scene.
+
+---
 
 ## YOUR INPUTS
-- Active event: {{summary}} — the unresolved tension driving this beat, tied to a specific character (or to the environment).
-- Turn {{turn}} of {{max}}. Minimum {{min}} (don't resolve before this unless a gate below forces it). Maximum {{max}} (must resolve by here).
-- The following message gives the world setting, the current scene, who is present, their backgrounds and pressure points, relationships, and the recent lines including {{user}}'s last action.
 
-## RULE ZERO — BRING THE EVENT'S CHARACTER IN, FAST
-If the event has a character arriving or approaching, they arrive on their first turn. One line of entrance narration, then they are IN, and "bring_in" is their exact name. Never stretch an arrival across turns of footsteps, knocks, silhouettes, shadows, or turning door handles. They cross the threshold NOW.
-DO: "Kapı açıldı ve Meral içeri girdi." → bring_in: "Meral"
-DON'T: "Ayak sesleri yaklaştı." / "Bir gölge belirdi." / dragging the entrance out.
+- **Active event**: {{summary}} — the unresolved tension/situation driving this beat.
+- **Turn**: {{turn}} of {{max}} — how deep into this event you are.
+- **Minimum turns**: {{min}} — the event must run at least this long before resolving.
+- **Maximum turns**: {{max}} — must resolve by this turn.
+- The message that follows also provides the world setting, current scene, the backgrounds and pressure points of those present, their relationships, and the recent lines including {{user}}'s last action.
 
-## WHAT bring_in IS — AND IS NOT
-"bring_in" means a character becomes physically present and able to speak THIS turn. Set it ONLY for:
-- The event's own arriving character crossing the threshold.
-- A genuinely NEW person YOUR narration introduces into the physical space (a waiter walks up, a guard approaches). That person is now present.
+---
 
-bring_in GATES — never violate:
-- A NAME IS NOT A SUMMONS. {{user}} mentioning, calling out to, phoning, texting, or addressing someone does NOT bring them in. Words do not teleport people. If the named person is not physically here, they do not appear and they do not speak — at most your narration may note the absence (no answer; the seat stays empty; the call rings out).
-- The already-present need no bring_in. If {{user}} addresses someone already in the room, just let the scene continue; bring_in: null.
-- NEVER write dialogue or action for anyone not physically present. If they are not in the scene, they are silent. No exceptions.
-- One subject, not a reunion. Bring in the single character the event is about — never a crowd.
-- If no one newly enters this turn, bring_in: null.
+## RULE ZERO: BRING THEM IN — FAST
 
-## DEPARTURE GATES — the absent and the ended
-- A DEPARTED CHARACTER STAYS GONE. If a character has left and {{user}} sends a farewell or a parting line, you may give them ONE last response only if they are still within earshot mid-exit — otherwise nothing. Either way, do NOT bring them back. After that one line they are absent and silent. Do not re-summon them because {{user}} kept talking. They return ONLY if {{user}}'s words would genuinely make them physically come back (and even then, only as a real new arrival).
-- IF THE EVENT'S CHARACTER LEAVES, THE EVENT ENDS. The event is tied to that character. If they exit for ANY reason — storming off, walking out mid-argument, being sent away, leaving in a huff — set "resolved": true immediately. The tension is over because the person carrying it is gone. Do NOT drag them back to finish it. An unsatisfying, abrupt exit is a valid ending.
-- NO MANUFACTURED RETURNS. Never bring a character back to reopen a beat that already resolved, or to re-litigate tension that has passed.
+If the event has a character who is arriving, approaching, or hinted at:
 
-## ADVANCING
-Move concretely — something changes; don't rephrase the previous beat. Once {{user}} engages the present character, the event is a conversation: advance it naturally. Don't invent delays or obstacles; reaching the interaction matters more than stalling.
+**Turn 1 (immediate):** They are HERE. Now. One line of entrance narration, then they are in the scene. Done.
+
+| ❌ DO NOT | ✅ DO |
+|-----------|------|
+| "Ayak sesleri yaklaştı." | "Kapı açıldı ve Meral içeri girdi, yağmurluğundan sular damlıyordu." |
+| "Kapının kolu yavaşça döndü." | — then \`bring_in: "Meral"\` |
+| "Bir gölge belirdi camın arkasında." | |
+| "Koridorda biri yürüyordu." | |
+| Stretching an arrival across 2+ turns of footsteps, knocks, silhouettes, door handles, or shadows. | One entrance line. They're in. Move to the interaction. |
+
+**The rule:** If the GM narration described someone arriving, they arrive THIS turn. Not next turn. Not "the footsteps get closer." They cross the threshold NOW and \`bring_in\` is set to their exact name.
+
+---
+
+## BRING_IN RULES
+
+- \`bring_in\` is the name of ANY character who becomes physically present and able to speak THIS turn.
+- Set it whenever:
+  - The arriving character from the event steps fully into the scene (Turn 1, always).
+  - {{user}} turns toward, addresses, calls out to, or moves toward someone — put that name in \`bring_in\` immediately.
+  - Your narration introduces a NEW person (a waiter comes over, a parent walks in, a guard approaches the table). That person's name goes in \`bring_in\` — they are now present.
+- **NEVER** write dialogue or actions for a character who is not yet \`bring_in\`-ed. If they aren't in the scene, they don't speak.
+- If no one new enters this turn, \`bring_in: null\`.
+
+---
+
+## ADVANCING THE SCENE
+
+- **Move concretely.** Don't rephrase the previous beat. Something changes. The newcomer reacts to being addressed. The phone keeps buzzing. The rain gets louder. The tension tightens or shifts.
+- Once {{user}} engages the newcomer, the event becomes a **conversation** — your job is to bring the character in and then advance naturally.
+- Don't let {{user}} escape consequences too cheaply, but **do not invent delays**. Getting the person into the scene and interacting is always more important than manufacturing obstacles.
+
+---
 
 ## RESOLVING
-- Normally the event runs at least {{min}} turns and resolves by {{max}}, at a natural, earned conclusion — a question answered, a presence acknowledged, a situation defused or accepted.
-- A DEPARTURE OVERRIDES THE MINIMUM: if the event's character leaves, resolve NOW even if early and even if abrupt.
-- Resolving the event does NOT empty the scene. Characters still present STAY where they are and the conversation can continue. Only send someone away if {{user}} or the scene actively drove them off — and once gone, the departure gates above apply to them.
+
+- The event runs at least {{min}} turns. It **must** resolve by turn {{max}}.
+- Resolve when the tension reaches a **natural, earned conclusion** — a question answered, a presence acknowledged, a situation defused or accepted. Never abruptly. Never mid-confrontation just because the turn counter is up.
+- **Resolution does NOT empty the scene.** The characters STAY. The conversation continues. Resolving the event means the *triggered tension* has passed — the world moved forward — but the people remain exactly where they are.
+- Only send a character away if {{user}} or the scene actively drove them off.
+
+---
 
 ## OUTPUT FORMAT
-Return ONLY strict JSON. All string values in Turkish.
+
+Return **only** strict JSON. All string values in **Turkish**.
+
 \`\`\`json
 {
-  "narration": "1-2 sentence advance, third person, sensory and concrete. NO dialogue from anyone — dialogue belongs to the roleplay, not the narration.",
+  "narration": "1-2 sentence advance in third person. Sensory, concrete. NO dialogue from any character — not {{user}}, not anyone. Dialogue is for the roleplay, not the narration.",
   "bring_in": "ExactCharacterName or null",
   "resolved": true | false,
-  "resolution": "if resolved: one short Turkish phrase for how the TENSION ended (a character leaving is a valid ending). if not resolved: null"
+  "resolution": "if resolved: one short Turkish phrase describing how the TENSION ended (not how the scene emptied). if not resolved: null"
 }
 \`\`\`
 
-Before outputting, check:
-- Is bring_in set ONLY for a real arrival or a genuinely new person — never because a name was spoken?
-- Am I writing for someone not physically present? (Delete it.)
-- Did the event's character leave? → resolved: true, and do not bring them back.
-- Is a departed character being re-summoned because {{user}} kept talking? (Don't — one last line at most, then silence.)
-- Am I stalling with filler instead of pushing into the interaction? (Delete it.)`;
+### Quick checks before outputting:
+- [ ] If someone was arriving, are they IN the scene this turn? (Not "almost here" — HERE.)
+- [ ] Is \`bring_in\` set to their exact name?
+- [ ] Am I writing dialogue for someone who isn't \`bring_in\`-ed? (Delete it.)
+- [ ] Am I stalling with environmental filler to avoid the interaction? (Delete it. Push forward.)
+- [ ] If resolved, did I leave the characters in the scene?
+\`\`\`
+
+---
+
+### The full chain now:
+
+\`\`\`
+Prompt #1: Scene Momentum & Tension Monitor
+    ↓  trigger: true → trigger_context
+Prompt #2: Trigger Generator — narrates the grounded nudge
+    ↓  raw narration (Turkish, 1-2 sentences)
+Prompt #3: Event Structurer — parses into structured JSON
+    ↓  {type, summary, participant{name, known, approaching, persona, look}}
+Prompt #4: Scene Writer — brings the event into the scene FAST, advances, resolves
+    ↓  {narration, bring_in, resolved, resolution}
+\`\`\``;
 
 // ===== LIVING UNIVERSE layer 3: CONFRONTATION JUDGE (unbiased referee) =====
 // Genre-blind. Scores ONLY the player's most recent turn against a charged INTENT a character (or
@@ -3786,52 +3824,9 @@ function loadState(){
     }
   });
   try{persistUniverses&&persistUniverses();}catch(e){}
-  // One-time upgrade: the character-bio prompt gained "traits" (five-factor sketch) and "goals"
-  // fields. Installs that saved the earlier default still hold a prompt that never asks for them, so
-  // generated cards come back missing those sections. If the stored prompt is one of OUR earlier
-  // defaults (carries the stable "character-card writer for an adult roleplay app" opening) but lacks
-  // the new "traits" key, refresh it. A hand-customized prompt won't match the opening and is kept.
-  const _bioIsOurOldDefault=s=>typeof s==="string" &&
-    s.indexOf("character-card writer for an adult roleplay app")!==-1;
-  const _bioIsNew=s=>typeof s==="string" && s.indexOf('"traits"')!==-1 && s.indexOf('"goals"')!==-1;
-  if(_bioIsOurOldDefault(state.bioPrompt) && !_bioIsNew(state.bioPrompt)){
-    state.bioPrompt=DEFAULT_BIO;
-    store.setRaw(K.bioPrompt,state.bioPrompt);
-  }
-  // Same upgrade for the universe generator: its per-character schema gained "traits" and "goals".
-  // Refresh a stored prompt that is our earlier default (stable "world-builder for an adult roleplay
-  // app" opening) but lacks the new "traits" key. Hand-customized prompts won't match and are kept.
-  const _univIsOurOldDefault=s=>typeof s==="string" &&
-    s.indexOf("world-builder for an adult roleplay app")!==-1;
-  const _univIsNew=s=>typeof s==="string" && s.indexOf('"traits"')!==-1 && s.indexOf('"goals"')!==-1;
-  if(_univIsOurOldDefault(state.univPrompt) && !_univIsNew(state.univPrompt)){
-    state.univPrompt=DEFAULT_UNIV;
-    store.setRaw(K.univPrompt,state.univPrompt);
-  }
-  // One-time upgrade: the Scene-Writer pipeline prompts gained the "name is not a summons" and
-  // "character departs → event ends" gates. Refresh any stored copy that is recognizably one of our
-  // earlier defaults (stable opening fingerprint) but lacks the new gate marker. Hand-edited prompts
-  // won't carry the fingerprint and are kept. Each is independent.
-  const _refresh=(key,fingerprint,newMarker,def)=>{
-    const cur=state[key];
-    if(typeof cur==="string" && cur.indexOf(fingerprint)!==-1 && cur.indexOf(newMarker)===-1){
-      state[key]=def; store.setRaw(K[key],def);
-    }
-    (state.universes||[]).forEach(u=>{
-      if(u&&u.prompts&&typeof u.prompts[key]==="string"
-         && u.prompts[key].indexOf(fingerprint)!==-1 && u.prompts[key].indexOf(newMarker)===-1){
-        delete u.prompts[key];   // fall back to the (new) default via up()
-      }
-    });
-  };
-  _refresh("sceneWriter","You are the SCENE WRITER directing an active event","A NAME IS NOT A SUMMONS",DEFAULT_SCENE_WRITER);
-  _refresh("sceneSetup","## YOUR INPUTS","NOT a person event",DEFAULT_SCENE_SETUP);
-  _refresh("gmAuthor","You are the GAMEMASTER, an unseen narrator","A mention is NOT a reason to make someone arrive",DEFAULT_GM_AUTHOR);
-  _refresh("gmJudge","invisible GAMEMASTER observing an ongoing roleplay","Mentioning a person is not a trigger to summon",DEFAULT_GM_JUDGE);
-  try{persistUniverses&&persistUniverses();}catch(e){}
-  // One-time upgrade: refresh the stock base instruction for installs still running the older one.
-  // We only touch it when it still looks like the unedited default (carries the stable PUSH AND PULL
-  // and PACING markers) AND the new section isn't present yet — custom instructions are never lost.
+  // installs still running the stock base instruction. We only touch it when it still
+  // looks like the unedited default (carries the stable PUSH AND PULL marker) AND the
+  // new section isn't present yet — so user-customized instructions are never overwritten.
   if(state.baseInstruction
      && state.baseInstruction.indexOf("HOW TO END A REPLY")===-1
      && state.baseInstruction.indexOf("PUSH AND PULL")!==-1
@@ -7327,13 +7322,10 @@ async function generateBio(brief,context){
     out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:user}
-    ],authoringModel(),{temp:fnTemp("mem",0.9),max:Math.max(2000,fnTok("mem",800)),dbg:"Character bio generator"});
+    ],authoringModel(),{temp:fnTemp("mem",0.9),max:fnTok("mem",800),dbg:"Character bio generator"});
   }catch(e){ return null; }
   const j=parseJSON(out);
-  if(!j||typeof j!=="object"){
-    try{ console.warn("[bio] could not parse model output. Raw was:\n", String(out||"").slice(0,1200)); }catch(e){}
-    return null;
-  }
+  if(!j||typeof j!=="object") return null;
   const clean=s=>typeof s==="string"?s.trim():"";
   return {
     name:clean(j.name),
@@ -7661,20 +7653,14 @@ async function generateUniverse(brief,count){
   const n=Math.max(1,Math.min(9,count||3));
   const user=`USER BRIEF:\n${brief||"(none — invent a fitting world)"}\n\nNUMBER OF CHARACTERS TO CREATE: ${n}`;
   let out;
-  // The per-character schema grew (traits + goals), so the JSON for a full cast is large. Scale the
-  // budget with the character count instead of a flat cap, or the JSON truncates and won't parse.
-  const uniTok=Math.max(fnTok("mem",2200), 1000 + n*900);
   try{
     out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:user}
-    ],authoringModel(),{temp:fnTemp("mem",0.9),max:uniTok,dbg:"Universe generator"});
+    ],authoringModel(),{temp:fnTemp("mem",0.9),max:fnTok("mem",2200),dbg:"Universe generator"});
   }catch(e){ return null; }
   const j=parseJSON(out);
-  if(!j||typeof j!=="object"){
-    try{ console.warn("[universe] could not parse model output. Raw was:\n", String(out||"").slice(0,1500)); }catch(e){}
-    return null;
-  }
+  if(!j||typeof j!=="object") return null;
   const clean=s=>typeof s==="string"?s.trim():"";
   const chars=Array.isArray(j.characters)?j.characters.slice(0,9).map(c=>({
     name:clean(c.name), avatar:clean(c.avatar)||"🎭",
@@ -8440,12 +8426,6 @@ function applyPresence(chat,enterNames,exitNames){
   (exitNames||[]).forEach(n=>{const p=byName(n);if(p){const i=pres.indexOf(p.id);if(i>=0){pres.splice(i,1);exited.push(p.name);}}});
   (enterNames||[]).forEach(n=>{const p=byName(n);if(p&&!pres.includes(p.id)){pres.push(p.id);entered.push(p.name);}});
   chat.presentIds=pres;   // empty is allowed — nobody nearby
-  // Track who just left, so the turn router won't auto-pull a departed character back into the scene.
-  // They may give ONE last reply (handled in the router) and only return if the player's words
-  // genuinely call them back. Arriving clears the flag.
-  if(!chat.justLeft)chat.justLeft={};
-  exited.forEach(nm=>{const p=byName(nm);if(p)chat.justLeft[p.id]=Date.now();});
-  entered.forEach(nm=>{const p=byName(nm);if(p&&chat.justLeft)delete chat.justLeft[p.id];});
   return {entered,exited};
 }
 // Drop a subtle system line into the chat noting who left/arrived.
@@ -9337,11 +9317,16 @@ async function runMultiCharTurn(chat,playerText){
     if(!responders.length)responders=[cast[0]]; // fallback: first present answers
     // Play the responder(s) router 1 chose. Each is told who they're addressing.
     let turns=0,lastSpeaker=null;
+    // Track everyone who has already taken a turn in THIS player-turn chain. A character should not
+    // be routed to speak twice within the same chain (no new player input between) — that produced
+    // the "character responds to something they already answered" duplication, where the chain
+    // ping-ponged A→B→A and A regenerated a near-identical line. They react on the player's NEXT msg.
+    const spokenThisChain=new Set();
     for(const r of responders){
       if(turns>=cap)break;
       if(!isPresent(chat,r.id))continue;
       const ok=await playCharacterTurn(chat,r,state.user);
-      if(ok){lastSpeaker=r;turns++;}
+      if(ok){lastSpeaker=r;turns++;spokenThisChain.add(r.id);}
       const tr=await runPresenceTracker(chat);
       if(tr.lastBeat){lastSpeaker=tr.lastBeat;turns+=(tr.entered.length+tr.exited.length);}
     }
@@ -9349,7 +9334,8 @@ async function runMultiCharTurn(chat,playerText){
     // last speaker. This is deliberately rare; most turns return to the player here.
     while(turns<cap){
       cast=presentCast(chat);
-      const others=cast.filter(c=>c.id!==(lastSpeaker&&lastSpeaker.id));
+      // Exclude the immediate last speaker AND anyone who already spoke this chain.
+      const others=cast.filter(c=>c.id!==(lastSpeaker&&lastSpeaker.id) && !spokenThisChain.has(c.id));
       if(!others.length)break;
       let next=null;
       try{
@@ -9365,7 +9351,7 @@ async function runMultiCharTurn(chat,playerText){
       }catch(e){}
       if(!next)break;                 // scene returns to the player (the common case)
       const ok=await playCharacterTurn(chat,next,lastSpeaker?lastSpeaker.name:state.user);
-      if(ok){lastSpeaker=next;turns++;}
+      if(ok){lastSpeaker=next;turns++;spokenThisChain.add(next.id);}
       const tr=await runPresenceTracker(chat);
       if(tr.lastBeat){lastSpeaker=tr.lastBeat;turns+=(tr.entered.length+tr.exited.length);}
       if(!ok)break;
@@ -9587,28 +9573,13 @@ async function illustrate(mid,replyText){
     const who=msg.speaker||(cast[0]&&cast[0].name)||"Narrator";
     const latestExchange=(lastUser?`${state.user}: ${lastUser}\n`:``)+`${who}: ${replyText}`;
 
-    // ---- Appearance sheet: ONLY the character who is speaking (the one being drawn) and the player.
-    // Other nearby characters are deliberately omitted so the prompt writer doesn't pull absent people
-    // into the frame — the image is of this speaker, in this moment, optionally with the player. ----
-    const speaker=cast.find(c=>c.name===who);
-    let castSheet="";
-    if(speaker&&speaker.look) castSheet+=`${speaker.name}: ${speaker.look}\n`;
-    else if(speaker) castSheet+=`${speaker.name}\n`;
-    if(state.userLook) castSheet+=`${state.user} (the player): ${state.userLook}\n`;
-    castSheet=castSheet.trim()|| (speaker?speaker.name:who);
-
-    // ---- Where the scene is happening, so the setting is drawn correctly. ----
-    let locLine="";
-    try{
-      const loc=chat&&chat.locationId?locById(chat.locationId):null;
-      if(loc) locLine=`LOCATION: ${loc.name}${loc.description?` — ${loc.description}`:""}`;
-      else if(chat&&chat.location) locLine=`LOCATION: ${chat.location}`;
-    }catch(e){}
+    // ---- Cast appearance sheet (only describe characters who have a look) ----
+    let castSheet=cast.filter(c=>c.look).map(c=>`${c.name}: ${c.look}`).join("\n")||cast.map(c=>c.name).join(", ");
+    if(state.userLook)castSheet+=`\n${state.user} (the player): ${state.userLook}`;
 
     // ---- Step 1: rewrite -> image prompt, consistent with the previous image ----
-    const sys=up("rewritePrompt")+`\n\nDraw ONLY the speaking character${state.userLook?` and, if they are physically in the scene, ${state.user} (the player)`:``}. Do NOT add any other characters — only the people in the sheet may appear. Place the scene in the given location. Describe appearances accurately from the sheet.`;
-    const usr=`CHARACTER SHEET (the only people who may appear):\n${castSheet}\n\n`+
-      (locLine?locLine+`\n\n`:``)+
+    const sys=up("rewritePrompt")+`\n\nInclude in the image ONLY the characters actually present in this moment. If ${state.user} (the player) is physically part of the scene, include them using their appearance from the sheet. Describe appearances accurately from the sheet. Do not invent characters who aren't there.`;
+    const usr=`CHARACTER SHEET:\n${castSheet}\n\n`+
       (prevPrompt?`PREVIOUS IMAGE PROMPT (keep everything here unless the latest exchange changes it):\n${prevPrompt}\n\n`:`(No previous image — describe the scene fresh.)\n\n`)+
       `LATEST EXCHANGE (what just happened — change only what this alters):\n${latestExchange}`;
     const rewritten=await chatCompletion([
@@ -10522,33 +10493,24 @@ function recordConfrontationAftermath(chat,ev){
 async function runSceneWriter(chat){
   const ev=chat.activeEvent;
   if(!ev||ev.resolved)return false;
-  // DEPARTURE GATE: the event is tied to its character. If that character was in the room (already
-  // brought in / not approaching) but is no longer present — the player drove them off, sent them
-  // away, or they walked out — the event TERMINATES immediately, no matter the cause and even if it
-  // ends unsatisfyingly. We do NOT re-summon them to "finish" the tension.
-  if(ev.participant && ev.participant.charId && ev.participant.approaching===false){
-    const stillHere=presentIds(chat).includes(ev.participant.charId);
-    if(!stillHere){
-      if(ev.kind==="confrontation"){ try{ ev._outcome="abandoned"; recordConfrontationAftermath(chat,ev); }catch(e){} }
-      try{ await resolveActiveEvent(chat, ev._departHow || `${ev.participant.name} olay yerinden ayrıldı`); }catch(e){ chat.activeEvent=null; persistChats(); }
-      return false;
-    }
-  }
   ev.turn=(ev.turn||0)+1;
   const force=ev.turn>=ev.maxTurns;          // force-resolve at the cap
   try{
     const partInfo=ev.participant?`Event character: ${ev.participant.name} (${ev.participant.approaching?"approaching, NOT yet in the room":"in the room"}).`:"No character; environmental event.";
     const ctx=directorContext(chat,"scene");
-    // The player's most recent line — context only. NOTE: a player merely mentioning or addressing
-    // the approaching character does NOT summon them. Only the narration genuinely arriving them
-    // (the event's own entrance) brings them in. Words don't teleport people into the room.
+    // The player's most recent line — used to detect direct address of the character.
     const lastUser=[...chat.messages].reverse().find(m=>m.role==='user');
     const lastUserText=(lastUser&&lastUser.content||"").trim();
-    const forceBringIn=false;   // retired: name-mentions no longer force an arrival
-    // Rule Zero, tied to the EVENT not the player's words: the event's own approaching character
-    // crosses the threshold promptly (their first scene-writer turn). The GM already narrated them
-    // arriving; this just guarantees the model doesn't stall them in the doorway.
-    const arriveNow = !!(ev.participant && ev.participant.approaching);
+    // Deterministic override: if the player addressed the approaching character by name,
+    // we bring them in regardless of what the model returns. Models (especially small
+    // ones) often keep narrating instead of entering; this guarantees responsiveness.
+    let forceBringIn=false;
+    if(ev.participant && ev.participant.approaching && lastUserText){
+      const nm=ev.participant.name.toLowerCase();
+      if(new RegExp("\\b"+nm.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(lastUserText)){
+        forceBringIn=true;
+      }
+    }
     const sys=fillTpl(up("sceneWriter"),{user:state.user,summary:ev.summary,turn:ev.turn,min:ev.minTurns,max:ev.maxTurns});
     // CONFRONTATION BRANCH (layer 3): before writing the beat, the unbiased judge scores the
     // player's last turn and moves conviction within its evidence floor/ceiling. The character's
@@ -10568,7 +10530,7 @@ async function runSceneWriter(chat){
         `Their conviction is now ${band}. Write their words and manner to MATCH this exactly — if softening, show it (guarded relief, a half-step back); if hardening, show the pressure rising. Do NOT resolve warmly if conviction is still high, and do NOT stay furious if they've been genuinely reassured.`+
         (ev._lastJudge&&ev._lastJudge.reason?`\nWhy it moved: ${ev._lastJudge.reason}`:``);
     }
-    const swMsgs=[{role:"system",content:sys+confrontGuidance+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(arriveNow?`\n\nThe event's character (${ev.participant.name}) is arriving — bring them fully into the room THIS turn with one entrance line and set "bring_in":"${ev.participant.name}".`:``)}];
+    const swMsgs=[{role:"system",content:sys+confrontGuidance+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(forceBringIn&&ev.participant?`\n\n${state.user} just addressed ${ev.participant.name} directly. You MUST set "bring_in":"${ev.participant.name}" this turn.`:``)}];
     if(ctx)swMsgs.push({role:"user",name:"context",content:ctx});
     recentExchangeMsgs(chat,4).forEach(m=>swMsgs.push(m));
     swMsgs.push({role:"user",content:`${partInfo}${lastUserText?`\n${state.user}'s latest line: "${lastUserText}"`:``}\n\nBased on the exchange above, advance the event now. Return the JSON.`});
@@ -10598,7 +10560,7 @@ async function runSceneWriter(chat){
     // the player directly addressed them (forceBringIn), regardless of the model output.
     let broughtIn=null;
     const modelSaysBringIn = j.bring_in && ev.participant && String(j.bring_in).toLowerCase()===ev.participant.name.toLowerCase();
-    if(ev.participant && ev.participant.approaching && (modelSaysBringIn || arriveNow)){
+    if(ev.participant && ev.participant.approaching && (modelSaysBringIn || forceBringIn)){
       ev.participant.approaching=false;
       const id=ev.participant.charId;
       applyPresence(chat,[ev.participant.name],[]);   // now physically present
@@ -10735,9 +10697,10 @@ function offerSaveTemp(chatId,tid){
 async function gamemasterReactions(chat){
   const cap=Math.min(2,Math.max(1,state.mcChainCap||4));   // brief reaction, not a full chain
   let turns=0,lastSpeaker=null;
+  const spokenThisChain=new Set();   // no character reacts twice to the same event
   while(turns<cap){
     const cast=presentCast(chat);
-    const others=cast.filter(c=>c.id!==(lastSpeaker&&lastSpeaker.id));
+    const others=cast.filter(c=>c.id!==(lastSpeaker&&lastSpeaker.id) && !spokenThisChain.has(c.id));
     if(!others.length)break;
     let next=null,addr=state.user;
     try{
@@ -10755,7 +10718,7 @@ async function gamemasterReactions(chat){
     if(!next)break;
     const ok=await playCharacterTurn(chat,next,addr);
     if(!ok)break;
-    lastSpeaker=next;turns++;
+    lastSpeaker=next;turns++;spokenThisChain.add(next.id);
     await runPresenceTracker(chat);
   }
 }
