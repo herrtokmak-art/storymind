@@ -11779,15 +11779,35 @@ function exportUniverses(){
 }
 async function importUniversesFile(b){
   if(!b||b.kind!=="universes") throw new Error("Not a universes export");
-  const incoming=b.universes||[];
+  let incoming=b.universes||[];
+  if(!incoming.length){ toast("⚠️ No universes in that file"); return false; }
   const names=incoming.map(u=>u.name||u.id).join(", ");
   // Offer REPLACE (make these the only worlds) vs MERGE (add to existing). Replace is what you want
-  // when restoring a single-world backup; merge keeps everything.
+  // when restoring a backup; merge keeps everything.
   const replace=confirm(
     `Import ${incoming.length} universe(s): ${names}.\n\n`+
-    `• OK = REPLACE: these become your ONLY universes; other worlds and their characters are removed.\n`+
-    `• Cancel = keep current worlds (merge instead).`
+    `• OK = REPLACE: the world(s) you keep below become your ONLY universes; everything else is removed.\n`+
+    `• Cancel = keep current worlds (merge the imported ones in instead).`
   );
+  // When REPLACING a multi-universe backup, let the user keep just one (the common case: a backup
+  // holds several worlds but you only want one of them). Prompt with a numbered list; blank = keep
+  // all. The chosen universe also becomes the active one, so you don't land in the wrong world.
+  let activeId=null;
+  if(replace && incoming.length>1){
+    const list=incoming.map((u,i)=>`${i+1}. ${u.name||u.id}`).join("\n");
+    const pick=prompt(
+      `Which universe do you want to KEEP as your only world?\n\n${list}\n\n`+
+      `Enter its number (e.g. 2), or leave blank to keep ALL ${incoming.length}.`
+    );
+    if(pick===null){ return false; }        // user cancelled the picker → abort import entirely
+    const n=parseInt(String(pick).trim(),10);
+    if(!isNaN(n) && n>=1 && n<=incoming.length){
+      const chosen=incoming[n-1];
+      incoming=[chosen];                     // keep only the chosen world
+      activeId=chosen.id;
+    }
+    // blank/invalid → keep all (incoming unchanged); active falls back below
+  }
   // Sanitize each incoming universe's prompt overrides: drop any that are NOT recognizably a current
   // tuned prompt, so a stale backup can't silently pin old behavior. We keep overrides that still
   // carry the current default's structural marker (those are valid per-world flavor); anything else
@@ -11821,10 +11841,11 @@ async function importUniversesFile(b){
     // keep only personas tied to an imported universe (or universe-less), plus the imported personas
     const importedPids=new Set((b.personas||[]).map(p=>p.id));
     state.personas=(state.personas||[]).filter(p=>!p.universeId || keepIds.has(p.universeId) || importedPids.has(p.id));
-    (b.personas||[]).forEach(p=>{ const i=state.personas.findIndex(x=>x.id===p.id); if(i>=0)state.personas[i]=p; else state.personas.push(p); });
+    // only import personas that belong to a kept universe (so a dropped world's cast doesn't tag along)
+    (b.personas||[]).forEach(p=>{ if(p.universeId && !keepIds.has(p.universeId)) return; const i=state.personas.findIndex(x=>x.id===p.id); if(i>=0)state.personas[i]=p; else state.personas.push(p); });
     // drop personas that still point at a now-removed universe
     state.personas=state.personas.filter(p=>!p.universeId || keepIds.has(p.universeId));
-    state.curUniverse=incoming[0]?incoming[0].id:null;
+    state.curUniverse=activeId || (incoming[0]?incoming[0].id:null);
     if(state.curUniverse)applyUniverseProfile(state.curUniverse);
     // Prune chats that belonged to now-removed universes, and clear curChat if it was orphaned, so
     // the post-import reload starts cleanly in the imported world rather than a dangling scene.
