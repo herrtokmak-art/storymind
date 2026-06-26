@@ -432,7 +432,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · leak-fix v9 (call to area)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · v10 (calendar fix, multi-turn reverted)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -2862,7 +2862,7 @@ CONSOLIDATION — CRITICAL to avoid duplicates:
 For each item return an object:
 - "kind": one of "meeting","promise","conditional","custom".
 - "title": short label (e.g. 'Meet Aria at the cafe', 'Friends forever', 'Call Mara if I go to the marina').
-- "who": character name(s) involved, or empty.
+- "who": the actual name(s) of the people involved (use the player's real name and real character names) — comma-separated, or empty. NEVER list "the narrator" / "anlatıcı" as a participant; the narrator is the storyteller, not an attendee. A meeting the player arranges with one character has just those two as "who", not the whole room.
 - "importance": 0.0-1.0 (emit only if >= 0.6).
 - For "meeting" also include: "dayOffset" (whole days from today: 0=today,1=tomorrow,3=in three days,7=next week), "period" (Morning/Midday/Afternoon/Evening/Night or null), "where" (place name or empty).
 - For "conditional" also include: "condition" (the trigger in plain words, e.g. "{{user}} goes to the marina").
@@ -3921,6 +3921,21 @@ function loadState(){
   // Sub-areas: guarantee every location has an entrance sub-area (idempotent; old data → entrance added).
   migrateSublocations();
   migratePresenceNoteIds();   // back-fill enteredIds/exitedIds on old text-only presence notes
+  // Clean any already-stored calendar events whose participant lists contain the literal {{user}}
+  // token or the narrator (from before the calendar sanitizer existed).
+  try{
+    const subU=s=>String(s||"").replace(/\{\{\s*user\s*\}\}/gi, state.user);
+    const stripN=s=>String(s||"").split(/\s*(?:,|&|\bve\b|\band\b)\s*/i).map(x=>x.trim())
+      .filter(x=>x && !/^(the\s+)?(narrator|anlat[ıi]c[ıi])$/i.test(x)).join(", ");
+    for(const cid in (state.chats||{})){
+      const c=state.chats[cid]; if(!c||!Array.isArray(c.calendar))continue;
+      c.calendar.forEach(e=>{ if(!e)return;
+        if(e.title)e.title=subU(e.title);
+        if(e.who)e.who=stripN(subU(e.who));
+        if(e.condition)e.condition=subU(e.condition);
+      });
+    }
+  }catch(e){}
   if(!state.curUniverse||!_uids.has(state.curUniverse))state.curUniverse=_fallbackU;
   // Migrate legacy provider value
   if(state.imgProvider==="segmind")state.imgProvider="modelslab";
@@ -6012,9 +6027,18 @@ async function runCalendarEngine(chat){
       const importance=(typeof p.importance==="number")?p.importance:0.5;
       if(importance<0.6) continue;
       const kind=["meeting","promise","conditional","custom"].includes(p.kind)?p.kind:"meeting";
-      const title=String(p.title).trim();
+      // Sanitize free-text the detector produced: replace any literal {{user}} token with the real
+      // player name, and drop "narrator"/"anlatıcı" from participant lists — the narrator is the
+      // storyteller, never an actual attendee of a meeting.
+      const subUser=s=>String(s||"").replace(/\{\{\s*user\s*\}\}/gi, state.user);
+      const stripNarrator=s=>String(s||"")
+        .split(/\s*(?:,|&|\bve\b|\band\b)\s*/i)
+        .map(x=>x.trim())
+        .filter(x=>x && !/^(the\s+)?(narrator|anlat[ıi]c[ıi])$/i.test(x))
+        .join(", ");
+      const title=subUser(String(p.title).trim());
       if(title.length<3) continue;
-      const who=p.who||"";
+      const who=stripNarrator(subUser(p.who||""));
       // Meetings are time-bound; promises/conditionals/custom are not (no day).
       const day=(kind==="meeting")?today+(Number(p.dayOffset)||0):null;
       // DUPLICATE CHECK. Two layers:
@@ -10459,55 +10483,6 @@ async function runMultiCharTurn(chat,playerText){
   }finally{document.getElementById('sendBtn').disabled=false;}
 }
 // One character produces one message, shown with its own name/avatar.
-// Trim a roleplay reply so it contains ONLY the intended speaker `p`'s contribution. Multi-character
-// models sometimes continue past their own line and start voicing OTHER present characters in the same
-// reply. We split into paragraphs and cut at the first paragraph that clearly hands off to another
-// PRESENT character (their name appearing as the actor before a quote, or as a leading "Name:"), so
-// the turn engine can route that character their own turn. Conservative: if we can't find a clean
-// handoff, we return the text unchanged rather than risk cutting the speaker's own content.
-function trimToSoleSpeaker(text,p,chat){
-  if(!text)return text;
-  // Other characters currently in the scene (besides the speaker) whose appearance signals a handoff.
-  const others=(inSceneCast(chat)||[]).filter(c=>c&&c.id!==p.id);
-  if(!others.length)return text;
-  // Build name + first-name matchers for each other present character.
-  const otherPats=others.map(c=>{
-    const full=(c.name||"").trim();
-    const first=full.split(/\s+/)[0]||full;
-    return {full:full.toLowerCase(), first:first.toLowerCase()};
-  }).filter(o=>o.full);
-  const paras=text.split(/\n{2,}/).map(s=>s.trim()).filter(Boolean);
-  if(paras.length<=1)return text; // single beat — nothing to trim
-  const mentionsOther=(para)=>{
-    const lc=para.toLowerCase();
-    return otherPats.some(o=>{
-      // "Name:" hard handoff, or the name appearing as an actor near a quote/action in this paragraph.
-      if(new RegExp("^\\s*"+o.full.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s*:","i").test(para))return true;
-      // Name followed shortly by a quote → that character is speaking in this paragraph.
-      const idx=lc.indexOf(o.full); const idxF=o.first.length>2?lc.indexOf(o.first):-1;
-      const at=idx>=0?idx:idxF;
-      if(at<0)return false;
-      const after=para.slice(at, at+120);
-      return /["“”]/.test(after) || /\b(diyor|dedi|söyl|fısıl|bağır|sırıt|gülüms|says|said|whisper|mutter|snaps?)\b/i.test(after);
-    });
-  };
-  const kept=[];
-  for(const para of paras){
-    if(mentionsOther(para)){
-      // If we haven't kept anything yet, the very first paragraph references another character —
-      // it may still be the speaker addressing them (e.g. Polat: "Jale, kalk."). Only cut once the
-      // speaker has had at least one beat, to avoid dropping a legitimate opening that names someone.
-      if(kept.length>0)break;
-      // First paragraph: keep it only if it ALSO contains the speaker's own voice (a quote/action),
-      // otherwise it's pure other-character → cut here too.
-      if(/["“”]/.test(para)) { kept.push(para); continue; }
-      break;
-    }
-    kept.push(para);
-  }
-  const out=kept.join("\n\n").trim();
-  return out||text; // never return empty — fall back to original if our heuristic ate everything
-}
 async function playCharacterTurn(chat,p,addressed){
   const present=presentCast(chat);
   const others=present.filter(c=>c.id!==p.id);   // only characters actually present
@@ -10550,13 +10525,7 @@ async function playCharacterTurn(chat,p,addressed){
     typing.remove();
     // strip a leading "Name:" prefix if the model added one (regex-safe)
     const prefix=p.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-    let cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
-    // ENFORCE ONE SPEAKER PER TURN. The turn router decides who speaks; a single character's reply
-    // must contain only THAT character. Models sometimes voice the whole ensemble in one reply
-    // (writing Jale's and Mümtaz's lines inside Polat's turn), which defeats the turn-by-turn design
-    // and mis-attributes everyone's words to one speaker. Trim the reply at the point another PRESENT
-    // character starts speaking, so Router 2 can give that character their own properly-attributed turn.
-    cleaned=trimToSoleSpeaker(cleaned,p,chat);
+    const cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
     // Empty reply (model returned nothing even after the token-bump retry) — don't push a blank
     // bubble or run image/voice on nothing. Skip this character's turn cleanly.
     if(!cleaned){ toast(""+p.name+": empty reply (try raising Max tokens in Settings)"); return false; }
@@ -12557,8 +12526,7 @@ async function playSingleReaction(chat,p,eventText){
     })};
     const reply=await chatCompletion([sysMsg,...taggedHistory,tailMsg],state.model,{dbg:"Roleplay reply (gamemaster reaction)"});
     typing.remove();
-    const content=trimToSoleSpeaker(reply,p,chat);   // one speaker per turn (see playCharacterTurn)
-    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
+    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
     if(state.autoImg) illustrate(msg.mid,reply);
