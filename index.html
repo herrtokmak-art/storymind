@@ -432,7 +432,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · leak-fix v6 (mem scope + full rels)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · leak-fix v9 (call to area)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -9545,16 +9545,33 @@ function openCast(){
     el.innerHTML=`<div class="desc">No characters in this universe yet. Add some from the universe screen.</div>`;
     openModal('castModal');return;
   }
+  const here=chat.locationId?locById(chat.locationId):null;
+  const hasSubs=here&&Array.isArray(here.sublocations)&&here.sublocations.length>1;
+  const playerSub=hasSubs?curSubId(chat):null;
   cast.forEach(p=>{
     const present=chat.presentIds.includes(p.id);
+    // Which sub-area is this present character in, and is it the player's area?
+    let areaLabel="", callBtn="";
+    if(present && hasSubs){
+      const sub=subById(here,charSubId(chat,p.id));
+      const sameArea=charSubId(chat,p.id)===playerSub;
+      areaLabel=sub?` · 📍 ${esc(sub.name)}`:"";
+      if(!sameArea){
+        const pSub=subById(here,playerSub);
+        callBtn=`<button class="btn sec small" data-call style="white-space:nowrap">Call to ${esc((pSub&&pSub.name)||"me")}</button>`;
+      }
+    }
     const row=document.createElement('div');row.className="card";row.style.cssText="flex-direction:row;align-items:center;gap:10px;padding:10px";
     row.innerHTML=`<span class="avatarChip lg" style="font-size:22px">${p.image?`<img src="${esc(p.image)}" alt="">`:esc(p.avatar||"🎭")}</span>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600">${esc(p.name)}</div>
-        <div class="desc" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${present?"🟢 nearby":"⚪ away"} · ${esc((p.look||p.personality||"").slice(0,34))}</div>
+        <div class="desc" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${present?"🟢 nearby":"⚪ away"}${areaLabel} · ${esc((p.look||p.personality||"").slice(0,28))}</div>
       </div>
+      ${callBtn}
       <button class="btn sec small" data-present style="white-space:nowrap">${present?"Send away":"Bring nearby"}</button>`;
     row.querySelector('[data-present]').onclick=ev=>{ev.stopPropagation();manualPresence(p.id);};
+    const cb=row.querySelector('[data-call]');
+    if(cb)cb.onclick=ev=>{ev.stopPropagation();callToArea(p.id);};
     el.appendChild(row);
   });
   // temp event characters present
@@ -9569,6 +9586,23 @@ function openCast(){
   });
   openModal('castModal');
 }
+// Call a character who is already present (but in another sub-area) into the PLAYER'S area, so they
+// come into earshot and can take part. Drops a short note and refreshes the cast tab.
+function callToArea(id){
+  const chat=curChat(); if(!chat||!chat.locationId)return;
+  const here=locById(chat.locationId); if(!here)return;
+  ensureSublocations(here);
+  const p=state.personas.find(x=>x.id===id); if(!p)return;
+  if(!chat.presentIds.includes(id))return;          // only for characters already at the location
+  if(!chat.subPos)chat.subPos={};
+  const dest=curSubId(chat);
+  if(chat.subPos[id]===dest){ toast(`${p.name} is already with you`); return; }
+  chat.subPos[id]=dest;
+  const sName=(subById(here,dest)||{}).name||"you";
+  chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",presenceNote:true,
+    content:`— ${p.name} comes over to the ${sName} —`,img:null,imgState:"idle",vidState:"idle",video:null});
+  persistChats();appendNewBubbles();updateChatHeader();openCast();
+}
 // Manually bring a character nearby or send them away (overrides the tracker).
 function manualPresence(id){
   const chat=curChat();
@@ -9576,10 +9610,15 @@ function manualPresence(id){
   const p=state.personas.find(x=>x.id===id);if(!p)return;
   if(chat.presentIds.includes(id)){
     chat.presentIds=chat.presentIds.filter(x=>x!==id);
+    if(chat.companionLock)delete chat.companionLock[id];   // no longer tagging along
+    if(chat.subPos)delete chat.subPos[id];                 // forget their area; re-set on next arrival
     notePresence(chat,[],[p.name]);
     persistChats();appendNewBubbles();updateChatHeader();openCast();
   }else{
     chat.presentIds.push(id);
+    // Place them in the PLAYER'S current sub-area, not the default entrance — otherwise you summon
+    // someone while you're in another area and still can't talk to them (they'd be out of earshot).
+    if(chat.locationId){ if(!chat.subPos)chat.subPos={}; chat.subPos[id]=curSubId(chat); }
     notePresence(chat,[p.name],[]);
     persistChats();appendNewBubbles();updateChatHeader();openCast();
     // SILENT ARRIVAL: they enter the scene (announced by the presence note above) but do NOT
@@ -10326,8 +10365,25 @@ async function runMultiCharTurn(chat,playerText){
   try{
     await runPresenceTracker(chat);   // the player may have narrated someone leaving/arriving
     let cast=inSceneCast(chat);   // only characters in the player's area (earshot) can respond
-    if(cast.length===0){ // nobody nearby — user is talking to themselves
-      maybeBuildMemory(chat);postTurn(chat);
+    if(cast.length===0){ // nobody in the player's area — they're effectively talking to themselves
+      // Don't silently swallow the turn. If there ARE people at this location but in OTHER areas,
+      // say so (the player likely walked into an empty sub-area and others stayed behind); otherwise
+      // note the place is empty. This prevents the "I typed and nothing happened" dead end.
+      const elsewhere=offEarshotCast(chat);
+      const here=chat.locationId?locById(chat.locationId):null;
+      const areaName=(here&&subById(here,curSubId(chat))||{}).name||"here";
+      let note;
+      if(elsewhere.length){
+        const names=elsewhere.map(p=>p.name).join(", ");
+        note=`— You're alone in the ${areaName}. ${names} ${elsewhere.length>1?"are":"is"} elsewhere and can't hear you. (Use “Move to area” to join them, or bring them with you.) —`;
+      } else {
+        note=`— There's no one here in the ${areaName}. —`;
+      }
+      chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",presenceNote:true,sysError:true,
+        content:note,img:null,imgState:"idle",vidState:"idle",video:null});
+      persistChats();appendNewBubbles();updateChatHeader();
+      // No character heard or responded — skip the tracker/calendar/relationship engines (nothing
+      // happened between characters) so we don't burn API calls analysing a turn nobody was in.
       return;
     }
     if(cast.length<2){ // exactly one present → direct single reply
@@ -10403,6 +10459,55 @@ async function runMultiCharTurn(chat,playerText){
   }finally{document.getElementById('sendBtn').disabled=false;}
 }
 // One character produces one message, shown with its own name/avatar.
+// Trim a roleplay reply so it contains ONLY the intended speaker `p`'s contribution. Multi-character
+// models sometimes continue past their own line and start voicing OTHER present characters in the same
+// reply. We split into paragraphs and cut at the first paragraph that clearly hands off to another
+// PRESENT character (their name appearing as the actor before a quote, or as a leading "Name:"), so
+// the turn engine can route that character their own turn. Conservative: if we can't find a clean
+// handoff, we return the text unchanged rather than risk cutting the speaker's own content.
+function trimToSoleSpeaker(text,p,chat){
+  if(!text)return text;
+  // Other characters currently in the scene (besides the speaker) whose appearance signals a handoff.
+  const others=(inSceneCast(chat)||[]).filter(c=>c&&c.id!==p.id);
+  if(!others.length)return text;
+  // Build name + first-name matchers for each other present character.
+  const otherPats=others.map(c=>{
+    const full=(c.name||"").trim();
+    const first=full.split(/\s+/)[0]||full;
+    return {full:full.toLowerCase(), first:first.toLowerCase()};
+  }).filter(o=>o.full);
+  const paras=text.split(/\n{2,}/).map(s=>s.trim()).filter(Boolean);
+  if(paras.length<=1)return text; // single beat — nothing to trim
+  const mentionsOther=(para)=>{
+    const lc=para.toLowerCase();
+    return otherPats.some(o=>{
+      // "Name:" hard handoff, or the name appearing as an actor near a quote/action in this paragraph.
+      if(new RegExp("^\\s*"+o.full.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s*:","i").test(para))return true;
+      // Name followed shortly by a quote → that character is speaking in this paragraph.
+      const idx=lc.indexOf(o.full); const idxF=o.first.length>2?lc.indexOf(o.first):-1;
+      const at=idx>=0?idx:idxF;
+      if(at<0)return false;
+      const after=para.slice(at, at+120);
+      return /["“”]/.test(after) || /\b(diyor|dedi|söyl|fısıl|bağır|sırıt|gülüms|says|said|whisper|mutter|snaps?)\b/i.test(after);
+    });
+  };
+  const kept=[];
+  for(const para of paras){
+    if(mentionsOther(para)){
+      // If we haven't kept anything yet, the very first paragraph references another character —
+      // it may still be the speaker addressing them (e.g. Polat: "Jale, kalk."). Only cut once the
+      // speaker has had at least one beat, to avoid dropping a legitimate opening that names someone.
+      if(kept.length>0)break;
+      // First paragraph: keep it only if it ALSO contains the speaker's own voice (a quote/action),
+      // otherwise it's pure other-character → cut here too.
+      if(/["“”]/.test(para)) { kept.push(para); continue; }
+      break;
+    }
+    kept.push(para);
+  }
+  const out=kept.join("\n\n").trim();
+  return out||text; // never return empty — fall back to original if our heuristic ate everything
+}
 async function playCharacterTurn(chat,p,addressed){
   const present=presentCast(chat);
   const others=present.filter(c=>c.id!==p.id);   // only characters actually present
@@ -10445,7 +10550,13 @@ async function playCharacterTurn(chat,p,addressed){
     typing.remove();
     // strip a leading "Name:" prefix if the model added one (regex-safe)
     const prefix=p.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-    const cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
+    let cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
+    // ENFORCE ONE SPEAKER PER TURN. The turn router decides who speaks; a single character's reply
+    // must contain only THAT character. Models sometimes voice the whole ensemble in one reply
+    // (writing Jale's and Mümtaz's lines inside Polat's turn), which defeats the turn-by-turn design
+    // and mis-attributes everyone's words to one speaker. Trim the reply at the point another PRESENT
+    // character starts speaking, so Router 2 can give that character their own properly-attributed turn.
+    cleaned=trimToSoleSpeaker(cleaned,p,chat);
     // Empty reply (model returned nothing even after the token-bump retry) — don't push a blank
     // bubble or run image/voice on nothing. Skip this character's turn cleanly.
     if(!cleaned){ toast(""+p.name+": empty reply (try raising Max tokens in Settings)"); return false; }
@@ -12446,7 +12557,8 @@ async function playSingleReaction(chat,p,eventText){
     })};
     const reply=await chatCompletion([sysMsg,...taggedHistory,tailMsg],state.model,{dbg:"Roleplay reply (gamemaster reaction)"});
     typing.remove();
-    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
+    const content=trimToSoleSpeaker(reply,p,chat);   // one speaker per turn (see playCharacterTurn)
+    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
     if(state.autoImg) illustrate(msg.mid,reply);
