@@ -947,6 +947,9 @@
     <div><label>Your personality (this universe)</label><textarea class="fld" id="ueUserPersonality" placeholder="how you tend to act: confident, dry-humoured, guarded, reckless… — used by Auto-RP to narrate your turns in your voice" style="min-height:56px"></textarea></div>
     <div><label>Your speech style (this universe)</label><textarea class="fld" id="ueUserStyle" placeholder="how you talk: terse, sarcastic, warm, formal, lots of slang… — used by Auto-RP" style="min-height:56px"></textarea></div>
     <div><label>Your background (this universe)</label><textarea class="fld" id="ueUserBio" placeholder="who you are here: history, role, ties to this world — used by the Gamemaster & Scene Writer" style="min-height:72px"></textarea></div>
+    <div><label><svg class="ic"><use href="#i-home"/></svg> Your home (where you wake each day)</label>
+      <select id="ueUserHome" class="fld"></select>
+      <div class="desc">At the start of each day (End Day) you return here. Leave as "Stay where I am" to wake wherever you ended the night.</div></div>
     <div class="subhead" style="margin-top:10px"><svg class="ic"><use href="#i-chart"/></svg> Trackers</div>
     <div class="desc">Named numeric values the story tracks (suspicion, intoxication, a power budget, pregnancy…). Each can belong to the whole story, a single character (private to them), or you the player (public or private). Each tracker has its own behaviour, its own AI prompt &amp; model, and breaking points. Values start fresh in each chat.</div>
     <div id="ueTrackerList" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
@@ -2823,7 +2826,7 @@ Return ONLY JSON: {"ok": <true|false>, "note": "<short reason, only if ok is fal
 
 const DEFAULT_TRAVEL=`You are the GAMEMASTER narrating a journey in a roleplay. {{user}} is travelling from one place to another, optionally with companions. Write a short, vivid travel narration that moves them from where they were to the destination.
 
-You are given: the origin, the destination (and its description), who is travelling along, the world setting, and the current time. Cover the transition — leaving the old place, the journey itself (however brief), and arriving at the new one. If companions came along, weave them in naturally (a remark, a shared glance, the mood between you). Reflect the passage of time if it shifts (the light changes, evening settles in).
+You are given: the origin, the destination (and its description), who is travelling along, the world setting, the current time, and who is ALREADY at the destination. Cover the transition — leaving the old place, the journey itself (however brief), and arriving at the new one. If companions came along, weave them in naturally (a remark, a shared glance, the mood between you). If people are already at the destination, acknowledge their presence on arrival — a glimpse of them across the room, who's there — so the arrival doesn't feel empty, but do NOT have them speak and do NOT act or decide for them; just establish that they're there. Reflect the passage of time if it shifts (the light changes, evening settles in).
 
 Do NOT speak or decide for {{user}}. Do NOT resolve any ongoing tension. End on arrival, leaving the scene open for what happens next.
 
@@ -5658,7 +5661,15 @@ async function travelTo(locId,companionIds){
   try{
     const sys=fillTpl(up("travelPrompt"),{user:state.user});
     const who=companions.map(c=>c.name).join(", ")||"alone";
-    const ctx=`Origin: ${fromName}\nDestination: ${dest.name} — ${dest.description||""}\nTravelling: ${who}\nWorld: ${curWorldSetting()||""}\nTime now: Day ${chat.gameDay}, ${chatPeriod(chat)}`;
+    // Characters already AT the destination (placed there by the daily roll / residents), as
+    // opposed to companions who travelled with the player. The narration should acknowledge them
+    // on arrival so they don't pop in from nowhere on the next turn.
+    const companionIdSet=new Set(companions.map(c=>c.id));
+    const alreadyThere=present.filter(p=>!companionIdSet.has(p.id)).map(p=>p.name);
+    const thereLine=alreadyThere.length
+      ? `\nAlready at the destination when ${state.user} arrives (acknowledge their presence naturally — do NOT have them speak or act for them): ${alreadyThere.join(", ")}`
+      : `\nNo one else is at the destination — ${state.user} arrives to an unpeopled scene (for this purpose).`;
+    const ctx=`Origin: ${fromName}\nDestination: ${dest.name} — ${dest.description||""}\nTravelling: ${who}\nWorld: ${curWorldSetting()||""}\nTime now: Day ${chat.gameDay}, ${chatPeriod(chat)}${thereLine}`;
     narration=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:ctx+"\n\nWrite the travel narration."}
@@ -6064,11 +6075,25 @@ function updateCalendarBadge(){
   const due=plansDue(curChat()).length;
   b.textContent=due?String(due):""; b.style.display=due?"":"none";
 }
-function calendarContextLine(chat){
+function calendarContextLine(chat,selfName){
   const c=chat||curChat(); if(!c)return "";
   const today=c.gameDay||1;
-  const cal=chatCalendar(c).filter(e=>!e.done);
+  let cal=chatCalendar(c).filter(e=>!e.done);
   if(!cal.length)return "";
+  // PER-CHARACTER SCOPING: when building one character's payload (selfName given), only surface
+  // events that character is actually party to. An event involves them if their name appears in the
+  // event's `who`. Events with NO `who` are treated as the player's own/general plans and stay
+  // visible (the player is always a participant). This stops, e.g., a dinner Emre arranged with Alev
+  // from leaking into Esma's payload. Passing no selfName (GM/director context) shows everything.
+  if(selfName){
+    const sn=String(selfName).toLowerCase();
+    cal=cal.filter(e=>{
+      const who=(e.who||"").toLowerCase();
+      if(!who.trim())return true;                 // general / player-owned plan
+      return who.includes(sn);                    // this character is named in it
+    });
+    if(!cal.length)return "";
+  }
   const fmt=e=>`${e.title}${e.period?" ("+e.period+")":""}${e.who?" with "+e.who:""}${(e.locationId&&locById(e.locationId))?" at "+locById(e.locationId).name:(e.where?" at "+e.where:"")}`;
   const kindOf=e=>e.kind||"meeting";
   const meetings=cal.filter(e=>kindOf(e)==="meeting" && e.day!=null);
@@ -7155,6 +7180,13 @@ function editUniverse(id){
   renderTrackerEditor();
   _ueLocs=Array.isArray(u.locations)?JSON.parse(JSON.stringify(u.locations)):[];
   renderLocEditor();
+  // Player home selector — built from this universe's locations.
+  {const sel=document.getElementById('ueUserHome');
+   if(sel){
+     sel.innerHTML=`<option value="">Stay where I am</option>`+
+       _ueLocs.map(l=>`<option value="${l.id}">${esc(l.name)}${l.type==='home'?' 🏠':''}</option>`).join("");
+     sel.value=u.playerHomeLocId||"";
+   }}
   _uePrompts=(u.prompts&&typeof u.prompts==="object")?JSON.parse(JSON.stringify(u.prompts)):{};
   renderUePrompts();
   document.getElementById('ueDelete').style.display=id?"block":"none";
@@ -7689,6 +7721,7 @@ function saveUniverse(){
     userPersonality:(document.getElementById('ueUserPersonality')?document.getElementById('ueUserPersonality').value.trim():""),
     userStyle:(document.getElementById('ueUserStyle')?document.getElementById('ueUserStyle').value.trim():""),
     userBio:document.getElementById('ueUserBio').value.trim(),
+    playerHomeLocId:(document.getElementById('ueUserHome')?document.getElementById('ueUserHome').value||"":""),
     trackers:_ueTrackers.slice(),
     locations:_ueLocs.slice(),
     prompts:JSON.parse(JSON.stringify(_uePrompts||{}))};
@@ -8966,7 +8999,15 @@ function buildTailGuidance(opts){
     const ssBits=[];
     ssBits.push(`Day ${chat.gameDay||1}`);
     {const per=(typeof chatPeriod==="function")?chatPeriod(chat):""; if(per)ssBits.push(per);}
-    if(chat.location&&chat.location.trim())ssBits.push(`at ${chat.location.trim()}`);
+    if(chat.location&&chat.location.trim()){
+      let where=`at ${chat.location.trim()}`;
+      try{ const here=chat.locationId?locById(chat.locationId):null;
+        if(here&&Array.isArray(here.sublocations)&&here.sublocations.length>1){
+          const pSub=subById(here,curSubId(chat)); if(pSub)where+=` (in the ${pSub.name})`;
+        }
+      }catch(e){}
+      ssBits.push(where);
+    }
     // who else is physically here (besides this character)
     let othersHere="";
     try{
@@ -8975,10 +9016,25 @@ function buildTailGuidance(opts){
     }catch(e){}
     let sn=`# SCENE RIGHT NOW\n${ssBits.join(", ")}.`;
     if(chat.location&&chat.location.trim())sn+=` (This location is authoritative for this turn — it overrides any usual or home location.)`;
+    // Sub-areas (privacy) + how private each area / the venue is, so a character can reason about
+    // discretion ("not here, too many ears — let's move to the back"). Mirrors the director context.
+    try{
+      const here=chat.locationId?locById(chat.locationId):null;
+      if(here){
+        ensureSublocations(here);
+        if(Array.isArray(here.sublocations)&&here.sublocations.length>1){
+          const pSub=subById(here,curSubId(chat));
+          const areaList=here.sublocations.map(s=>`${s.name} — ${gossipLabel(areaGossipChance(here,s.id))}`).join("; ");
+          sn+=`\nAreas within ${here.name} (and how private each is): ${areaList}.\nYou are in the ${pSub?pSub.name:"Entrance"} with ${targetName||state.user}. Each area is its own earshot — people in another area can't hear you here. If you want privacy you may suggest moving to a more private area.`;
+        }else{
+          sn+=`\nPrivacy here: ${gossipLabel(locGossipChance(here))}.`;
+        }
+      }
+    }catch(e){}
     sn+=othersHere?`\nAlso physically present with you: ${othersHere}.`:`\nYou are alone with ${targetName||state.user} right now.`;
     // shared/visible trackers, so consequences stay live in the model's mind at generation time
     try{ const tc=trackerContext(chat, selfId||"__shared__"); if(tc)sn+=`\n${tc}`; }catch(e){}
-    {const cl=(typeof calendarContextLine==="function")?calendarContextLine(chat):""; if(cl)sn+=`\n${cl}`;}
+    {const cl=(typeof calendarContextLine==="function")?calendarContextLine(chat,selfName):""; if(cl)sn+=`\n${cl}`;}
     blocks.push(sn);
   }
 
@@ -10110,19 +10166,31 @@ function compactHistory(mapped){
     return stripped===m.content?m:{...m,content:stripped};
   });
 }
-// Per-character API history: character `forP` only receives messages they WITNESSED.
+// Per-character API history: character `forP` only receives messages they WITNESSED, scoped to the
+// CURRENT scene session (since the last location change). Two layers stop cross-scene leakage:
+//   1) Scene boundary — cut everything before the most recent travel beat (a location change). A
+//      conversation that happened at a DIFFERENT place earlier today is not this scene and must not
+//      bleed in. (Companions who travelled along still share the new scene, which starts at the beat.)
+//   2) Witness filter — within the scene, a character only "heard" dialogue they were present for.
+//      Untagged dialogue (no present[]) defaults to EXCLUDED for a specific character, so a legacy or
+//      mis-tagged line can't leak; ambient world content (narration, day markers) stays visible.
 function castHistory(chat,forP){
-  const mapped=chat.messages.filter(m=>{
+  let msgs=chat.messages||[];
+  // (1) Scene boundary: start at the last travel beat (the arrival into the current location).
+  // Keep day markers/narration visible even if older, but DROP prior-scene dialogue.
+  let sceneStart=0;
+  for(let i=msgs.length-1;i>=0;i--){ if(msgs[i]&&msgs[i].travelBeat){ sceneStart=i; break; } }
+  const mapped=msgs.filter((m,idx)=>{
     if(m.role==='system')return false;
     if(m.sysError&&!m.dayMarker&&!m.presenceNote)return false;
     // Ambient/world content (GM narration, day boundaries, presence notes) is universally
-    // visible — it describes the world, not private dialogue.
+    // visible — it describes the world, not private dialogue — regardless of scene boundary.
     if(m.narratorEvent||m.dayMarker||m.presenceNote) return true;
-    // Dialogue (user lines and character replies): a character only "heard" it if they were
-    // present when it happened. If the message carries a present[] list, enforce it strictly.
-    // Messages with NO present[] are legacy/ambient and remain visible (can't retro-attribute).
-    if(forP && Array.isArray(m.present)){
-      return m.present.includes(forP.id);   // only what this character actually witnessed
+    // Dialogue: must be within the current scene session AND witnessed by this character.
+    if(idx<sceneStart) return false;                       // belongs to a previous location/scene
+    if(forP){
+      if(Array.isArray(m.present)) return m.present.includes(forP.id);  // strict witness
+      return false;                                         // untagged dialogue → don't leak it
     }
     return true;
   }).map(m=>{
@@ -10773,10 +10841,31 @@ async function endDay(){
   chat.gameDay=day+1;
   chat.period="Morning"; chat.timeOfDay="Morning";   // a new day starts in the morning
   tickTrackersForDay(chat);   // apply per-day tracker increments (e.g. pregnancy day count)
+  // NEW DAY LOCATION RESET. If this universe has a designated player home, the player wakes there.
+  // Otherwise they stay where they were — but in either case we reset to the ENTRANCE sub-area so
+  // they don't begin the day stuck in a back room (e.g. the gym's lifting station).
+  try{
+    const uniObj=universeById(chat.universeId)||curUniverseObj();
+    const homeId=uniObj&&uniObj.playerHomeLocId;
+    const home=homeId?(curLocations().find(l=>l.id===homeId)):null;
+    if(home){
+      chat.location=home.name; chat.locationId=home.id;
+    }
+    if(chat.locationId){
+      const here=locById(chat.locationId);
+      if(here){ ensureSublocations(here); chat.subId=entranceSubId(here); }
+    }
+    chat.subPos={};            // everyone's sub-area is re-established on the new day
+    chat.companionLock={};     // yesterday's companions don't carry into the new morning
+  }catch(e){}
   if(chat.locationId){
     resolveWorldPositions(chat,true);
     const here=charactersAtLocation(chat,chat.locationId);
     chat.presentIds=here.map(p=>p.id);
+    // Place the newly-present characters in the player's (entrance) area so earshot is consistent.
+    if(!chat.subPos)chat.subPos={};
+    const entr=chat.subId;
+    here.forEach(p=>{ if(entr)chat.subPos[p.id]=entr; });
   }
   chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",dayMarker:true,
     dayFrom:day,dayTo:day+1,narration,
@@ -12314,12 +12403,22 @@ async function maybeBuildMemory(chat){
   // include any temporary event characters who are currently present (they leave memories too)
   presentCast(chat).forEach(p=>{if(p&&p.temp&&!cast.some(c=>c.id===p.id))cast.push(p);});
   if(!chat.memCounts)chat.memCounts={};   // per-character count of witnessed messages since last memory
-  for(const p of cast){
-    // Count messages THIS character witnessed (present for), excluding system/notes.
-    const witnessed=chat.messages.filter(m=>{
+  // Only characters who are actually PRESENT in the scene can form memories of it — not the whole
+  // universe cast. An absent character must never build a memory of a conversation they weren't in.
+  const presentSet=new Set(presentIds(chat));
+  const memCast=cast.filter(p=>p&&(presentSet.has(p.id)||p.temp));
+  // Scene boundary: a character only witnessed dialogue in the CURRENT scene (since the last travel
+  // beat / location change). Prior-location dialogue must not count toward their memory window.
+  let sceneStart=0;
+  for(let i=chat.messages.length-1;i>=0;i--){ if(chat.messages[i]&&chat.messages[i].travelBeat){ sceneStart=i; break; } }
+  for(const p of memCast){
+    // Count messages THIS character witnessed (present for) in the current scene, excluding notes.
+    const witnessed=chat.messages.filter((m,idx)=>{
       if(m.role==='system'||m.sysError)return false;
-      if(Array.isArray(m.present))return m.present.includes(p.id);
-      return true; // pre-tracking messages count as witnessed
+      if(m.narratorEvent||m.dayMarker||m.presenceNote)return false;   // ambient, not dialogue
+      if(idx<sceneStart)return false;                                  // a previous scene/location
+      if(Array.isArray(m.present))return m.present.includes(p.id);     // strict witness
+      return false;                                                    // untagged → don't attribute
     });
     const total=witnessed.length;
     const last=chat.memCounts[p.id]||0;
