@@ -8207,10 +8207,42 @@ function saveUniversePic(){
    auto-character flow when the gamemaster introduces someone. Returns a plain object with the
    card fields (name, avatar, personality, backstory, style, look, instructions, interject) or
    null on failure. Never throws. */
-async function generateBio(brief,context){
+async function generateBio(brief,context,opts){
   const sys=up("bioPrompt");
-  let user="USER BRIEF:\n"+(brief||"(none — invent a fitting character)");
-  if(context) user+="\n\nCONVERSATION CONTEXT (the character has appeared here):\n"+context;
+  opts=opts||{};
+  // ----- World context: the universe this character lives in + the player -----
+  // So the generator builds someone who BELONGS in this world and knows who the
+  // player is (e.g. a brief like "rewrite her as Emre's advisor" needs to know who Emre is).
+  const uni = opts.universe || curUniverseObj();
+  let worldBlock="";
+  if(uni){
+    const bits=[];
+    if(uni.name) bits.push(`World: ${uni.name}`);
+    if(uni.setting&&uni.setting.trim()) bits.push(`Setting (the world prompt added to every scene):\n${uni.setting.trim()}`);
+    if(uni.directingNotes&&uni.directingNotes.trim()) bits.push(`How drama, grudges & schemes work in this world:\n${uni.directingNotes.trim()}`);
+    const pName = (uni.userName&&uni.userName.trim()) || state.user;
+    const pBio  = (uni.userBio&&uni.userBio.trim()) || (state.userBio&&state.userBio.trim()) || "";
+    if(pName) bits.push(`The player's character is named "${pName}".${pBio?` Background: ${pBio}`:""}`);
+    if(bits.length) worldBlock="THIS UNIVERSE (the character must fit consistently into this world):\n"+bits.join("\n\n");
+  }
+  // ----- Existing card: only fields that already have data, so the model UPDATES rather than reinvents -----
+  let existingBlock="";
+  const ex=opts.existingCard;
+  if(ex){
+    const order=[["name","Name"],["personality","Personality"],["traits","Traits (five-factor)"],
+      ["goals","Goals"],["backstory","Backstory"],["style","Speaking style"],["look","Appearance"],
+      ["instructions","Roleplay instructions"],["interject","Interject / pressure points"]];
+    const lines=order.filter(([k])=>ex[k]&&String(ex[k]).trim())
+      .map(([k,lbl])=>`${lbl}: ${String(ex[k]).trim()}`);
+    if(lines.length) existingBlock="THIS CHARACTER ALREADY HAS A CARD. Revise it per the brief below — keep what the brief doesn't change, and preserve the name unless the brief explicitly renames them:\n"+lines.join("\n");
+  }
+  // ----- Assemble in order: world → existing card → conversation context → user brief -----
+  const parts=[];
+  if(worldBlock) parts.push(worldBlock);
+  if(existingBlock) parts.push(existingBlock);
+  if(context) parts.push("CONVERSATION CONTEXT (the character has appeared here):\n"+context);
+  parts.push("USER BRIEF:\n"+(brief||"(none — invent a fitting character)"));
+  const user=parts.join("\n\n———\n\n");
   let out;
   try{
     out=await chatCompletion([
@@ -8735,7 +8767,18 @@ async function generateBioIntoEditor(){
   const brief=document.getElementById('peAiBrief').value.trim();
   const btn=document.getElementById('peAiGo'); if(btn){btn.disabled=true;btn.textContent="Generating…";}
   try{
-    const bio=await generateBio(brief,null);
+    // Gather whatever the card already holds so the generator UPDATES instead of reinventing.
+    const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():"";};
+    const existingCard={
+      name:gv('peName'), personality:gv('pePersonality'), traits:gv('peTraits'),
+      goals:gv('peGoals'), backstory:gv('peBackstory'), style:gv('peStyle'),
+      look:gv('peLook'), instructions:gv('peInstructions'), interject:gv('peInterject')
+    };
+    const hasAny=Object.values(existingCard).some(v=>v);
+    const bio=await generateBio(brief,null,{
+      universe:curUniverseObj(),
+      existingCard:hasAny?existingCard:null
+    });
     if(!bio){ toast("Generation failed — try again"); return; }
     const set=(id,v)=>{const el=document.getElementById(id); if(el&&v) el.value=v;};
     set('peName',bio.name); set('peAvatar',bio.avatar); set('pePersonality',bio.personality);
@@ -8781,7 +8824,17 @@ async function fillPendingBios(chat){
     const ctx=(chat.messages||[]).filter(m=>Array.isArray(m.present)&&witnessedBy(m,p)&&!m.sysError)
       .slice(-12).map(m=>`${m.role==='user'?state.user:(m.speaker||'?')}: ${m.content}`).join("\n");
     const brief=(p.bioBrief||p.personality||"")+`\n\nThe character's name is ${p.name}. Keep this exact name.`;
-    const bio=await generateBio(brief,ctx);
+    const existingCard={
+      name:p.name, personality:p.personality, traits:p.traits, goals:p.goals,
+      backstory:p.backstory, style:p.style, look:p.look,
+      instructions:p.instructions, interject:p.interject
+    };
+    const hasAny=["personality","traits","goals","backstory","style","look","instructions","interject"]
+      .some(k=>existingCard[k]&&String(existingCard[k]).trim());
+    const bio=await generateBio(brief,ctx,{
+      universe:universeById(chat.universeId),
+      existingCard:hasAny?existingCard:null
+    });
     if(!bio){ continue; } // try again next cycle
     // Fill, but never overwrite the established name; keep any emoji already shown if model gave none.
     p.personality=bio.personality||p.personality;
