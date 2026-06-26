@@ -574,6 +574,8 @@
           <h3><svg class="ic"><use href="#i-sparkle"/></svg> Authoring model (world & prompt building)</h3>
           <div class="desc">The strong model used for the rare, high-leverage generation jobs that shape everything downstream: building universes, writing character bios, authoring each world's director notes, and tuning the Living-Universe prompts to fit a world. It runs only a handful of times per universe — not per message — so a top-tier model here is cheap and pays off across the whole playthrough. A capable model is strongly recommended.</div>
           <div><label>Model</label><input type="text" id="setAuthorModel" list="modelList" placeholder="anthropic/claude-sonnet-4"></div>
+          <div class="desc" style="margin-top:6px"><b>Universe generator length &amp; creativity.</b> Building a full world with many characters is a large JSON response. If a generated universe fails to appear, raise <b>Max tokens</b> here — a 9-character world needs plenty of room. (Repetition penalties are forced off for this job so the JSON structure can't be derailed.)</div>
+          <div class="ovr"><div data-ovr="unigen" data-kind="temp"></div><div data-ovr="unigen" data-kind="tok"></div></div>
         </div>
 
         <div class="card">
@@ -8601,7 +8603,7 @@ async function generateUniverse(brief,count){
     out=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:user}
-    ],authoringModel(),{temp:fnTemp("mem",0.9),max:fnTok("mem",2200),dbg:"Universe generator"});
+    ],authoringModel(),{temp:fnTemp("unigen",0.9),max:fnTok("unigen",3800),frequency_penalty:0,presence_penalty:0,dbg:"Universe generator"});
   }catch(e){ return null; }
   const j=parseJSON(out);
   if(!j||typeof j!=="object") return null;
