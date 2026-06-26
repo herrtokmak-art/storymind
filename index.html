@@ -10191,6 +10191,20 @@ function witnessedBy(m,p){
   if(!p||!Array.isArray(m.present))return false;
   return m.present.includes(p.id) || (p.name && m.present.includes(p.name));
 }
+// True if presence-note `m` marks character `p` ARRIVING. Prefers structured enteredIds (new notes);
+// falls back to parsing the note text ("<Name> has arrived / have arrived") for OLD notes written
+// before enteredIds existed — so chats started on an earlier build are repaired without a migration.
+function noteMarksArrival(m,p){
+  if(!m||!m.presenceNote||!p)return false;
+  if(Array.isArray(m.enteredIds))return m.enteredIds.includes(p.id);   // authoritative when present
+  const txt=String(m.content||"");
+  const nm=p.name||""; if(!nm)return false;
+  // The note can chain "X has left · Y has arrived". Only the arrival clause should count for Y.
+  // Split on the middot used to join clauses, then look for the name in an "arrived" clause.
+  const clauses=txt.split("·");
+  const arrivalClauses=clauses.filter(c=>/arriv/i.test(c));
+  return arrivalClauses.some(c=>c.toLowerCase().includes(nm.toLowerCase()));
+}
 // Per-character API history: character `forP` only receives messages they WITNESSED, scoped to the
 // CURRENT scene session (since the last location change). Two layers stop cross-scene leakage:
 //   1) Scene boundary — cut everything before the most recent travel beat (a location change). A
@@ -10208,12 +10222,13 @@ function castHistory(chat,forP){
   // (1b) PER-CHARACTER ARRIVAL CUT: if THIS character has a more-recent arrival than the scene start
   // (they walked into a scene already in progress — e.g. one character left and another came in at the
   // same place), their transcript begins at THEIR arrival. They cannot inherit dialogue that happened
-  // before they were in the room, independent of any per-message present[] tags. Uses the structured
-  // enteredIds on presence notes; old notes without it simply don't move the boundary.
+  // before they were in the room, independent of any per-message present[] tags. Uses structured
+  // enteredIds on new presence notes, and falls back to the note TEXT for old notes (pre-enteredIds),
+  // so chats started on an earlier build are also protected.
   if(forP){
     for(let i=msgs.length-1;i>sceneStart;i--){
       const m=msgs[i];
-      if(m && m.presenceNote && Array.isArray(m.enteredIds) && m.enteredIds.includes(forP.id)){ sceneStart=i; break; }
+      if(m && m.presenceNote && noteMarksArrival(m,forP)){ sceneStart=i; break; }
     }
   }
   const mapped=msgs.filter((m,idx)=>{
@@ -12453,7 +12468,7 @@ async function maybeBuildMemory(chat){
     let charStart=sceneStart;
     for(let i=chat.messages.length-1;i>charStart;i--){
       const m=chat.messages[i];
-      if(m && m.presenceNote && Array.isArray(m.enteredIds) && m.enteredIds.includes(p.id)){ charStart=i; break; }
+      if(m && m.presenceNote && noteMarksArrival(m,p)){ charStart=i; break; }
     }
     // Count messages THIS character witnessed (present for) in the current scene, excluding notes.
     const witnessed=chat.messages.filter((m,idx)=>{
