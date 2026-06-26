@@ -9359,8 +9359,14 @@ function notePresence(chat,entered,exited){
   if(exited.length)parts.push(`${exited.join(", ")} ${exited.length>1?"have":"has"} left${atLoc}${when}`);
   if(entered.length)parts.push(`${entered.join(", ")} ${entered.length>1?"have":"has"} arrived${atLoc}${when}`);
   if(!parts.length)return;
+  // Resolve names → ids so the witness/scene logic can act on a presence change structurally
+  // (not by parsing the display text). enteredIds in particular lets a freshly-arrived character's
+  // transcript start at THIS point, so they never inherit dialogue from before they walked in.
+  const nameToId=n=>{ const c=(curCast()||[]).concat(chat.tempChars||[]).find(x=>x&&x.name&&x.name.toLowerCase()===String(n).toLowerCase()); return c?c.id:null; };
+  const enteredIds=(entered||[]).map(nameToId).filter(Boolean);
+  const exitedIds=(exited||[]).map(nameToId).filter(Boolean);
   chat.messages.push({mid:newMid(),role:"assistant",presenceNote:true,sysError:true,
-    content:"— "+parts.join(" · ")+" —",
+    content:"— "+parts.join(" · ")+" —", enteredIds, exitedIds,
     img:null,imgState:"idle",vidState:"idle",video:null});
 }
 function restartScene(){
@@ -10199,6 +10205,17 @@ function castHistory(chat,forP){
   // Keep day markers/narration visible even if older, but DROP prior-scene dialogue.
   let sceneStart=0;
   for(let i=msgs.length-1;i>=0;i--){ if(msgs[i]&&msgs[i].travelBeat){ sceneStart=i; break; } }
+  // (1b) PER-CHARACTER ARRIVAL CUT: if THIS character has a more-recent arrival than the scene start
+  // (they walked into a scene already in progress — e.g. one character left and another came in at the
+  // same place), their transcript begins at THEIR arrival. They cannot inherit dialogue that happened
+  // before they were in the room, independent of any per-message present[] tags. Uses the structured
+  // enteredIds on presence notes; old notes without it simply don't move the boundary.
+  if(forP){
+    for(let i=msgs.length-1;i>sceneStart;i--){
+      const m=msgs[i];
+      if(m && m.presenceNote && Array.isArray(m.enteredIds) && m.enteredIds.includes(forP.id)){ sceneStart=i; break; }
+    }
+  }
   const mapped=msgs.filter((m,idx)=>{
     if(m.role==='system')return false;
     if(m.sysError&&!m.dayMarker&&!m.presenceNote)return false;
@@ -12431,11 +12448,18 @@ async function maybeBuildMemory(chat){
   let sceneStart=0;
   for(let i=chat.messages.length-1;i>=0;i--){ if(chat.messages[i]&&chat.messages[i].travelBeat){ sceneStart=i; break; } }
   for(const p of memCast){
+    // Per-character arrival cut: a character that walked into an in-progress scene only forms
+    // memories from THEIR arrival onward (not dialogue that predates them being in the room).
+    let charStart=sceneStart;
+    for(let i=chat.messages.length-1;i>charStart;i--){
+      const m=chat.messages[i];
+      if(m && m.presenceNote && Array.isArray(m.enteredIds) && m.enteredIds.includes(p.id)){ charStart=i; break; }
+    }
     // Count messages THIS character witnessed (present for) in the current scene, excluding notes.
     const witnessed=chat.messages.filter((m,idx)=>{
       if(m.role==='system'||m.sysError)return false;
       if(m.narratorEvent||m.dayMarker||m.presenceNote)return false;   // ambient, not dialogue
-      if(idx<sceneStart)return false;                                  // a previous scene/location
+      if(idx<charStart)return false;                                   // before this character arrived
       if(Array.isArray(m.present))return witnessedBy(m,p);            // strict witness (id or legacy name)
       return false;                                                    // untagged → don't attribute
     });
