@@ -432,7 +432,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · leak-fix v3</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -3920,6 +3920,7 @@ function loadState(){
   persistUniverses(); if(_uMig)persistPersonas();
   // Sub-areas: guarantee every location has an entrance sub-area (idempotent; old data → entrance added).
   migrateSublocations();
+  migratePresenceNoteIds();   // back-fill enteredIds/exitedIds on old text-only presence notes
   if(!state.curUniverse||!_uids.has(state.curUniverse))state.curUniverse=_fallbackU;
   // Migrate legacy provider value
   if(state.imgProvider==="segmind")state.imgProvider="modelslab";
@@ -5398,6 +5399,40 @@ function migrateSublocations(){
     (state.universes||[]).forEach(u=>{
       if(Array.isArray(u.locations))u.locations.forEach(l=>ensureSublocations(l));
     });
+  }catch(e){}
+}
+// ONE-TIME REPAIR for chats started on older builds: presence notes used to be text-only
+// ("Esma has arrived · Jale has left"). The per-character arrival cut needs structured enteredIds/
+// exitedIds. Here we parse every old presence note's text and back-fill those id arrays, so the
+// witness/arrival logic works on existing chats without the player restarting anything.
+function migratePresenceNoteIds(){
+  try{
+    const allChats=state.chats||{};
+    for(const cid in allChats){
+      const chat=allChats[cid]; if(!chat||!Array.isArray(chat.messages))continue;
+      const cast=(state.personas||[]).filter(p=>p.universeId===chat.universeId);
+      const nameToId=nm=>{ const c=cast.find(x=>x&&x.name&&x.name.toLowerCase()===String(nm).toLowerCase()); return c?c.id:null; };
+      chat.messages.forEach(m=>{
+        if(!m||!m.presenceNote)return;
+        if(Array.isArray(m.enteredIds)||Array.isArray(m.exitedIds))return; // already structured
+        const txt=String(m.content||"").replace(/^—\s*|\s*—$/g,"");
+        const entered=[], exited=[];
+        // Notes join clauses with " · "; each clause is "<names> has/have arrived|left at <loc>...".
+        txt.split("·").forEach(clause=>{
+          const isArr=/arriv/i.test(clause), isLeft=/left/i.test(clause);
+          if(!isArr&&!isLeft)return;
+          // Names appear before "has"/"have". Strip trailing "at <location>, in the <period>".
+          let head=clause.split(/\bhas\b|\bhave\b/i)[0]||"";
+          head=head.trim();
+          head.split(/,| and |&/).map(s=>s.trim()).filter(Boolean).forEach(nm=>{
+            const id=nameToId(nm); if(!id)return;
+            if(isArr)entered.push(id); else if(isLeft)exited.push(id);
+          });
+        });
+        if(entered.length)m.enteredIds=entered;
+        if(exited.length)m.exitedIds=exited;
+      });
+    }
   }catch(e){}
 }
 // Resolve the player's current sub-area id for a chat, defaulting to the location's entrance.
