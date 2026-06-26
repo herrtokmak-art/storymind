@@ -432,7 +432,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · leak-fix v4 (solo path)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · leak-fix v5 (solo path + mem)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -10077,7 +10077,15 @@ async function sendMessage(){
     // ---- MEMORY RETRIEVAL: two-tier (recent verbatim + distant condensed) ----
     let injected={recent:[],distant:[]};
     if(state.mem && state.memory.length){
-      try{ injected=await retrieveMemories(text,chat); }catch(e){ injected={recent:[],distant:[]}; }
+      try{
+        const r=await retrieveMemories(text,chat);
+        // Only THIS character's own memories — retrieveMemories returns the whole present cast's
+        // pool, so without this filter a solo responder would receive other characters' memories.
+        injected={
+          recent:(r.recent||[]).filter(m=>m.ownerId===solo.id),
+          distant:(r.distant||[]).filter(m=>m.ownerId===solo.id)
+        };
+      }catch(e){ injected={recent:[],distant:[]}; }
     }
     const sysMsg={role:"system",content:buildSystemPrompt(injected)};
     // Build this character's history through the SAME witness/scene-scoped builder the multi-character
@@ -12398,7 +12406,10 @@ async function playSingleReaction(chat,p,eventText){
   if(list){list.appendChild(typing);if(isNearBottom(list)||_followAfterSend)setScrollTop(list,list.scrollHeight);}
   try{
     let injected={recent:[],distant:[]};
-    if(state.mem && state.memory.length){try{injected=await retrieveMemories(eventText,chat);}catch(e){injected={recent:[],distant:[]};}}
+    if(state.mem && state.memory.length){try{
+      const r=await retrieveMemories(eventText,chat);
+      injected={ recent:(r.recent||[]).filter(m=>m.ownerId===p.id), distant:(r.distant||[]).filter(m=>m.ownerId===p.id) };
+    }catch(e){injected={recent:[],distant:[]};}}
     const sysMsg={role:"system",content:buildSystemPrompt(injected)};
     // Same witness/scene-scoped history as every other character reply (see castHistory) — so a
     // gamemaster-prompted responder also never inherits dialogue from before they arrived.
