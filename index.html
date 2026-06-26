@@ -524,12 +524,18 @@
           <details class="acc"><summary><svg class="ic"><use href="#i-speech"/></svg> Gossip propagation prompt</summary>
             <textarea class="fld" id="setGossipPrompt" style="min-height:160px"></textarea>
             <div class="desc">Decides who tells whom, and as what. Returns JSON. Use {{user}}, {{witness}}, {{impression}}, {{charge}}, {{location}}, {{witness_ties}}, {{candidates}}.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-speech"/></svg> Location gossip prompt (on exit)</summary>
+            <textarea class="fld" id="setPoiGossip" style="min-height:160px"></textarea>
+            <div class="desc">When you LEAVE a public place and its privacy roll hits, the place produces a vague "people are saying…" rumor about your visit, planted as an OBSERVATION in everyone present (including you). Feeds the gossip/intent pipeline. Returns JSON. Use {{user}}, {{place}}, {{place_desc}}, {{others}}, {{visit}}.</div></details>
           <div class="kvline" style="margin-top:10px"><span>Confrontations (gossip → someone comes to settle it)</span>
             <label class="switchLbl"><input type="checkbox" id="setConfrontOn" checked><span class="sl"></span></label></div>
           <div class="desc">When a character holds a strong, unresolved suspicion about you, they may arrive to confront you. The Scene Writer runs it as a winnable social check: a hidden conviction the evidence sets a floor on, that your excuses, consistency, and honesty move — while their personality decides how movable they are.</div>
           <details class="acc"><summary><svg class="ic"><use href="#i-scale"/></svg> Confrontation judge prompt</summary>
             <textarea class="fld" id="setConfrontJudge" style="min-height:160px"></textarea>
             <div class="desc">The unbiased referee — scores your last turn into a conviction delta (it writes no dialogue, decides no ending). Returns JSON. Use {{user}}, {{accuser}}, {{intent}}, {{evidence}}, {{accuser_nature}}, {{conviction}}, {{floor}}, {{ceiling}}, {{player_turn}}.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-scale"/></svg> Overture judge prompt (warm referee)</summary>
+            <textarea class="fld" id="setOvertureJudge" style="min-height:160px"></textarea>
+            <div class="desc">The warm mirror of the confrontation judge — scores whether you were receptive to or rebuffed a warm overture (courtship, reconciliation, loyalty, alliance, protection). Returns JSON. Same fields as the confrontation judge: {{user}}, {{accuser}}, {{intent}}, {{evidence}}, {{accuser_nature}}, {{conviction}}, {{floor}}, {{ceiling}}, {{player_turn}}.</div></details>
           <div class="kvline" style="margin-top:10px"><span>Offstage agency (characters form grudges/ambitions & act on them)</span>
             <label class="switchLbl"><input type="checkbox" id="setIntentOn" checked><span class="sl"></span></label></div>
           <div class="desc">Characters who are wronged, tempted, or see an opening form private motives — a grievance, ambition, scheme — and pursue them offstage between days: festering, recruiting allies who share the sentiment. When one is ready, it comes back as a confrontation. You insult someone; days later they return, and not always alone.</div>
@@ -540,6 +546,9 @@
           <details class="acc"><summary><svg class="ic"><use href="#i-target"/></svg> Intent tick prompt (fester & recruit)</summary>
             <textarea class="fld" id="setIntentTick" style="min-height:140px"></textarea>
             <div class="desc">Each End Day, develops a live motive. Returns JSON. Use {{holder}}, {{nature}}, {{kind}}, {{target}}, {{aim}}, {{trigger}}, {{strength}}, {{allies}}, {{candidates}}.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-target"/></svg> Contemplation prompt (strategy planner)</summary>
+            <textarea class="fld" id="setContemplate" style="min-height:140px"></textarea>
+            <div class="desc">When a motive is ready to act on, the holder chooses HOW — direct, public spectacle, proxy, undermine first, ambush, or leverage. Returns JSON. Use {{holder}}, {{nature}}, {{kind}}, {{valence}}, {{target}}, {{aim}}, {{trigger}}, {{strength}}, {{allies}}, {{leverage}}, {{world}}.</div></details>
         </div>
 
         <div class="card">
@@ -2556,6 +2565,8 @@ Return ONLY a JSON object, no markdown, no commentary:
   "userName": "a fitting name for the player's character in this world (or empty to let them keep their default)",
   "userLook": "the player's appearance in this world (comma-separated visual details), or empty",
   "userBio": "2-4 sentences: the player's background, role, and ties to this world — used by the director engines",
+  "userPersonality": "1-2 sentences on the player character's temperament in this world (or empty to let them define their own)",
+  "userStyle": "1 sentence on how the player character speaks in this world (or empty)",
   "characters": [
     {
       "name": "character name",
@@ -2804,6 +2815,31 @@ These are STATES, not judgments. Do not factor in or re-score long-term trust, l
 
 You are given the character's current short-term values, their standing sentiment (context), and the recent moment. Return ONLY strict JSON of per-axis deltas:
 {"desire": <delta>, "comfort": <delta>, "fear": <delta>, "agitation": <delta>, "note": "<≤8-word reason, e.g. 'flustered by his closeness'>"}`;
+
+// W6 GUARD — the relationship CODE (blankRel, parsers, clamps, renderers) is data-driven over
+// REL_DIMS, so adding an axis scales automatically. The two tracker PROMPTS above are NOT: they
+// hand-list the axes and hardcode the count word ("nine"/"four"). If you add/rename an axis in
+// REL_DIMS, you MUST also update DEFAULT_REL (header count word, the axis table, the magnitude
+// table, the interaction rules, and the JSON schema) and DEFAULT_REL_SHORT (the fast axes + "four").
+// This dev-time check turns that silent drift into a loud console warning naming what's missing.
+(function _assertRelPromptsCoverAxes(){
+  try{
+    const missingSlow=REL_SLOW.filter(k=>!new RegExp('"'+k+'"').test(DEFAULT_REL));
+    const missingFast=REL_FAST.filter(k=>!new RegExp('"'+k+'"').test(DEFAULT_REL_SHORT));
+    const countWord=(DEFAULT_REL.match(/\b(eight|nine|ten|eleven|twelve)\b/i)||[])[0]||"(none)";
+    const NUM={8:"eight",9:"nine",10:"ten",11:"eleven",12:"twelve"};
+    const expectWord=NUM[REL_DIMS.length]||String(REL_DIMS.length);
+    if(missingSlow.length||missingFast.length){
+      console.warn("[REL] axis/prompt drift — DEFAULT_REL missing slow axes:",missingSlow,
+        "| DEFAULT_REL_SHORT missing fast axes:",missingFast,
+        "→ define them in the prompt prose + JSON schema before they will ever move.");
+    }
+    if(countWord.toLowerCase()!==expectWord){
+      console.warn("[REL] DEFAULT_REL says \""+countWord+"\" axes but REL_DIMS has "+REL_DIMS.length+
+        " ("+expectWord+"). Update the count word(s) in the prompt.");
+    }
+  }catch(e){}
+})();
 
 const DEFAULT_TRACK=`You update freeform story trackers for an ongoing roleplay. Each tracker is a named value within a range that represents something the story is following (an emotion like love or fear, a condition like intoxication or injury, a countdown, a status). You are given each tracker's definition, its current value, its update mode, and the latest exchange.
 
@@ -7716,7 +7752,8 @@ async function runUniverseGenerator(){
     if(!u){ toast("Generation failed — try again"); return; }
     const uid="u_"+Date.now();
     const universe={id:uid,name:u.name,avatar:u.avatar,setting:u.setting,
-      userName:u.userName,userLook:u.userLook,userBio:u.userBio,trackers:[],locations:[]};
+      userName:u.userName,userLook:u.userLook,userBio:u.userBio,
+      userPersonality:u.userPersonality||"",userStyle:u.userStyle||"",trackers:[],locations:[]};
     state.universes.push(universe);
     // Create the character cards in this universe (no pictures — appearance text only).
     let made=0;
@@ -13128,7 +13165,7 @@ function renderToggleSegs(){
 const GLOBAL_PROMPT_TEXTAREAS={
   setBaseInstruction:"baseInstruction", setFormatRules:"formatRules",
   setRewritePrompt:"rewritePrompt", setVidPrompt:"vidPrompt", setRouterPrompt:"routerPrompt",
-  setMemBuild:"memBuild", setGistBuild:"gistBuild", setGossipPrompt:"gossipPrompt", setConfrontJudge:"confrontJudge", setIntentForm:"intentForm", setIntentTick:"intentTick", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
+  setMemBuild:"memBuild", setGistBuild:"gistBuild", setGossipPrompt:"gossipPrompt", setPoiGossip:"poiGossip", setConfrontJudge:"confrontJudge", setOvertureJudge:"overtureJudge", setIntentForm:"intentForm", setIntentTick:"intentTick", setContemplate:"contemplate", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
   setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setDirectorAuthor:"directorAuthor", setPromptTuner:"promptTuner", setRelPrompt:"relPrompt", setRelShortPrompt:"relShortPrompt", setRelGenPrompt:"relGenPrompt", setPlayerNarratePrompt:"playerNarratePrompt", setTrackPrompt:"trackPrompt",
   setVoiceCheckPrompt:"voiceCheckPrompt", setTravelPrompt:"travelPrompt", setCalPrompt:"calPrompt",
   setGmJudge:"gmJudge", setGmAuthor:"gmAuthor", setDaySummary:"daySummaryPrompt",
@@ -13235,12 +13272,15 @@ function syncSettingsUI(){
   {const e=document.getElementById('setGossipMaxPerDay'); if(e)e.value=(state.gossipMaxPerDay!=null?state.gossipMaxPerDay:3);}
   {const e=document.getElementById('setGossipModel'); if(e)e.value=state.gossipModel||"";}
   {const e=document.getElementById('setGossipPrompt'); if(e)e.value=state.gossipPrompt||DEFAULT_GOSSIP;}
+  {const e=document.getElementById('setPoiGossip'); if(e)e.value=state.poiGossip||DEFAULT_POI_GOSSIP;}
   {const e=document.getElementById('setConfrontOn'); if(e)e.checked=state.confrontOn!==false;}
   {const e=document.getElementById('setConfrontJudge'); if(e)e.value=state.confrontJudge||DEFAULT_CONFRONT_JUDGE;}
+  {const e=document.getElementById('setOvertureJudge'); if(e)e.value=state.overtureJudge||DEFAULT_OVERTURE_JUDGE;}
   {const e=document.getElementById('setIntentOn'); if(e)e.checked=state.intentOn!==false;}
   {const e=document.getElementById('setIntentMax'); if(e)e.value=(state.intentMax!=null?state.intentMax:4);}
   {const e=document.getElementById('setIntentForm'); if(e)e.value=state.intentForm||DEFAULT_INTENT_FORM;}
   {const e=document.getElementById('setIntentTick'); if(e)e.value=state.intentTick||DEFAULT_INTENT_TICK;}
+  {const e=document.getElementById('setContemplate'); if(e)e.value=state.contemplate||DEFAULT_CONTEMPLATE;}
   document.getElementById('setCondensePrompt').value=state.condensePrompt;
   document.getElementById('setBioModel').value=state.bioModel;
   document.getElementById('setBioPrompt').value=state.bioPrompt;
@@ -13353,12 +13393,15 @@ function saveSettings(notify){
   {const e=document.getElementById('setGossipMaxPerDay'); if(e)state.gossipMaxPerDay=Math.max(0,Math.min(10,+e.value||0));}
   {const e=document.getElementById('setGossipModel'); if(e)state.gossipModel=e.value.trim();}
   {const e=document.getElementById('setGossipPrompt'); if(e)state.gossipPrompt=e.value.trim()||DEFAULT_GOSSIP;}
+  {const e=document.getElementById('setPoiGossip'); if(e)state.poiGossip=e.value.trim()||DEFAULT_POI_GOSSIP;}
   {const e=document.getElementById('setConfrontOn'); if(e)state.confrontOn=e.checked;}
   {const e=document.getElementById('setConfrontJudge'); if(e)state.confrontJudge=e.value.trim()||DEFAULT_CONFRONT_JUDGE;}
+  {const e=document.getElementById('setOvertureJudge'); if(e)state.overtureJudge=e.value.trim()||DEFAULT_OVERTURE_JUDGE;}
   {const e=document.getElementById('setIntentOn'); if(e)state.intentOn=e.checked;}
   {const e=document.getElementById('setIntentMax'); if(e)state.intentMax=Math.max(0,Math.min(12,+e.value||4));}
   {const e=document.getElementById('setIntentForm'); if(e)state.intentForm=e.value.trim()||DEFAULT_INTENT_FORM;}
   {const e=document.getElementById('setIntentTick'); if(e)state.intentTick=e.value.trim()||DEFAULT_INTENT_TICK;}
+  {const e=document.getElementById('setContemplate'); if(e)state.contemplate=e.value.trim()||DEFAULT_CONTEMPLATE;}
   state.condensePrompt=document.getElementById('setCondensePrompt').value.trim()||DEFAULT_CONDENSE;
   state.bioModel=document.getElementById('setBioModel').value.trim()||"deepseek/deepseek-v3.2";
   state.bioPrompt=document.getElementById('setBioPrompt').value.trim()||DEFAULT_BIO;
