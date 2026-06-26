@@ -8326,8 +8326,20 @@ function relSheetBlockFor(persona,targetIds){
     }
     if(lines.length)return lines.join("\n");
   }
-  // No structured data for the wanted targets → fall back to the legacy prose blob (whole thing).
-  return (persona.relationshipsGen||"").trim();
+  // No structured data for the wanted targets. Rather than dumping the WHOLE relationship prose
+  // blob (which describes ties to everyone in the universe — an offstage leak that floods the scene
+  // with absent people), extract only the lines/sentences that mention a wanted target by name.
+  const prose=(persona.relationshipsGen||"").trim();
+  if(!prose)return "";
+  const wantNames=[];
+  if(want.has("__user__"))wantNames.push(state.user);
+  [...want].forEach(id=>{ if(id!=="__user__"){ const nm=ownerLabel(id); if(nm)wantNames.push(nm); } });
+  const namesLc=wantNames.map(n=>String(n).toLowerCase()).filter(Boolean);
+  if(!namesLc.length)return "";
+  let units=prose.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  if(units.length<=1)units=prose.split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(Boolean);
+  const kept=units.filter(u=>{ const lc=u.toLowerCase(); return namesLc.some(n=>lc.includes(n)); });
+  return kept.length?kept.join("\n"):"";
 }
 // COMPACT roster ties — one short line per character of who the key people are to them, TIE ONLY
 // (no prose). Cheap, broad awareness for the Gamemaster so it reuses real characters instead of
@@ -8636,12 +8648,12 @@ async function fillPendingBios(chat){
     // Count messages this character has witnessed (present for) in this chat.
     const witnessed=(chat.messages||[]).filter(m=>{
       if(m.role==='system'||m.sysError)return false;
-      if(Array.isArray(m.present))return m.present.includes(p.id);
+      if(Array.isArray(m.present))return witnessedBy(m,p);
       return false;
     }).length;
     if(witnessed < (state.autoCharDelay||5)) continue;
     // Build conversation context from the recent messages this character was present for.
-    const ctx=(chat.messages||[]).filter(m=>Array.isArray(m.present)&&m.present.includes(p.id)&&!m.sysError)
+    const ctx=(chat.messages||[]).filter(m=>Array.isArray(m.present)&&witnessedBy(m,p)&&!m.sysError)
       .slice(-12).map(m=>`${m.role==='user'?state.user:(m.speaker||'?')}: ${m.content}`).join("\n");
     const brief=(p.bioBrief||p.personality||"")+`\n\nThe character's name is ${p.name}. Keep this exact name.`;
     const bio=await generateBio(brief,ctx);
@@ -10166,6 +10178,13 @@ function compactHistory(mapped){
     return stripped===m.content?m:{...m,content:stripped};
   });
 }
+// True if character `p` witnessed message `m` (was in its present[] list). Tolerant of LEGACY data
+// where present[] stored character NAMES instead of ids (older builds) — matches either. A message
+// with no present[] is NOT counted as witnessed for a specific character (caller decides ambient).
+function witnessedBy(m,p){
+  if(!p||!Array.isArray(m.present))return false;
+  return m.present.includes(p.id) || (p.name && m.present.includes(p.name));
+}
 // Per-character API history: character `forP` only receives messages they WITNESSED, scoped to the
 // CURRENT scene session (since the last location change). Two layers stop cross-scene leakage:
 //   1) Scene boundary — cut everything before the most recent travel beat (a location change). A
@@ -10189,7 +10208,7 @@ function castHistory(chat,forP){
     // Dialogue: must be within the current scene session AND witnessed by this character.
     if(idx<sceneStart) return false;                       // belongs to a previous location/scene
     if(forP){
-      if(Array.isArray(m.present)) return m.present.includes(forP.id);  // strict witness
+      if(Array.isArray(m.present)) return witnessedBy(m,forP);  // strict witness (id or legacy name)
       return false;                                         // untagged dialogue → don't leak it
     }
     return true;
@@ -12417,7 +12436,7 @@ async function maybeBuildMemory(chat){
       if(m.role==='system'||m.sysError)return false;
       if(m.narratorEvent||m.dayMarker||m.presenceNote)return false;   // ambient, not dialogue
       if(idx<sceneStart)return false;                                  // a previous scene/location
-      if(Array.isArray(m.present))return m.present.includes(p.id);     // strict witness
+      if(Array.isArray(m.present))return witnessedBy(m,p);            // strict witness (id or legacy name)
       return false;                                                    // untagged → don't attribute
     });
     const total=witnessed.length;
