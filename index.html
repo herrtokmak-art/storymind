@@ -432,7 +432,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · leak-fix v5 (solo path + mem)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · leak-fix v6 (mem scope + full rels)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -8340,6 +8340,33 @@ function relSheetBlock(persona){
   const prose=(persona.relationshipsGen||"").trim();
   return prose;
 }
+// FULL relationship block — ALL of this persona's defined ties (their own knowledge of their life),
+// with a "[here now]" marker on anyone currently present so the model still acts on presence. Used
+// in the per-character roleplay payload so a character never forgets a mother/sibling/rival just
+// because that person isn't in the room. These are the character's OWN relationships, not a leak.
+function relSheetBlockFull(persona){
+  if(!persona)return "";
+  const hereSet=new Set(presentCast().map(c=>c.id));
+  const mark=id=>hereSet.has(id)?" [here now]":"";
+  const rels=persona.relationships;
+  if(rels&&typeof rels==="object"&&Object.keys(rels).length){
+    const lines=[];
+    const order=Object.keys(rels).sort((a,b)=>{ if(a==="__user__")return -1; if(b==="__user__")return 1;
+      return (ownerLabel(a)||"").localeCompare(ownerLabel(b)||""); });
+    for(const id of order){
+      const e=rels[id]; if(!e)continue;
+      if(id===persona.id)continue;
+      const who=(id==="__user__")?state.user:ownerLabel(id);
+      if(!who)continue;
+      const tie=(e.tie||"").trim(), rel=(e.relationship||"").trim();
+      if(!tie&&!rel)continue;
+      lines.push(`- ${who}${tie?` (${tie})`:""}${id==="__user__"?"":mark(id)}: ${rel||tie}`);
+    }
+    if(lines.length)return lines.join("\n");
+  }
+  // Legacy prose blob: the character's whole relationship description — their own knowledge, return as-is.
+  return (persona.relationshipsGen||"").trim();
+}
 // SCOPED relationship block — only this persona's relationships toward the given target ids
 // (plus the player by default). Used in the roleplay payload so a speaking character only carries
 // their relationships with the people actually nearby, not the whole universe (token savings).
@@ -8879,8 +8906,8 @@ function buildSystemPrompt(injectedMemories){
       const loc=charLocationLine(c);
       let cb=`<character name="${c.name}">\n`+charBioBlock(c,{self:false,locLine:loc});
       const sheetIds=cast.filter(x=>x.id!==c.id).map(x=>x.id);
-      const sheet=relSheetBlockFor(c,sheetIds);
-      if(sheet)cb+=`\n  <relationships>who the nearby people are to ${c.name}:\n${sheet}</relationships>`;
+      const sheet=relSheetBlockFull(c);
+      if(sheet)cb+=`\n  <relationships>${c.name}'s established ties (hold whether present or not; [here now] = in this scene):\n${sheet}</relationships>`;
       cb+=`\n</character>`;
       blocks.push(cb);
     });
@@ -8893,11 +8920,12 @@ function buildSystemPrompt(injectedMemories){
       let rb=`<character_you_play>\nYou are ${p.name}, a character in an immersive roleplay with ${state.user}. Stay fully in character at all times. Never break character or mention being an AI.\n`+
              charBioBlock(p,{self:true,locLine:loc})+`\n</character_you_play>`;
       blocks.push(rb);
-      // RELATIONSHIPS — right after the bio: who the NEARBY people are to them (scoped to present
-      // characters + the player, to keep the roleplay payload lean).
-      {const presentIds2=presentCast().filter(c=>c.id!==p.id).map(c=>c.id);
-       const sheet=relSheetBlockFor(p,presentIds2);
-       if(sheet)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these nearby people are to you)\nThis is who the people currently around you are to you — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${sheet}`);}
+      // RELATIONSHIPS — right after the bio. A character always knows their OWN relationships
+      // (family, history, rivalries) whether or not those people are physically present — otherwise
+      // they invent a stranger out of their own mother. We load the FULL sheet (their own knowledge,
+      // not a leak), and mark who is actually nearby right now so they act on presence correctly.
+      {const sheet=relSheetBlockFull(p);
+       if(sheet)blocks.push(`# ${p.name}'s RELATIONSHIPS (who the people in your life are to you)\nThese are your established ties — kinship, history, rivalries, loyalties — and they hold whether or not the person is here right now. Never treat someone you have a bond with as a stranger.\n${sheet}`);}
       if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
     }
   }
@@ -8963,9 +8991,11 @@ function buildCharPrompt(p,others,injectedMemories,addressed){
   // (others in the scene) + the player, from the scoped JSON sheet (which falls back to prose if a
   // character has no JSON yet). The full unscoped social-graph blobs are deliberately NOT dumped
   // here — a speaker should only carry their relationships with who's nearby, not the whole roster.
-  {const otherIds=(others||[]).map(o=>o.id).filter(id=>id&&id!==p.id);
-   const sheet=relSheetBlockFor(p,otherIds);
-   if(sheet)blocks.push(`# ${p.name}'s RELATIONSHIPS (who these nearby people are to you)\nThis is who the people currently around you are to you — act on these ties. Let kinship, rank, history, rivalries, and loyalties shape how you treat each person:\n${sheet}`);}
+  // A character always knows their OWN relationships (family, history, rivalries) whether or not
+  // those people are present — otherwise they treat their own mother as a stranger. We load the FULL
+  // sheet (their own knowledge) and mark who is actually nearby with [here now].
+  {const sheet=relSheetBlockFull(p);
+   if(sheet)blocks.push(`# ${p.name}'s RELATIONSHIPS (who the people in your life are to you)\nThese are your established ties — kinship, history, rivalries, loyalties — and they hold whether or not the person is here right now. Never treat someone you have a bond with as a stranger.\n${sheet}`);}
 
   if(p.scenario)blocks.push(`# SCENARIO\n${p.scenario}`);
 
@@ -10078,13 +10108,8 @@ async function sendMessage(){
     let injected={recent:[],distant:[]};
     if(state.mem && state.memory.length){
       try{
-        const r=await retrieveMemories(text,chat);
-        // Only THIS character's own memories — retrieveMemories returns the whole present cast's
-        // pool, so without this filter a solo responder would receive other characters' memories.
-        injected={
-          recent:(r.recent||[]).filter(m=>m.ownerId===solo.id),
-          distant:(r.distant||[]).filter(m=>m.ownerId===solo.id)
-        };
+        const r=await retrieveMemories(text,chat,solo.id);
+        injected={ recent:(r.recent||[]), distant:(r.distant||[]) };
       }catch(e){ injected={recent:[],distant:[]}; }
     }
     const sysMsg={role:"system",content:buildSystemPrompt(injected)};
@@ -10389,10 +10414,10 @@ async function playCharacterTurn(chat,p,addressed){
     let injected={recent:[],distant:[]};
     if(state.mem && state.memory.length){
       try{
-        const r=await retrieveMemories(castConvoText(chat,4),chat);
+        const r=await retrieveMemories(castConvoText(chat,4),chat,p.id);
         injected={
-          recent:(r.recent||[]).filter(m=>m.ownerId===p.id),
-          distant:(r.distant||[]).filter(m=>m.ownerId===p.id)
+          recent:(r.recent||[]),
+          distant:(r.distant||[])
         };
       }catch(e){ injected={recent:[],distant:[]}; }
     }
@@ -12407,8 +12432,8 @@ async function playSingleReaction(chat,p,eventText){
   try{
     let injected={recent:[],distant:[]};
     if(state.mem && state.memory.length){try{
-      const r=await retrieveMemories(eventText,chat);
-      injected={ recent:(r.recent||[]).filter(m=>m.ownerId===p.id), distant:(r.distant||[]).filter(m=>m.ownerId===p.id) };
+      const r=await retrieveMemories(eventText,chat,p.id);
+      injected={ recent:(r.recent||[]), distant:(r.distant||[]) };
     }catch(e){injected={recent:[],distant:[]};}}
     const sysMsg={role:"system",content:buildSystemPrompt(injected)};
     // Same witness/scene-scoped history as every other character reply (see castHistory) — so a
@@ -12689,10 +12714,15 @@ function isDistantMem(m){ return !!(m && m.type==="CONSOLIDATED"); }
    DISTANT = condensed/consolidated memories (the durable gist of what came before).
    Each tier is queried independently with its own count, so the payload carries both granularities
    under separate headings. */
-async function retrieveMemories(userText,chat){
+async function retrieveMemories(userText,chat,ownerId){
   const recCount=Math.max(0, state.memRecentCount!=null?state.memRecentCount:3);
   const disCount=Math.max(0, state.memDistantCount!=null?state.memDistantCount:2);
-  const all=visibleMemories();                       // current cast's own memories, this universe
+  // Scope to the responding character's OWN memories BEFORE ranking. Previously this ranked across
+  // the whole cast's pool and picked a global top-N, so a character with few memories got crowded
+  // out of the limited recent/distant slots by other characters' memories (and the per-character
+  // owner filter ran too late, on an already-truncated list). Filtering by owner up front gives each
+  // character their full budget against only their own memories.
+  const all=ownerId ? visibleMemories().filter(m=>m.ownerId===ownerId) : visibleMemories();
   const recentPool=all.filter(m=>!isDistantMem(m));   // verbatim
   const distantPool=all.filter(m=>isDistantMem(m));   // condensed
 
