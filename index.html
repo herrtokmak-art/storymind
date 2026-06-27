@@ -3251,17 +3251,19 @@ Output ONLY {{user}}'s turn.`;
 // ROUTER 1 — fires after the PLAYER speaks. Decides who the player addressed and who replies.
 const DEFAULT_ROUTER_PLAYER=`You are the conversation director for a multi-character roleplay. {{user}} (the player) just spoke. The characters in earshot are listed with short descriptions and their "hooks" (pressure points, motivations, secrets, rivalries).
 
-Decide who {{user}} is addressing and which SINGLE character should respond. Pick exactly ONE responder in almost all cases:
-- If {{user}} named or clearly directed their message at one character, that character responds.
-- If {{user}} addressed the whole group, pick the ONE character who would most naturally answer first — use the hooks to judge whose stake, personality, or relationship makes them the likeliest to speak up.
-- If what {{user}} said lands directly on one character's hook (their fear, desire, rivalry, secret), prefer that character.
-- Only return two responders if {{user}} explicitly asked two specific characters to answer.
+Decide who {{user}} is addressing and who should respond — ONE character, or at most TWO. Read the line and pick the branch that fits:
 
-Never make a character respond just because they are present. A character {{user}} did not address and whose hooks are untouched stays silent.
+DIRECTED AT ONE — {{user}} named or clearly aimed the message at a single character (or what they said lands squarely on just one character's hook): that character responds. Return ONE name.
+
+GROUP ADDRESS — {{user}} spoke to the whole room, greeted everyone, asked an open question, or made a remark no one in particular owns: return the TWO characters most likely to actually speak up first, judged by their hooks, stake, personality, and relationship to {{user}}. Order them by who would speak FIRST. If only one character realistically would answer, return just that one — never pad to two for the sake of it.
+
+HOOK-DRIVEN — what {{user}} said directly strikes more than one character's hook (a shared secret, a rivalry between two of them, a remark that wounds two people): return those (up to TWO), most-provoked first.
+
+Never make a character respond just because they are present. A character {{user}} did not address and whose hooks are untouched stays silent. Return AT MOST TWO names — quality of fit over quantity.
 
 Respond with ONLY strict JSON, no prose:
-{"addressed":"exact name or 'group'","responders":["ExactName"]}
-Use exact names from the list. responders must contain at least one name.`;
+{"addressed":"exact name or 'group'","responders":["FirstSpeaker","SecondSpeaker"]}
+Use exact names from the list, ordered by who speaks first. responders must contain at least one name and never more than two.`;
 
 // ROUTER 2 — fires after a CHARACTER speaks. Decides if another character should respond (enables char↔char).
 const DEFAULT_ROUTER_CHAR=`You are the CONVERSATION DIRECTOR for a multi-character roleplay. A character just finished speaking. Your job is to judge whether ANY other character present would realistically respond — before the turn goes back to {{user}}.
@@ -4087,6 +4089,12 @@ function loadState(){
   // and the one criticized may rebound once to defend themselves. Stored/older copies lacking the new
   // marker are refreshed; hand-customized prompts (no fingerprint) are preserved.
   _refreshPipe("routerChar","You are the CONVERSATION DIRECTOR for a multi-character roleplay","SPOKEN ABOUT — INDIRECT REFERENCE",DEFAULT_ROUTER_CHAR);
+  // Router-1 (player turn) upgrade: the old default forced exactly ONE responder ("Pick exactly ONE
+  // responder in almost all cases"), so group greetings/open remarks only ever got one reply. The new
+  // default returns up to TWO likely first-speakers on a group address. Refresh stored/older copies
+  // (and per-universe overrides) that are recognizably our earlier default but lack the new marker;
+  // hand-customized prompts (no fingerprint) are preserved.
+  _refreshPipe("routerPlayer","You are the conversation director for a multi-character roleplay","GROUP ADDRESS —",DEFAULT_ROUTER_PLAYER);
   // Image-prompt rewriter upgrade: the universal prompt was reworked to be camera-agnostic and lean
   // (per-scene pose/shot detail now lives in each image rule's promptStyle, see DEFAULT_IMG_RULES).
   // Refresh stored copies still on the old hard-POV "SDXL image prompts" default; hand-customized
@@ -10700,10 +10708,19 @@ async function runMultiCharTurn(chat,playerText){
       ],state.mcModel,{temp:fnTemp("mc",0.1),max:fnTok("mc",120),dbg:"Turn router · player"});
       const j=parseJSON(out);
       if(j){addressed=j.addressed||"group";
-        responders=(Array.isArray(j.responders)?j.responders:[]).map(n=>cast.find(c=>c.name.toLowerCase()===String(n).toLowerCase())).filter(Boolean);}
+        responders=(Array.isArray(j.responders)?j.responders:[]).map(n=>cast.find(c=>c.name.toLowerCase()===String(n).toLowerCase())).filter(Boolean);
+        // De-dupe (a model can repeat a name) and cap at TWO — the router prompt asks for at most two
+        // responders on a group address; this guarantees the loop never floods the turn even if the
+        // model returns more. Order is preserved (who-speaks-first as the router judged it).
+        {const seen=new Set(); responders=responders.filter(c=>{ if(seen.has(c.id))return false; seen.add(c.id); return true; }).slice(0,2);}
+      }
     }catch(e){}
     if(!responders.length)responders=[cast[0]]; // fallback: first present answers
-    // Play the responder(s) router 1 chose. Each is told who they're addressing.
+    // Play the responder(s) router 1 chose. Each is told who they're addressing. These are the
+    // characters the PLAYER directly addressed or provoked, so they always get to speak — the
+    // responder list is already capped at two above. mcChainCap is NOT applied here; it bounds only
+    // the REACTIVE router-2 cascade below (character-to-character chaining). Without this, a small
+    // cap (default 2) combined with future tuning could silently drop the player's second addressee.
     let turns=0,lastSpeaker=null;
     // Track everyone who has already taken a turn in THIS player-turn chain. A character should not
     // be routed to speak twice within the same chain (no new player input between) — that produced
@@ -10711,7 +10728,6 @@ async function runMultiCharTurn(chat,playerText){
     // ping-ponged A→B→A and A regenerated a near-identical line. They react on the player's NEXT msg.
     const spokenThisChain=new Set();
     for(const r of responders){
-      if(turns>=cap)break;
       if(!inSceneIds(chat).includes(r.id))continue;
       const ok=await playCharacterTurn(chat,r,state.user);
       if(ok){lastSpeaker=r;turns++;spokenThisChain.add(r.id);}
