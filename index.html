@@ -209,6 +209,11 @@
   .charCard.add{align-items:center;justify-content:center;border-style:dashed;}
   .charCard.add .cc-plus{font-size:40px;color:var(--muted);}
   .charCard.add .cc-plus small{display:block;font-size:12px;margin-top:4px;}
+  /* removed (dead) character: kept on record but out of play */
+  .charCard.removed{filter:grayscale(.85) brightness(.6);border-color:rgba(255,80,80,.4);}
+  .charCard.removed .cc-img{opacity:.7;}
+  .charCard .cc-dead-badge{position:absolute;top:7px;left:7px;z-index:3;font-size:11px;font-weight:600;letter-spacing:.02em;color:#fff;background:rgba(150,20,20,.85);backdrop-filter:blur(4px);padding:3px 8px;border-radius:999px;}
+  .charCard .cc-revive{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);z-index:4;border:none;border-radius:999px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;background:linear-gradient(135deg,#b32be0,#7b2ff7);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4);}
   /* avatar preview in editor */
   .avatarPreview{width:120px;height:120px;border-radius:16px;object-fit:cover;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:54px;margin:0 auto;}
   .switchLbl{position:relative;display:inline-block;width:46px;height:26px;}
@@ -432,7 +437,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-26 · v10 (calendar fix, multi-turn reverted)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-27 · v11 (/remove dead chars · scene-writer dedup · undermine-interjection)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -3330,6 +3335,23 @@ The line creates a social situation where NOT reacting is itself a statement.
 | Someone is being humiliated or cornered and a character would defend them | The defender |
 | A question is asked to the room but one character clearly owns the answer | That character |
 
+### 4. SPOKEN ABOUT — INDIRECT REFERENCE (not addressed by name)
+A character can be the real subject of a line without being named or spoken TO. If the line is clearly ABOUT a present character — pointing at their failure, their fault, their choice, their reputation — they would realistically react. This is the most-missed case: judge who the line lands ON, not just who it's pointed at.
+
+Two directions to watch:
+- **The one spoken about wants to defend / answer.** A jab, a blame, a slight, a contemptuous reference to what they did or are → they push back, justify, deflect, or seethe aloud.
+- **A bystander seizes the opening.** When the line exposes one character's failure or weakness, a RIVAL, opportunist, or someone who resents them may pounce — twisting the knife, scoring a point, undermining them — even though no one addressed the bystander.
+
+| Situation | Who reacts | Why |
+|-----------|-----------|-----|
+| A character just failed at something, and {{user}} (or anyone) notes it | a rival/critic present → "If she'd done it right, this wouldn't have happened." | the rival takes the opening to undermine |
+| …and immediately after that jab | the one criticized → defends herself | being undermined in front of others demands an answer |
+| "Birinin bu işi baştan düzgün yapması lazımdı." (about Ayşe, who's present) | Ayşe | she's the unnamed subject of the blame |
+| "Neyse ki aramızda hâlâ aklı başında biri var." (a pointed dig past one person at another) | the one slighted | a veiled insult still lands |
+| A character's competence/loyalty/honesty is questioned in the third person while they stand there | that character | silence would read as conceding it |
+
+**The test for #4**: strip the names. Is this line really ABOUT someone in the room — their failure, their fault, their worth? If yes, the person it's about (or a rival poised to exploit it) would speak. Pick whichever silence would be MOST unnatural.
+
 ---
 
 ## WHEN TO STAY SILENT — return false
@@ -3346,7 +3368,7 @@ Do NOT name a responder when:
 
 ## RULES
 
-- **Never pick {{speaker}}.** The person who just spoke cannot also be the responder.
+- **Default to NOT picking {{speaker}}** (the one who just spoke shouldn't usually answer themselves). **ONE exception:** if the line was someone undermining/criticizing/blaming {{speaker}} — i.e. {{speaker}} was the SUBJECT of the previous beat and is now reacting to a jab against them — then the character that jab targeted may be named to defend themselves on the next beat. In normal cases, never re-pick {{speaker}}.
 - **Only pick ONE responder.** Even if multiple characters are triggered, pick the one for whom staying silent would be MOST unnatural.
 - **Do not name {{user}} as the responder unless explicitly addressed.** The whole point of returning \`false\` is that {{user}} gets the turn. If {{user}} was directly addressed, that's different from this function — this function is about OTHER characters interjecting. If the speaker addressed {{user}}, the turn already goes to {{user}} by default via \`continue: false\`; you only need to flag when someone ELSE should jump in.
 - **The hooks make this judgment, not randomness.** A character doesn't speak because it's "been a while" — they speak because something just hit them where they live.
@@ -3381,6 +3403,8 @@ Return **only** strict JSON, no prose.
 | Kemal | "Hava soğuk, değil mi?" | {{user}}, Kemal, Meral | None | \`{"continue": false, "responder": null, "addressed": null}\` |
 | {{user}} | "Ben evliyim." | {{user}}, Leyla (secretly in love with {{user}}) | Leyla's desire/secret shattered | \`{"continue": true, "responder": "Leyla", "addressed": null}\` |
 | {{user}} | "Bence bu işi bitirelim." | {{user}}, Ali, Veli | None triggered directly | \`{"continue": false, "responder": null, "addressed": null}\` |
+| {{user}} | "Selin yine eli boş döndü, görev yarım kaldı." | {{user}}, Selin, Derya (Selin's rival) | Derya seizes the opening to undermine Selin | \`{"continue": true, "responder": "Derya", "addressed": null}\` |
+| Derya | "Düzgün yapan biri olsaydı bu iş çoktan biterdi." (a dig at Selin, who's present) | {{user}}, Selin, Derya | Selin is the unnamed subject — she defends herself | \`{"continue": true, "responder": "Selin", "addressed": null}\` |
 | Meral | "Sen bir yalancısın." (staring at {{user}}) | {{user}}, Meral, Kemal | Addressed to {{user}} — but {{user}} already gets the turn by default | \`{"continue": false, "responder": null, "addressed": "{{user}}"}\` |
 \`\`\``;
 
@@ -4003,6 +4027,11 @@ function loadState(){
   _refreshPipe("sceneSetup","## YOUR INPUTS","NOT a person event",DEFAULT_SCENE_SETUP);
   _refreshPipe("gmAuthor","You are the GAMEMASTER, an unseen narrator","A mention is NOT a reason to make someone arrive",DEFAULT_GM_AUTHOR);
   _refreshPipe("gmJudge","invisible GAMEMASTER observing an ongoing roleplay","Mentioning a person is not a trigger to summon",DEFAULT_GM_JUDGE);
+  // Router-2 (character interjection) upgrade: add the "spoken about / undermining" override so a
+  // character referenced indirectly (criticized, blamed, or whose failure a rival exploits) can speak,
+  // and the one criticized may rebound once to defend themselves. Stored/older copies lacking the new
+  // marker are refreshed; hand-customized prompts (no fingerprint) are preserved.
+  _refreshPipe("routerChar","You are the CONVERSATION DIRECTOR for a multi-character roleplay","SPOKEN ABOUT — INDIRECT REFERENCE",DEFAULT_ROUTER_CHAR);
   try{persistUniverses&&persistUniverses();}catch(e){}
   // One-time upgrade: refresh the stock base instruction for installs still running the older one.
   // Only when it still looks like the unedited default (PUSH AND PULL + PACING markers) AND the new
@@ -5250,7 +5279,7 @@ function directorContext(chat,mode){
     const pos=resolveWorldPositions(chat);
     const present=new Set(presentIds(chat));
     const lines=[];
-    (state.personas||[]).filter(p=>p.universeId===chat.universeId && !present.has(p.id)).forEach(p=>{
+    (state.personas||[]).filter(p=>p.universeId===chat.universeId && isActiveChar(p) && !present.has(p.id)).forEach(p=>{
       const at=pos[p.id]; const l=at?locById(at):null;
       lines.push(`${p.name}: ${l?("at "+l.name+(l.description?` (${l.description.slice(0,80)})`:"")):"elsewhere / unavailable"}`);
     });
@@ -5290,7 +5319,7 @@ function directorContext(chat,mode){
       if(relLines.length)parts.push(`RELATIONSHIPS OF THOSE PRESENT:\n${relLines.join("\n")}`);
     }else{
       // legacy: full roster sheets
-      const roster=(state.personas||[]).filter(p=>p.universeId===chat.universeId);
+      const roster=(state.personas||[]).filter(p=>p.universeId===chat.universeId && isActiveChar(p));
       const relLines=[];
       roster.forEach(p=>{
         const sheet=relSheetBlock(p);
@@ -5592,7 +5621,7 @@ async function runLocationGossipLeak(chat, leftLoc, leftSubId){
     // they're ticked here. The place's social fabric hears "people are saying…", subject included.
     // No ticked characters → no one carries it → no leak.
     const uid=(chat&&chat.universeId)||state.curUniverse||null;
-    const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+    const roster=(state.personas||[]).filter(p=>(!uid||p.universeId===uid) && isActiveChar(p));
     const ticked=(leftLoc.residents||[]).map(id=>roster.find(p=>p.id===id)).filter(Boolean);
     if(!ticked.length)return;   // a place with no regulars has no one to spread or hear the talk
     const model=(state.gossipModel&&state.gossipModel.trim())?state.gossipModel:state.memModel;
@@ -5868,7 +5897,7 @@ function resolveWorldPositions(chat,force){
   // (Re)roll the day's placement if it's missing or stale (a new day began).
   if(fresh){
     const rolled={};
-    (state.personas||[]).filter(p=>p.universeId===c.universeId).forEach(p=>{
+    (state.personas||[]).filter(p=>p.universeId===c.universeId && isActiveChar(p)).forEach(p=>{
       rolled[p.id]=rollPlacement(p);   // dice over allowed set, or home/null
     });
     c.dayPlacement={day,positions:rolled};
@@ -5880,7 +5909,7 @@ function resolveWorldPositions(chat,force){
   if(!fresh && c.worldPositions && c._wpKey===`${day}`) return c.worldPositions;
   const pos={};
   const rolled=(c.dayPlacement&&c.dayPlacement.positions)||{};
-  (state.personas||[]).filter(p=>p.universeId===c.universeId).forEach(p=>{
+  (state.personas||[]).filter(p=>p.universeId===c.universeId && isActiveChar(p)).forEach(p=>{
     pos[p.id]=rolled[p.id]!=null?rolled[p.id]:null;
   });
   // Companions the player took with them stay at the player's current location for the day.
@@ -5893,7 +5922,7 @@ function resolveWorldPositions(chat,force){
 function charactersAtLocation(chat,locId){
   // Whoever the daily roll (plus companion locks) placed here.
   const pos=resolveWorldPositions(chat);
-  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && pos[p.id]===locId);
+  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && isActiveChar(p) && pos[p.id]===locId);
 }
 // GM movement: bring a named character INTO the current scene, or send a present one AWAY.
 // Returns the brought-in persona (so they can speak) or null.
@@ -5901,6 +5930,7 @@ function gmSummonCharacter(chat,name){
   if(!name||!chat)return null;
   let p=state.personas.find(x=>x.universeId===chat.universeId && x.name.toLowerCase()===String(name).toLowerCase());
   if(!p)return null;
+  if(!isActiveChar(p))return null;   // dead/removed characters cannot be summoned back into play
   if(!chat.presentIds)chat.presentIds=[];
   if(!chat.presentIds.includes(p.id))chat.presentIds.push(p.id);
   if(chat.worldPositions&&chat.locationId)chat.worldPositions[p.id]=chat.locationId; // they're here now
@@ -5920,7 +5950,7 @@ function gmSendCharacter(chat,name){
 // Offstage characters who could plausibly be summoned (for GM context).
 function offstageRoster(chat){
   const present=new Set(presentIds(chat));
-  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && !present.has(p.id));
+  return (state.personas||[]).filter(p=>p.universeId===chat.universeId && isActiveChar(p) && !present.has(p.id));
 }
 
 // ============================ CALENDAR / PLANS ============================
@@ -6077,7 +6107,7 @@ async function checkDuePlans(chat){
     const companions=[];
     if(e.who){
       const names=e.who.split(/[,&]| and /i).map(s=>s.trim().toLowerCase()).filter(Boolean);
-      (state.personas||[]).filter(p=>p.universeId===chat.universeId).forEach(p=>{
+      (state.personas||[]).filter(p=>p.universeId===chat.universeId && isActiveChar(p)).forEach(p=>{
         if(names.some(n=>p.name.toLowerCase()===n||p.name.toLowerCase().includes(n))) companions.push(p.id);
       });
     }
@@ -6233,7 +6263,7 @@ async function attendPlan(id){
     const companions=[];
     if(e.who){
       const names=e.who.split(/[,&]| and /i).map(s=>s.trim().toLowerCase()).filter(Boolean);
-      (state.personas||[]).filter(p=>p.universeId===chat.universeId).forEach(p=>{
+      (state.personas||[]).filter(p=>p.universeId===chat.universeId && isActiveChar(p)).forEach(p=>{
         if(names.some(n=>p.name.toLowerCase()===n||p.name.toLowerCase().includes(n))) companions.push(p.id);
       });
     }
@@ -7918,21 +7948,36 @@ function renderPersonas(){
   const uid=state.curUniverse;
   const el=document.getElementById('personaList');el.innerHTML="";
   personasInUniverse(uid).forEach(p=>{
-    const c=document.createElement('div');c.className="charCard";
+    const c=document.createElement('div');c.className="charCard"+(p.removed?" removed":"");
     const desc=p.personality||p.scenario||p.backstory||"";
     const visual=p.image
       ? `<img class="cc-img" src="${p.image}" alt="">`
       : `<div class="cc-emoji">${esc(p.avatar||"🎭")}</div>`;
+    const deadBadge=p.removed?`<div class="cc-dead-badge" title="Removed from play — card kept">☠️ removed</div>`:"";
+    const reviveBtn=p.removed?`<button class="cc-revive" title="Revive" data-revive>Revive</button>`:"";
     c.innerHTML=`
       ${visual}
       <div class="cc-grad"></div>
+      ${deadBadge}
       <button class="cc-edit" title="Edit" data-edit><svg class="ic"><use href="#i-edit"/></svg></button>
+      ${reviveBtn}
       <div class="cc-info">
         <div class="cc-name">${esc(p.name)}</div>
         <div class="cc-desc">${esc(desc)}</div>
       </div>`;
     // Tapping a card opens the character editor — it does NOT start a chat.
-    c.addEventListener('click',ev=>{ editPersona(p.id); });
+    c.addEventListener('click',ev=>{
+      if(ev.target.closest('[data-revive]')){
+        ev.stopPropagation();
+        delete p.removed; delete p.removedAt;
+        persistPersonas();
+        try{const ch=curChat(); if(ch){appendNewBubbles&&appendNewBubbles();updateChatHeader&&updateChatHeader();}}catch(e){}
+        renderPersonas();
+        toast(`${p.name} revived — back in play`);
+        return;
+      }
+      editPersona(p.id);
+    });
     el.appendChild(c);
   });
   // "add new" tile
@@ -8426,7 +8471,7 @@ function relSheetBlockFor(persona,targetIds){
 // inventing new ones, without paying for full relationship prose.
 function compactRosterTies(chat){
   const uid=chat&&chat.universeId;
-  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  const roster=(state.personas||[]).filter(p=>(!uid||p.universeId===uid) && isActiveChar(p));   // dead/removed never offered to the GM as reusable
   const idToName={}; roster.forEach(p=>idToName[p.id]=p.name);
   const lines=[];
   roster.forEach(p=>{
@@ -9306,10 +9351,16 @@ async function maybeShowRecap(chat){
   }catch(e){ bn.classList.add('hide'); }
 }
 // Every character that belongs to the active universe is automatically in the cast.
+// A character marked dead/removed (via /remove) keeps its card for the record but takes NO further
+// part in play: no replies, no router candidacy, no GM summon, no offstage placement, no gossip/
+// intent. This single predicate is the one place that decides "can still participate". It is applied
+// at the runtime roots (curCast, presentIds, offstage placement, GM summon) — NOT in the editor's
+// personasInUniverse, so the removed card stays visible and revivable in the character list.
+function isActiveChar(p){ return !!p && !p.removed; }
 function curCast(){
   const chat=state.curChat&&state.chats[state.curChat];
   const uid=(chat&&chat.universeId)||state.curUniverse;
-  const out=personasInUniverse(uid);
+  const out=personasInUniverse(uid).filter(isActiveChar);   // dead/removed excluded from play
   return out;   // may be empty; that's allowed
 }
 // Who is CURRENTLY present (in earshot). Defaults to EMPTY — nobody nearby unless
@@ -9328,6 +9379,8 @@ function presentIds(chat){
                   && chat.activeEvent.participant && chat.activeEvent.participant.charId)
                  ? chat.activeEvent.participant.charId : null;
   chat.presentIds=chat.presentIds.filter(id=>castSet.has(id)||tempIds.has(id)||id===evPartId);
+  // A character removed (/remove — dead) while physically present is taken off stage immediately.
+  chat.presentIds=chat.presentIds.filter(id=>{const pp=resolveChar(id,chat); return !pp||isActiveChar(pp);});
   return chat.presentIds;
 }
 // The present characters as persona objects (the ones who can hear & respond now).
@@ -9408,7 +9461,9 @@ function ensureTempChar(chat,name,persona,look){
   let t=chat.tempChars.find(x=>x.name.toLowerCase()===String(name).toLowerCase());
   if(!t){
     // Also avoid duplicating an existing real persona of the same name in this universe.
-    const existing=(state.personas||[]).find(p=>p.universeId===chat.universeId && p.name.toLowerCase()===String(name).toLowerCase());
+    // A removed/dead persona does NOT count as a match — they can't be re-staged through the
+    // temp path; we only reuse an ACTIVE same-name persona.
+    const existing=(state.personas||[]).find(p=>p.universeId===chat.universeId && isActiveChar(p) && p.name.toLowerCase()===String(name).toLowerCase());
     if(existing){ return existing; }
     if(state.autoCharOn){
       // Feature 2: promote immediately to a REAL persona card in the chat's universe.
@@ -10258,7 +10313,7 @@ function handleOOC(chat,text){
     notePresence(chat,[p.name],[]);
     persistChats();appendNewBubbles();updateChatHeader();
     // SILENT ARRIVAL — see manualPresence(): announced by the presence note, no forced entrance line.
-  }else if(cmd==="leave"||cmd==="send"||cmd==="dismiss"||cmd==="remove"){
+  }else if(cmd==="leave"||cmd==="send"||cmd==="dismiss"){
     if(!arg){toast("Usage: /leave Name");return;}
     const p=findByName(arg)||(chat.tempChars||[]).find(t=>t.name.toLowerCase().includes(arg.toLowerCase()));
     if(!p){toast(`No one named "${arg}" is here`);return;}
@@ -10266,13 +10321,52 @@ function handleOOC(chat,text){
     chat.presentIds=chat.presentIds.filter(x=>x!==p.id);
     notePresence(chat,[],[p.name]);
     persistChats();appendNewBubbles();updateChatHeader();
+  }else if(cmd==="remove"||cmd==="kill"||cmd==="dead"){
+    // PERMANENT: mark the character dead/removed. The card is KEPT (history, relationships, memories
+    // stay on record) but isActiveChar() now returns false for them everywhere, so they no longer
+    // reply, get routed to, are summoned by the GM, placed offstage, gossip, or form intents. Revive
+    // with /revive Name. Search the WHOLE universe cast (incl. removed), not just the present scene.
+    if(!arg){toast("Usage: /remove Name  (marks them dead — keeps the card)");return;}
+    const all=personasInUniverse((chat&&chat.universeId)||state.curUniverse);
+    const p=all.find(c=>c.name.toLowerCase()===arg.toLowerCase())
+          ||all.find(c=>c.name.toLowerCase().includes(arg.toLowerCase()));
+    if(!p){toast(`No character named "${arg}" in this universe`);return;}
+    if(p.removed){toast(`${p.name} is already removed`);return;}
+    p.removed=true; p.removedAt=Date.now();
+    // Take them off stage immediately if they were present.
+    if(Array.isArray(chat.presentIds)&&chat.presentIds.includes(p.id)){
+      chat.presentIds=chat.presentIds.filter(x=>x!==p.id);
+      notePresence(chat,[],[p.name]);
+    }
+    // Drop any companion-lock and live intents tied to them so the director engines don't chase a corpse.
+    if(chat.companionLock)delete chat.companionLock[p.id];
+    if(Array.isArray(chat.intents))chat.intents.forEach(i=>{ if(i.holderId===p.id)i.status="spent"; });
+    if(chat.worldPositions)chat.worldPositions[p.id]=null;
+    persistChats();persistPersonas();appendNewBubbles();updateChatHeader();
+    if(typeof renderPersonas==="function")try{renderPersonas();}catch(e){}
+    toast(`☠️ ${p.name} removed — kept on record, out of all roleplay`);
+  }else if(cmd==="revive"||cmd==="restore"){
+    if(!arg){toast("Usage: /revive Name");return;}
+    const all=personasInUniverse((chat&&chat.universeId)||state.curUniverse);
+    const p=all.find(c=>c.name.toLowerCase()===arg.toLowerCase())
+          ||all.find(c=>c.name.toLowerCase().includes(arg.toLowerCase()));
+    if(!p){toast(`No character named "${arg}" in this universe`);return;}
+    if(!p.removed){toast(`${p.name} isn't removed`);return;}
+    delete p.removed; delete p.removedAt;
+    persistChats();persistPersonas();appendNewBubbles();updateChatHeader();
+    if(typeof renderPersonas==="function")try{renderPersonas();}catch(e){}
+    toast(`${p.name} revived — back in play (not yet in the scene; use /bring ${p.name})`);
   }else if(cmd==="who"||cmd==="here"){
     const here=presentCast(chat).map(c=>c.name);
     toast(here.length?("Here: "+here.join(", ")):"Nobody is nearby");
   }else if(cmd==="cast"){
-    toast("In this universe: "+(cast.map(c=>c.name).join(", ")||"no characters yet"));
+    const live=curCast().map(c=>c.name);
+    const dead=personasInUniverse((chat&&chat.universeId)||state.curUniverse).filter(p=>p.removed).map(p=>p.name);
+    let msg="In this universe: "+(live.join(", ")||"no characters yet");
+    if(dead.length)msg+=" · ☠️ removed: "+dead.join(", ");
+    toast(msg);
   }else{
-    toast("Commands: /bring Name · /leave Name · /who · /cast");
+    toast("Commands: /bring Name · /leave Name · /remove Name · /revive Name · /who · /cast");
   }
 }
 
@@ -10471,10 +10565,19 @@ async function runMultiCharTurn(chat,playerText){
     }
     // ROUTER 2 chain — only continue when a character was clearly addressed/provoked by the
     // last speaker. This is deliberately rare; most turns return to the player here.
+    // Each character may speak once normally; a character who was just undermined may rebound ONCE
+    // to defend themselves (the router prompt judges whether the last line was a jab against them).
+    // `defendedThisChain` caps that rebound to a single use per person, so the old A→B→A ping-pong
+    // (a character regenerating a near-identical line) can't reopen. `cap` still bounds total turns.
+    const defendedThisChain=new Set();
     while(turns<cap){
       cast=inSceneCast(chat);
-      // Exclude the immediate last speaker AND anyone who already spoke this chain.
-      const others=cast.filter(c=>c.id!==(lastSpeaker&&lastSpeaker.id) && !spokenThisChain.has(c.id));
+      // Normal candidates: anyone who hasn't spoken this chain and isn't the immediate last speaker.
+      const fresh=cast.filter(c=>c.id!==(lastSpeaker&&lastSpeaker.id) && !spokenThisChain.has(c.id));
+      // Self-defense candidates: characters who already spoke (except the immediate last speaker) and
+      // haven't yet used their one rebound — offered so a jab against them can be answered.
+      const defenders=cast.filter(c=>c.id!==(lastSpeaker&&lastSpeaker.id) && spokenThisChain.has(c.id) && !defendedThisChain.has(c.id));
+      const others=[...fresh,...defenders];
       if(!others.length)break;
       let next=null;
       try{
@@ -10489,6 +10592,8 @@ async function runMultiCharTurn(chat,playerText){
         }
       }catch(e){}
       if(!next)break;                 // scene returns to the player (the common case)
+      // If this pick already spoke, it's a self-defense rebound — consume their one allowance.
+      if(spokenThisChain.has(next.id))defendedThisChain.add(next.id);
       const ok=await playCharacterTurn(chat,next,lastSpeaker?lastSpeaker.name:state.user);
       if(ok){lastSpeaker=next;turns++;spokenThisChain.add(next.id);}
       const tr=await runPresenceTracker(chat);
@@ -11134,6 +11239,7 @@ async function runGossipPropagation(chat,day,uni){
   for(const obs of charged){
     try{
       const witness=roster.find(p=>p.id===obs.ownerId); if(!witness)continue;
+      if(!isActiveChar(witness))continue;   // a removed/dead character spreads no gossip
       // The witness's ties — who they know and could tell.
       const ties=relSheetBlock(witness)||"(no notable ties)";
       // Candidate recipients: everyone in the roster the witness has a relationship with, EXCEPT
@@ -11143,6 +11249,8 @@ async function runGossipPropagation(chat,day,uni){
       Object.keys(wr).forEach(id=>{ if(id&&id!==witness.id) candIds.add(id); });
       roster.forEach(p=>{ if(p.id!==witness.id && p.relationships && p.relationships[witness.id]) candIds.add(p.id); });
       candIds.delete("__user__"); // the player learning gossip is a later feature; v1 plants in NPCs
+      // Removed/dead characters are never offered as recipients.
+      [...candIds].forEach(id=>{ const cp=roster.find(p=>p.id===id); if(cp&&!isActiveChar(cp))candIds.delete(id); });
       if(!candIds.size)continue;
       const candList=[...candIds].map(id=>{ const nm=nameById(id); if(!nm)return null;
         const tie=(wr[id]&&wr[id].tie)||""; return `- ${nm}${tie?` (${witness.name}'s ${tie})`:""}`; }).filter(Boolean).join("\n");
@@ -11163,6 +11271,7 @@ async function runGossipPropagation(chat,day,uni){
         const rid=idByName(g.recipient);
         if(!rid||rid==="__user__"||rid===witness.id)continue;   // must be a real NPC recipient
         const rp=roster.find(p=>p.id===rid); if(!rp)continue;
+        if(!isActiveChar(rp))continue;   // a removed/dead character receives no new gossip
         // Plant the rumor as an open-suspicion memory in the recipient.
         const mem={
           id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
@@ -11202,6 +11311,7 @@ function maybeSpawnConfrontation(chat,uni){
   for(const sus of cands){
     const accuser=roster.find(p=>p.id===sus.ownerId);
     if(!accuser)continue;
+    if(!isActiveChar(accuser))continue;   // dead holder can't confront; leave the suspicion unconsumed
     // The accuser should plausibly be able to reach the player. For v1 we allow it whenever the
     // accuser isn't currently mid-scene elsewhere; the confrontation arrives as a director event.
     sus._confrontUsed=true;   // consume so it won't re-fire next day
@@ -11448,6 +11558,7 @@ async function runIntentEngine(chat,day,uni){
   for(const holderId of holdersToCheck){
     if(liveCount()>=cap)break;
     const holder=roster.find(p=>p.id===holderId); if(!holder)continue;
+    if(!isActiveChar(holder))continue;   // dead/removed characters form no new intents
     // skip if this holder already has a live intent (don't pile them up)
     if(chat.intents.some(i=>i.holderId===holderId&&i.status!=="spent"))continue;
     // A swing-only holder (triggered by feeling, not an event) has no charged memories — guard it.
@@ -12008,8 +12119,12 @@ async function setupActiveEvent(chat,eventText){
       resolved:false,participant:null};
     if(j.type==="character" && j.participant && validCharName(j.participant.name)){
       const pn=String(j.participant.name).trim();
-      // match a real card (cast or full persona list); else create a temp character
+      // match a real card (cast or full persona list); else create a temp character.
+      // A removed/dead character is NOT a valid match — they can't be reanimated as an event
+      // participant. Treat a dead-name match as "no card" so we don't stage a corpse; if the name
+      // genuinely refers to someone new the narration introduced, the temp-char path handles it.
       let card=state.personas.find(p=>p.name.toLowerCase()===pn.toLowerCase());
+      if(card && !isActiveChar(card))card=null;
       if(card){
         ev.participant={name:card.name,charId:card.id,temp:false,approaching:j.participant.approaching!==false};
       }else{
@@ -12084,6 +12199,7 @@ function startConfrontation(chat,opts){
   if(chat.activeEvent && !chat.activeEvent.resolved)return false;   // never stack on a live event
   opts=opts||{};
   const accuser=opts.accuser; if(!accuser||!accuser.id)return false;
+  if(!isActiveChar(accuser))return false;   // a removed/dead character can't confront anyone
   const evidence=Math.max(0,Math.min(1, opts.evidence!=null?opts.evidence:0.5));
   // Evidence-based floor: the stronger the proof, the less it can ever be fully talked away.
   // Witnessed-firsthand (0.9) → floor ~0.45; faint rumor (0.3) → floor ~0.05.
@@ -12180,6 +12296,7 @@ function startOverture(chat,opts){
   if(chat.activeEvent && !chat.activeEvent.resolved)return false;    // never stack on a live event
   opts=opts||{};
   const offerer=opts.accuser; if(!offerer||!offerer.id)return false;
+  if(!isActiveChar(offerer))return false;   // a removed/dead character can't make an overture
   const evidence=Math.max(0,Math.min(1, opts.evidence!=null?opts.evidence:0.5));
   // INVERTED floor/ceiling vs. confrontation. Here low=accepted, high=rebuffed.
   // - floor stays near 0: a warm, receptive player CAN fully win them (offer fully lands).
@@ -12318,7 +12435,10 @@ async function runSceneWriter(chat){
     const swMsgs=[{role:"system",content:sys+confrontGuidance+(force?`\n\nThis is the FINAL turn — you MUST resolve the event now.`:``)+(ev.turn<ev.minTurns?`\n\nThe event may NOT resolve yet (too early). Keep it going.`:``)+(arriveNow?`\n\nThe event's character (${ev.participant.name}) is arriving — bring them fully into the room THIS turn with one entrance line and set "bring_in":"${ev.participant.name}".`:``)}];
     if(ctx)swMsgs.push({role:"user",name:"context",content:ctx});
     recentExchangeMsgs(chat,4).forEach(m=>swMsgs.push(m));
-    swMsgs.push({role:"user",content:`${partInfo}${lastUserText?`\n${state.user}'s latest line: "${lastUserText}"`:``}\n\nBased on the exchange above, advance the event now. Return the JSON.`});
+    // The player's last line is ALREADY the final message in the recent-exchange block just pushed,
+    // so we do NOT re-quote it here (that duplicated it in the payload and over-weighted it). We only
+    // append the event-character status + the advance instruction.
+    swMsgs.push({role:"user",content:`${partInfo}\n\nBased on the exchange above, advance the event now. Return the JSON.`});
     const out=await chatCompletion(swMsgs,state.gmModel,{temp:fnTemp("gm",0.7),max:fnTok("gm",200),dbg:"Scene writer: advance"});
     // Parse the structured reply (may be {} if the model didn't return clean JSON).
     const j=parseJSON(out)||{};
@@ -12560,7 +12680,7 @@ async function manualConfront(){
   const chat=curChat(); if(!chat){toast("No active scene");return;}
   if(chat.activeEvent && !chat.activeEvent.resolved){toast("An event is already active");return;}
   const uid=chat.universeId||state.curUniverse||null;
-  const roster=(state.personas||[]).filter(p=>!uid||p.universeId===uid);
+  const roster=(state.personas||[]).filter(p=>(!uid||p.universeId===uid) && isActiveChar(p));
   // Prefer a character already carrying an open suspicion about the player.
   const susMem=state.memory
     .filter(m=>m.type==="GOSSIP"&&m.openSuspicion&&!m._confrontUsed&&(!m.universeId||!uid||m.universeId===uid))
