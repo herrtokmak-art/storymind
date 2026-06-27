@@ -1817,19 +1817,18 @@ Relaxed natural atmosphere. [0s-2s] Female shifts weight to one hip, arms uncros
 const DEFAULT_IMG_RULES=[
   {id:"r_portrait",label:"Portrait / single subject",
    when:"One character is the whole frame — a reaction, a look, an emotional close moment, or a deliberate solo shot of one person. Not a group, not action, not sexual.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   model_id:"z-image/turbo",provider:"atlascloud",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PORTRAIT / SINGLE SUBJECT
 One person fills the frame.
 
 ### CAMERA & ORIENTATION (decide this FIRST)
-- Choose the camera: a third-person angle (the subject is seen from outside) or the player's POV (the subject faces the lens because she is looking at the player who IS the camera).
-- Describe the subject's body and face RELATIVE TO THE LENS, never relative to the fiction. "She looks at him" only means a front view if the lens is where he is.
-  - Face toward the lens → \`front view, head facing camera\`, full features.
-  - Turned ~90° → \`profile to camera\` / \`three-quarter view\`, partial features only (jawline, profile, one eye).
-  - Fully turned away → \`back to camera, face not visible\` and give NO facial features at all (naming eyes/lips forces the generator to render a face that breaks the pose).
+- Choose the camera: a third-person angle, or the player's POV (the subject faces the lens because she looks at the player who IS the camera).
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+
+### SHOT & DETAIL
 - Shot: Close-up Face, Medium Close-up, or Waist-up.
-- Clothing: colour on every garment. Location: 2-5 words, blurred. Lighting: one mood phrase. Focus: \`sharp focus on the face\` (or on the hair/silhouette if back-to-camera).
+- Clothing: a colour on every garment. Location: 2-5 words, blurred. Lighting: one mood phrase. Focus: \`sharp focus on the face\` (or on hair/silhouette if back-to-camera).
 
 ### EXAMPLE
 Fiction: she turns away from him to hide her tears, glancing back over her shoulder.
@@ -1838,37 +1837,38 @@ Prompt: \`third-person medium shot, Woman ((Margot Robbie)), three-quarter back 
 
   {id:"r_multichar",label:"Multi-character group",
    when:"Two or more characters sharing the frame in a non-combat, non-sexual moment — a conversation, a confrontation, a gathering, people reacting to each other. Use the ALSO PRESENT cast.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   model_id:"z-image/turbo",provider:"atlascloud",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused faces, watermark, text, signature",
    promptStyle:`## SCENE TYPE: MULTI-CHARACTER GROUP
-Several people share the frame. Third-person cinematic camera wide enough to hold everyone involved.
+Several people share the frame. One third-person cinematic camera wide enough to hold everyone.
 
 ### CAMERA & ORIENTATION (the most important step — do it per person)
-- Pick ONE camera position for the whole frame, then place each person relative to THAT lens. Do not describe anyone by who they are looking at in the fiction — translate it into lens geometry.
-- KEY HEURISTIC: find the focal subject (often the player). If the focal subject FACES THE CAMERA, then everyone who is facing / addressing / reporting to that subject is facing the SAME way the subject looks — i.e. AWAY from the lens — so they are BACK TO CAMERA. Two people facing each other across the frame are both in profile. People do NOT all face the camera at once unless they are all looking outward toward the viewer.
-- For EACH person, state body facing AND face visibility explicitly:
-  - Facing the lens → \`front view\`, full features (verbatim appearance).
-  - Turned ~90° (two people facing each other) → \`profile to camera\`, partial features, drop front-on facial details.
-  - Back toward the lens (addressing a camera-facing subject, kneeling/bowing away, or a near foreground figure seen from behind) → \`back to camera, face not visible\`. Describe ONLY hair, build, and clothing from behind. STRIP eyes, lips, beauty marks, expressions, the celebrity name, and anything held in front (clasped hands, rings) — none of it is visible from behind.
-- Give each person a distinct position (foreground/background, left/right, nearer/farther) so they don't fuse. Only describe faces for people genuinely turned toward the lens.
-- Shot: Wide or Full Body, \`group composition\`. Clothing: colour per person. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the front-facing figures\`.
+- Pick ONE camera position for the whole frame.
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- KEY HEURISTIC: find the focal subject (often the player). If the focal subject FACES THE CAMERA, then everyone facing / addressing / reporting to that subject is looking the SAME way the subject looks — AWAY from the lens — so they are BACK TO CAMERA. Two people facing each other are both in profile. People do NOT all face the camera at once unless all are looking outward toward the viewer.
+- Give each person a distinct position (foreground/background, left/right, nearer/farther) so they don't fuse.
+
+### SHOT & DETAIL
+- Shot: Wide or Full Body, \`group composition\`. Clothing: a colour per person. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the front-facing figures\`.
 
 ### EXAMPLE
-Fiction: the player sits on his throne facing forward; Seraphine stands before him reporting, with two more women standing near her, all facing the player.
-Prompt: \`third-person full body shot, group composition, foreground Man ((muscular frame, obsidian horns, dark royal robes, ornate twisted-metal crown)) seated front view facing camera on an obsidian throne, arms spread on the armrests, before him three women all standing with their BACKS to camera facing the throne, faces not visible: nearest Woman ((silver-streaked black hair in an elegant updo, tall statuesque build, flowing dark robes with gold threading)) back to camera, behind her Woman ((white-blonde hair in a severe military braid, muscular build, black short horns, dark armor)) back to camera, and Woman ((black hair in a severe bun, tall willowy build, dark tailored robes)) back to camera, Location: obsidian throne hall, Lighting: torchlit amber glow, sharp focus on the seated man, the three figures seen from behind\``,
+Fiction: the player sits on his throne facing forward; Seraphine stands before him reporting, with two more women beside her, all facing the player.
+Prompt: \`third-person full body shot, group composition, foreground Man ((muscular frame, obsidian horns, dark royal robes, ornate twisted-metal crown)) seated front view facing camera on an obsidian throne, before him three women all standing with their BACKS to camera facing the throne, faces not visible: nearest Woman ((silver-streaked black hair in an elegant updo, tall statuesque build, dark robes with gold threading)) back to camera, behind her Woman ((white-blonde hair in a severe military braid, muscular build, black short horns, dark armor)) back to camera, and Woman ((black hair in a severe bun, tall willowy build, dark tailored robes)) back to camera, Location: obsidian throne hall, Lighting: torchlit amber glow, sharp focus on the seated man, the three figures seen from behind\``,
    enabled:true},
 
   {id:"r_combat",label:"Combat / action",
    when:"Physical conflict or dynamic action — a fight, a strike, a chase, magic or powers being used, someone lunging, falling, or being thrown. One or more characters in motion.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   model_id:"z-image/turbo",provider:"atlascloud",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: COMBAT / ACTION
-A dynamic action beat. Third-person cinematic camera that captures motion.
+A dynamic action beat. One third-person cinematic camera that captures motion.
 
 ### CAMERA & ORIENTATION
-- Fix the camera angle (low angle for power, side-on for a clash, behind one fighter looking at the other), then orient each fighter to THAT lens.
-- A fighter lunging AWAY from the lens or whose back is to us → \`back to camera, face not visible\`, no facial features; show stance, weapon, and motion from behind. A fighter facing the lens → full features. A side-on clash → both in \`profile to camera\`, partial features.
-- Don't give a face to a body that is turned away just because the fiction says they're attacking "you" — if the camera sits behind the player, the attacker faces the player's back and may face the lens, while the player is back-to-camera.
+- Fix the camera angle (low for power, side-on for a clash, behind one fighter looking at the other).
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- Don't give a face to a body turned away just because the fiction says they attack "you": if the camera sits behind the player, the attacker may face the lens while the player is back-to-camera.
+
+### SHOT & DETAIL
 - Freeze ONE instant. \`motion blur\` only on the moving limb/weapon. Shot: Wide or Full Body, \`dynamic angle\`. Clothing/armour colour on every piece. Location 2-5 words. Lighting one dramatic phrase. Focus: \`sharp focus on the point of impact\`.
 
 ### EXAMPLE
@@ -1878,12 +1878,16 @@ Prompt: \`third-person full body shot, low dynamic angle, foreground Man ((fit b
 
   {id:"r_establishing",label:"Establishing / location",
    when:"The setting itself is the subject — a place, a landscape, a building, a room, an arriving wide shot — with characters small in it or absent. Atmosphere over person.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   model_id:"z-image/turbo",provider:"atlascloud",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, watermark, text, signature",
    promptStyle:`## SCENE TYPE: ESTABLISHING / LOCATION
 The place is the subject. Third-person, wide.
+
+### CAMERA & ORIENTATION
 - Shot: \`establishing wide shot\` or \`extreme wide shot\`; emphasise scale, architecture, landscape, weather, time of day.
-- People (if any) are small in the frame — give position and rough posture only; at this distance faces are not resolved, so do NOT describe facial features for anyone. State orientation only as silhouette (figure facing the gate, figure walking away).
+- People (if any) are small in the frame — position and rough posture only. At this distance faces do not resolve, so give NO facial features for anyone; state orientation only as silhouette (figure facing the gate, figure walking away).
+
+### SHOT & DETAIL
 - Lead with the environment: structures, terrain, sky, light, atmosphere (mist, dust, smoke, rain). Location: name the place 2-5 words. Lighting: one strong mood phrase. Focus: \`deep focus\` or \`sharp on the structure, soft sky\`.
 
 ### EXAMPLE
@@ -1893,16 +1897,17 @@ Prompt: \`establishing extreme wide shot, vast black volcanic-glass castle on a 
 
   {id:"r_kissing",label:"Kissing",
    when:"Two characters kissing or about to — lips meeting, mouths together, a kiss against a wall, faces closing the last inch. Romantic/sexual but not undressed or explicit.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   model_id:"z-image/turbo",provider:"atlascloud",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused faces, watermark, text, signature",
    promptStyle:`## SCENE TYPE: KISSING
-Two people kissing.
+Two people kissing. Romantic/sexual but not undressed or explicit.
 
 ### CAMERA & ORIENTATION
-- Pick the camera, then orient both heads to the lens:
-  - Player POV (his eyes) → her face approaches the lens, \`front view, eyes closing, lips toward camera\`, full features; he is the camera (not visible except maybe a jaw/hand at the edge).
-  - Third-person profile two-shot → both faces in \`profile to camera\`, partial features (one eye, the line of nose and lips meeting); this is the most reliable for a shared kiss.
-  - Third-person from behind one partner → the near partner is \`back of head to camera, face not visible\` (describe hair only), the far partner's face may be partly visible over their shoulder. NEVER give full front features to a head we see from behind.
+- Pick the camera, then orient both heads to the lens.
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- Reliable defaults: player POV → her face approaches the lens, \`front view, eyes closing, lips toward camera\`, full features (he is the camera, not visible except a jaw/hand at the edge). Third-person profile two-shot → both faces \`profile to camera\`, partial features. From behind one partner → the near partner is \`back of head to camera, face not visible\` (hair only), the far partner's face may be partly visible over the shoulder.
+
+### SHOT & DETAIL
 - Shot: Close-up or Medium Close-up, \`pressing close\`. Hand placements gentle (cupping a jaw, fingers in hair, hand at waist). Clothing colour on every garment. Location 2-5 words. Lighting warm phrase. Focus: \`sharp focus on the lips\`.
 
 ### EXAMPLE
@@ -1912,16 +1917,17 @@ Prompt: \`third-person medium close-up over the man's shoulder, near Man ((messy
 
   {id:"r_embrace",label:"Embrace / hug / tenderness",
    when:"Non-kissing physical closeness — a hug, an embrace, holding each other, a head on a shoulder, hands held, a comforting or longing closeness. Clothed, tender, not explicit.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   model_id:"z-image/turbo",provider:"atlascloud",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: EMBRACE / TENDERNESS
-Two people physically close but not kissing.
+Two people physically close but not kissing. Clothed, tender, not explicit.
 
 ### CAMERA & ORIENTATION
-- In an embrace one person almost always faces away from the lens. Decide the camera, then:
-  - The partner whose back is to the lens → \`back to camera, face not visible\`, describe hair/shoulders/clothing from behind only, NO facial features.
-  - The partner facing over the other's shoulder → face may be visible; give features only if truly toward the lens (often \`eyes closed, chin on the other's shoulder\`, partial).
-  - Side-on two-shot → both \`profile to camera\`, partial features.
+- In an embrace one person almost always faces away from the lens. Decide the camera, then apply the rule.
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- Common case: the partner whose back is to the lens → \`back to camera, face not visible\`, hair/shoulders/clothing from behind only. The partner facing over the other's shoulder → features only if truly toward the lens (often \`eyes closed, chin on the other's shoulder\`, partial).
+
+### SHOT & DETAIL
 - Shot: Medium Close-up or Waist-up, \`pressing close, embracing\`. State who enfolds whom and arm placement. Clothing colour on every garment. Location 2-5 words. Lighting warm soft phrase. Focus: \`sharp focus on the visible face\`.
 
 ### EXAMPLE
@@ -1931,35 +1937,38 @@ Prompt: \`third-person waist-up two-shot, Woman ((Kim Kardashian)) back to camer
 
   {id:"r_temptation",label:"Temptation / foreplay",
    when:"Charged, sexual, but no penetration yet — undressing, teasing, straddling a lap, a mouth near skin, hands roaming, partial nudity, the build-up before sex.",
-   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",provider:"modelslab",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: TEMPTATION / FOREPLAY
-Erotic build-up, no penetration.
+Charged and sexual, no penetration yet — undressing, teasing, straddling a lap, a mouth near skin, partial nudity, the build-up.
 
 ### CAMERA & ORIENTATION
-- Choose POV (his eyes) or a third-person angle, then orient each body to the lens:
-  - POV → she faces the lens or is positioned for him; full features if she looks at the camera, partial/back if she's turned (e.g. undressing with her back to him → \`back to camera, face not visible\`, show the bare back).
-  - Third-person → state body facing and face visibility per person. A figure straddling someone whose back is to the lens gets NO face described.
-  - "She looks back at you" → \`back/three-quarter to camera, head turned over shoulder\`, only a partial profile visible — not a full front face on a body that is turned away.
-- Shot: Cowboy or Medium Close-up. Name the exact tease (strap sliding, fingertips at a zipper, mouth near skin), explicitly NO penetration. Partial nudity plainly with colours. One physical marker max. Location 2-5 words. Lighting warm/dim phrase. Focus: shallow DOF on the point of contact.
+- Pick the camera (often the player's POV in an intimate scene, or a third-person angle).
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+
+### SHOT & DETAIL
+- Shot: Cowboy or Over-Waist, the charged proximity. Undress/state plainly with colours for every garment; one physical marker max (skin glistening / hair messy). External contact only, NO penetration. Man's hands may enter from the frame edge (guiding, resting) — never weight-bearing. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the contact\`.
 
 ### EXAMPLE
-Fiction: she slides her dress off her shoulders, back to him, glancing over her shoulder.
-Prompt: \`third-person cowboy shot, Woman ((Margot Robbie)) three-quarter back to camera, head turned over her shoulder, partial profile, one visible eye, deep red silk dress sliding off her shoulders, bare back exposed, fingertips at the zipper, Location: luxury suite, Lighting: moody chiaroscuro, sharp focus on her bare back, shallow depth of field\``,
+Fiction: she peels her gown off her shoulders, glancing back at him (his POV).
+Prompt: \`Image from his POV, cowboy shot, Woman ((Margot Robbie)) three-quarter back view, head quarter-turned toward camera, half-lidded eyes, deep red silk gown sliding off the shoulders, back exposed, black lace visible, his hand reaching toward her from the frame edge, Location: luxury suite, Lighting: moody chiaroscuro, sharp focus on her expression, shallow depth of field\``,
    enabled:true},
 
   {id:"r_oral",label:"Oral",
    when:"Oral sex specifically — a mouth on genitals, fellatio, or worshipful kissing/licking of genitals. Explicit, oral, not vaginal/anal penetration.",
-   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",provider:"modelslab",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: ORAL
 Explicit oral.
 
 ### CAMERA & ORIENTATION
-- Usually \`Image from above, his POV\` looking down at the kneeling partner — her face is tilted UP toward the lens, so full features are correct here (she faces the camera).
-- If instead it is a third-person SIDE angle, her head is in \`profile to camera\` → partial features (one eye, the line of cheek and lips). If shot from BEHIND her, \`back of head to camera, face not visible\`, no features.
+- Usually \`Image from above, his POV\` looking down at the kneeling partner — her face tilts UP toward the lens, so full features are correct (she faces the camera).
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- If a third-person SIDE angle, her head is \`profile to camera\` (one eye, cheek and lip line). If from BEHIND her, \`back of head to camera, face not visible\`, no features.
 - Distinguish the act precisely: mouth WRAPPED AROUND (fellatio, suction) vs lips KISSING/PRESSED to skin (worship, no suction). Never blur the two.
-- Shot: Close-up on the interaction zone. His hands rest/guide (in her hair, under her chin), never force. One physical marker max; no drool/saliva description. Clothing/state with colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the lips\`.
+
+### SHOT & DETAIL
+- Shot: Close-up on the interaction zone. His hands rest/guide (in her hair, under her chin), never force. One physical marker max; no drool/saliva. Clothing/state with colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the lips\`.
 
 ### EXAMPLE
 Fiction: she kneels and takes him in her mouth, looking up at him (his POV).
@@ -1968,109 +1977,117 @@ Prompt: \`Image from above his POV, close-up shot, Woman ((Sydney Sweeney)) knee
 
   {id:"r_pen_missionary",label:"Penetration — missionary / on back",
    when:"Vaginal or anal penetration with the receiving partner on their back, facing up — missionary and its variants (legs up, knees back).",
-   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",provider:"modelslab",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
-   promptStyle:`## SCENE TYPE: PENETRATION — MISSIONARY
-Receiving partner on her back.
+   promptStyle:`## SCENE TYPE: PENETRATION — MISSIONARY / ON BACK
+Vaginal or anal penetration, receiving partner on their back facing up.
 
 ### CAMERA & ORIENTATION
-- \`Image from above, his POV\` (looking down her body) → she lies facing UP toward the lens, full features correct (face toward camera).
-- Third-person side angle → she is \`supine, head in profile to camera\`, partial features; the penetrating partner above her may be back/side to the lens (if his back is to the camera, \`back to camera, face not visible\`, no features for him).
-- Never give a front face to a head turned away from the lens just because the fiction says she looks at him.
-- Pose: \`supine, leaning back\`; legs per the exchange. Action explicit, point of insertion visible. His hands hold/spread thighs from the frame edge; he stays upright. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+- Usually \`Image from above, his POV\`: she lies facing up toward the lens → \`front view\`, full features.
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- If third-person side-on, she is \`profile to camera\` (partial). Never give a front face to a head turned away.
+
+### SHOT & DETAIL
+- Shot: Full Body or the interaction zone. Point of insertion visible. His hands spread/grip her legs or hips at the frame edge, never weight-bearing. Nude/half-dressed plainly with colours; one physical marker max. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
 
 ### EXAMPLE
-Fiction: he takes her in missionary, his POV looking down.
-Prompt: \`Image from above his POV, full body shot, Woman ((Ana de Armas)) supine, head tilted back toward camera, front view, eyes half-lidded, completely nude, skin glistening, erect penis penetrating vagina, point of insertion visible, his hands spreading her thighs at the frame edges, Location: rumpled white sheets, Lighting: warm tungsten glow, sharp focus on the point of penetration, shallow depth of field\``,
+Fiction: he moves over her as she lies back (his POV).
+Prompt: \`Image from above his POV, full body shot, Woman ((Ana de Armas)) supine, head tilted back, front view, eyes closed, completely nude, skin glistening, erect penis fully inside vagina, point of insertion visible, his hands spreading her legs at the frame edges, Location: dim bedroom, rumpled white sheets, Lighting: warm tungsten glow, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_doggy",label:"Penetration — from behind / doggy",
    when:"Vaginal or anal penetration from behind — doggy style, on all fours, bent over a surface, or face-down. Receiving partner's back to the penetrating partner.",
-   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",provider:"modelslab",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — FROM BEHIND / DOGGY
-Penetration from behind.
+Penetration from behind, receiving partner on all fours or bent forward.
 
 ### CAMERA & ORIENTATION
-- \`Image from above, his POV\` (behind her) → we see her BACK; she is \`back to camera, arched, face not visible\` UNLESS the exchange explicitly has her looking back over her shoulder, in which case \`head quarter-turned over shoulder, partial profile, one visible eye\` only — never a full front face.
-- Third-person side angle → she is in \`profile to camera\`, partial features; he is behind her, often \`back/side to camera, face not visible\`.
-- Default to NO facial features for her here (back-to-camera is the norm for this position); add a partial profile only if she looks back.
-- Pose: \`on all fours\` or \`bent over a surface\`, arched back. Action explicit from behind, point of contact visible. His hands grip hips/backside from the frame edge. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+- Usually \`Image from above, his POV\` behind her: her back/rear faces the lens → \`back view, arched back\`. Her face is mostly away.
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- If she looks back over her shoulder → \`quarter turn, facing camera\`, PARTIAL features only. If fully away → no face, no features; describe hair from behind and build.
+
+### SHOT & DETAIL
+- Shot: Full Body. Point of penetration visible. His hands grip her hips/rear at the frame edge. Nude/half-dressed with colours; one physical marker max. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
 
 ### EXAMPLE
-Fiction: he takes her from behind on all fours; she faces forward, away from him.
-Prompt: \`Image from above his POV, full body shot, Woman ((Sydney Sweeney)) on all fours, back to camera, arched back, face not visible, only her back, hips and hair shown, erect penis penetrating from behind, his hands gripping her hips at the frame edge, Location: luxury hotel bed, Lighting: moody chiaroscuro, sharp focus on the point of penetration, shallow depth of field\``,
+Fiction: she is on all fours, looking back at him (his POV).
+Prompt: \`Image from above his POV, full body shot, Girl ((Sydney Sweeney)) on all fours, back view, head quarter-turned facing camera, arched back, biting lower lip, black lace thong pulled aside, erect penis penetrating from behind, his hands gripping her hips at the frame edge, Location: luxury hotel, Lighting: moody chiaroscuro, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_cowgirl",label:"Penetration — riding / cowgirl",
    when:"Penetration with the receiving partner on top, facing the penetrating partner — cowgirl, straddling and riding while face-to-face.",
-   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",provider:"modelslab",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — RIDING / COWGIRL
-Receiving partner on top, facing the penetrating partner.
+Receiving partner straddling and facing the other, upright.
 
 ### CAMERA & ORIENTATION
-- \`Image from below, his POV\` (he lies, looking up) → she faces DOWN toward the lens, \`front view\`, full features correct (she faces camera).
-- Third-person side angle → she is in \`profile to camera\`, partial features.
-- Because she faces HIM and he is the camera in POV, her looking at him = looking at the lens = full front face — this is the one position where "looking at you" genuinely means front view.
-- Pose: \`straddling, leaning forward or upright\`, hips lowered onto him. Action explicit, point of penetration visible. His hands guide her hips/thighs from the frame edge; keep hands from blocking the view. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+- Usually \`Image from below, his POV\`: she faces down toward the lens → \`front view\`, full features (this is the one position where "looking at you" genuinely IS a front view).
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+
+### SHOT & DETAIL
+- Shot: Full Body from below. Point of joining visible. His hands guide her hips/thighs from the frame edge, not on her breasts (don't block the view). Nude/half-dressed with colours; one physical marker max. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
 
 ### EXAMPLE
-Fiction: she rides him, hands on his chest, looking down at him (his POV up).
-Prompt: \`Image from below his POV, full body shot, Woman ((Zendaya)) straddling, leaning forward, front view facing camera, half-lidded eyes, parted lips, completely nude, skin glistening, riding erect penis, point of penetration visible, his hands on her hips from the lower frame edge, Location: sunlit bed, Lighting: golden hour glow, sharp focus on the point of penetration, shallow depth of field\``,
+Fiction: she rides him, leaning forward over him (his POV).
+Prompt: \`Image from below his POV, full body shot, Girl ((Zendaya)) straddling, front view, head tilted forward, leaning forward, completely nude, skin glistening, lowering onto erect penis, point of joining visible, his hands guiding her hips from below frame, Location: sunlit bedroom, Lighting: golden hour, soft warm glow, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_reverse",label:"Penetration — reverse cowgirl",
    when:"Penetration with the receiving partner on top but facing AWAY from the penetrating partner — reverse cowgirl, straddling with back turned.",
-   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",provider:"modelslab",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — REVERSE COWGIRL
-Receiving partner on top, facing AWAY from the penetrating partner.
+Receiving partner straddling but facing AWAY from the other.
 
 ### CAMERA & ORIENTATION
-- \`Image from below, his POV\` (he lies beneath, she faces away) → we see her BACK and backside; she is \`back to camera, face not visible\`, no facial features, UNLESS she looks back over her shoulder → \`head quarter-turned, partial profile, one visible eye\` only.
-- Third-person from behind her → same: back to camera, no front face.
-- This position almost never shows a front face — default to back-to-camera with no features.
-- Pose: \`straddling, back to camera, leaning forward, back arched\`. Action explicit, point of contact visible. His hands on her waist/hips from the lower frame edge. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+- Usually \`Image from below, his POV\`: her back faces the lens → \`three-quarter back / back view\`. Her face is away.
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- If she looks back over her shoulder → \`quarter turn\`, PARTIAL features. Otherwise no face, no front features; describe back, hair from behind, build.
+
+### SHOT & DETAIL
+- Shot: Full Body from below. Point of joining visible. His hands grip her waist/hips from the frame edge. Nude with colours for any garment; one physical marker max. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
 
 ### EXAMPLE
-Fiction: she rides him facing away; he watches her back (his POV up).
-Prompt: \`Image from below his POV, full body shot, Woman ((Scarlett Johansson)) straddling with back to camera, face not visible, back arched, bare back and hips shown from behind, riding erect penis, point of penetration visible, his hands gripping her waist from the lower frame edge, Location: steamy bathroom, Lighting: soft diffused backlight, sharp focus on the point of penetration, shallow depth of field\``,
+Fiction: she rides him facing away, arching her back (his POV).
+Prompt: \`Image from below his POV, full body shot, Woman ((Scarlett Johansson)) three-quarter back view, head quarter-turned facing camera, back arched, completely nude, skin glistening, erect penis fully inside, his hands gripping her waist from below frame, Location: steamy bathroom, Lighting: soft diffused backlight, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_standing",label:"Penetration — standing / lifted / other",
    when:"Penetration in any upright or unusual configuration — standing, against a wall, lifted/carried, seated, side-lying (spooning), or a position not covered by the other penetration rules.",
-   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",provider:"modelslab",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — STANDING / LIFTED / OTHER
-Penetration in an upright or non-standard position. Pick the camera that shows the configuration best (third-person side/three-quarter is usually clearest; POV if it is his eyes).
+Standing, lifted, against-a-wall, or other upright penetration.
 
 ### CAMERA & ORIENTATION
-- Read the exact position and set each body's facing relative to the lens. Then apply face visibility:
-  - Pinned face-first against a wall → she is \`front pressed to wall, back/side to camera, face not visible or cheek in partial profile\`, no full front face.
-  - Lifted facing him in POV → she faces the lens, full features.
-  - Spooning (side-lying, both facing one way) → both \`side/profile to camera\`, partial features; the rear partner often back-of-head to camera.
-- Never grant a full front face to a head turned away just because the fiction says she faces "you".
-- Action explicit, point of contact visible; describe how the bodies are braced. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+- Decide the camera (POV or third-person side), then orient both.
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- Against a wall facing the player → she is \`front view\`. Lifted with her back to him and the camera behind → \`back to camera, face not visible\`. Side-on → both \`profile\`, partial.
+
+### SHOT & DETAIL
+- Shot: Full Body. Point of penetration visible. His hands hold her thighs/waist supporting the lift, from the frame edge. Nude/half-dressed with colours; one physical marker max. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
 
 ### EXAMPLE
-Fiction: he takes her standing, pressing her front against the wall from behind.
-Prompt: \`third-person three-quarter angle, Woman ((Adriana Lima)) pressed front-first against a stone wall, back to camera, face not visible, cheek turned slightly showing partial profile, taken from behind, point of penetration visible, Man ((fit build)) behind her side-to-camera, his hands braced on her hips, Location: torchlit corridor, Lighting: warm flickering glow, sharp focus on the point of penetration, shallow depth of field\``,
+Fiction: he lifts her against the wall, face to face (third-person side).
+Prompt: \`third-person full body shot, side angle, Woman ((Ana de Armas)) profile to camera, lifted against a stone wall, one eye visible, legs wrapped around Man ((messy brown hair)) profile to camera, point of penetration visible, his hands under her thighs, charcoal shirt pushed up, Location: dim chamber, Lighting: warm tungsten glow, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_aftermath",label:"Aftermath / intimate rest",
    when:"The quiet after sex or a tender lull — lying together, tangled in sheets, catching breath, a calm nude or half-dressed closeness with no active act.",
-   model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
+   model_id:"gurilamash-xxx-sdxl-gurilamashv3",provider:"modelslab",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: AFTERMATH / INTIMATE REST
-The still moment after intimacy. Third-person, soft.
+The still moment after intimacy. Third-person, soft, no active act.
 
 ### CAMERA & ORIENTATION
-- Decide the camera, then orient each resting body to the lens. People lying together usually face different ways:
-  - A partner facing the lens → features visible (often \`eyes closed\`).
-  - A partner facing away or curled into the other → \`back/side to camera, face not visible\`, describe only the back/shoulder line, no features.
-  - Spooning → rear partner back-of-head to camera (no face), front partner side/profile (partial).
-- Shot: Medium or Full Body from the side, \`lying together, tangled in sheets\`, no active act. Undress nude/half-dressed plainly with colours for any garment/sheet; one physical marker max. Location 2-5 words. Lighting warm low soft phrase. Focus: shallow DOF on the visible face/bodies.
+- Decide the camera, then orient each resting body. People lying together usually face different ways.
+- THE GOLDEN RULE — translate fiction into LENS geometry, never character-to-character. \"She looks at him\" is only a front view if the lens sits where he is. Decide ONE camera, then place each person by their angle to THAT lens.\n- Per person, state body facing AND face visibility, then describe accordingly:\n  - Facing the lens (~0\u00b0) \u2192 \`front view\`, FULL features, verbatim appearance incl. any celebrity name.\n  - Turned ~45\u2013135\u00b0 (\`three-quarter\` / \`profile to camera\`) \u2192 PARTIAL: jawline, one eye, nose line; drop front-on detail.\n  - Back to the lens (~180\u00b0, or a figure who faces a camera-facing subject, or kneels/bows away) \u2192 \`back to camera, face not visible\`. Describe ONLY hair from behind, build, and clothing-from-behind. STRIP the name, the celebrity name, eyes, lips, beauty marks, expression, and anything held in front. Naming a face on a head turned away forces the generator to spin it front and breaks the pose.
+- Spooning → rear partner \`back of head to camera\` (no face), front partner side/profile (partial). A partner facing the lens → features visible, often \`eyes closed\`.
+
+### SHOT & DETAIL
+- Shot: Medium or Full Body from the side, \`lying together, tangled in sheets\`. Undress nude/half-dressed plainly with colours for any garment/sheet; one physical marker max. Location 2-5 words. Lighting warm low soft phrase. Focus: shallow DOF on the visible face/bodies.
 
 ### EXAMPLE
 Fiction: they lie spooning afterward, her back against his chest.
@@ -2088,16 +2105,17 @@ const DEFAULT_VID_RULES=[
 /* ===== GLOBAL BASE INSTRUCTION ===== applied to every character automatically ===== */
 /* ===== RESPONSE FORMAT RULES ===== editable; controls how replies are written ===== */
 const DEFAULT_FORMAT_RULES=`# FORMATTING RULES — follow these exactly in every reply:
-- Lead with DIALOGUE. What your character says is the heart of the reply. Narration is a thin frame around the words, not the main event — more dialogue, less narration.
-- Wrap narration, actions, and physical description in *single asterisks*. Keep it SHORT — a brief physical beat (a glance, a step, a hand), never paragraphs. If a turn can be just spoken words, make it just spoken words.
-- Wrap INTERNAL THOUGHTS in _single underscores_. Keep them brief — a flash of what's hidden underneath, not a paragraph of introspection. Use them to reveal what the character does NOT say aloud, never to restate what they just said.
+- DIALOGUE IS THE REPLY. What your character SAYS carries the turn. Narration is a thin frame around the words — never the main event. If a turn can be just spoken words, make it just spoken words.
+- HARD LIMIT ON NARRATION: at most ONE short narration beat per reply — a single glance, step, touch, or shift (a handful of words). Never stack two or three stage directions. Never open with a paragraph of scene-setting before the character speaks. If you've written more narration than dialogue, cut the narration.
+- Wrap narration/action/physical description in *single asterisks*, and keep each beat to a few words — never a sentence of scenery, never describing the room, the light, or the air.
+- Wrap INTERNAL THOUGHTS in _single underscores_. Keep them to a flash — what's hidden underneath, not a paragraph of introspection. Use them to reveal what the character does NOT say aloud, never to restate what they just said.
 - Write SPOKEN DIALOGUE as plain text in "double quotes".
 - Weave the three together naturally; don't separate them into blocks. Do not use any other markdown (no headers, bullets, code blocks).
 - One beat per turn. React to THIS moment; don't narrate a whole sequence or jump ahead in time.
-- Keep replies tight. Length matches the moment — short exchanges stay short. No fluff, no padding.
+- Keep replies tight. Length matches the moment — short exchanges stay short. No fluff, no padding, no describing what everyone is doing.
 
 ## INTENSE / INTIMATE MOMENTS (passion, closeness, a charged confrontation):
-- Give MORE dialogue, not less — fragmented, overlapping, unfinished lines; interruptions; half-answers; whispers. Narration shrinks to short physical beats between the lines (a hand, a breath, the distance closing) — never scenery.
+- Give MORE dialogue, not less — fragmented, overlapping, unfinished lines; interruptions; half-answers; whispers. Narration shrinks even further — to a single short physical beat between the lines (a hand, a breath, the distance closing), never scenery.
 - Keep it tangled and alive, not single words. Don't pad with aftermath or analysis; let the next turn carry it.
 - Use slang names for genitals and actions. Use cock, pussy, cunt, asshole, chest, fuck. NOT sensitive places or taking someone.
 # LANGUAGE
@@ -3237,13 +3255,16 @@ THE SCENE RIGHT NOW:
 
 RULES:
 - Keep it SHORT and natural — usually one to three sentences. This is a normal conversational turn, NOT a dramatic set piece. Do not over-narrate, do not pile on adjectives, do not write a paragraph.
-- Render dialogue in "double quotes" and actions/narration in *single asterisks*, matching the story's format.
+- LEAD WITH DIALOGUE. What {{user}} says is the heart of the turn; narration is a thin frame around the words, never the main event. If the turn can be just spoken words, make it just spoken words.
+- Render spoken dialogue in "double quotes" and any action/narration in *single asterisks*, matching the story's format. Keep narration to a brief physical beat (a glance, a step, a hand) — never scenery, never a paragraph.
 - If the player gave a literal line ("hi, I'm Emre"), keep their words but place them naturally, lightly adding a beat of action or tone if it helps — do NOT invent new claims, plans, or information the player didn't imply.
 - If the player gave a COMMAND or action ("introduce myself", "leave angrily", "order a drink"), carry it out as a concrete in-scene turn in {{user}}'s voice.
 - If the player already wrote a full, well-formed narrated turn, mostly pass it through — light polish only. Never bloat it.
 - NEVER speak or act for any other character. NEVER decide how others react. Only {{user}}'s own words and actions.
 - NEVER add out-of-character commentary, meta-text, or explanation. Output ONLY the rewritten turn — no quotes around the whole thing, no labels.
 - Stay consistent with the scene, the location, and what was just said. Do not contradict continuity.
+- Understand {{user}}'s intention and generate his dialogue accordingly.
+- If {{user}} just sends a single dot ".", that means you analyse the scene and respond as he would in that moment.
 
 Output ONLY {{user}}'s turn.`;
 
@@ -4089,11 +4110,10 @@ function loadState(){
   // and the one criticized may rebound once to defend themselves. Stored/older copies lacking the new
   // marker are refreshed; hand-customized prompts (no fingerprint) are preserved.
   _refreshPipe("routerChar","You are the CONVERSATION DIRECTOR for a multi-character roleplay","SPOKEN ABOUT — INDIRECT REFERENCE",DEFAULT_ROUTER_CHAR);
-  // Router-1 (player turn) upgrade: the old default forced exactly ONE responder ("Pick exactly ONE
-  // responder in almost all cases"), so group greetings/open remarks only ever got one reply. The new
-  // default returns up to TWO likely first-speakers on a group address. Refresh stored/older copies
-  // (and per-universe overrides) that are recognizably our earlier default but lack the new marker;
-  // hand-customized prompts (no fingerprint) are preserved.
+  // Router-1 (player turn) upgrade: the old default forced exactly ONE responder, so group greetings
+  // only ever got one reply. The new default returns up to TWO likely first-speakers on a group
+  // address. Refresh stored/older copies (and per-universe overrides) lacking the new marker; hand-
+  // customized prompts (no fingerprint) are preserved.
   _refreshPipe("routerPlayer","You are the conversation director for a multi-character roleplay","GROUP ADDRESS —",DEFAULT_ROUTER_PLAYER);
   // Image-prompt rewriter upgrade: the universal prompt was reworked to be camera-agnostic and lean
   // (per-scene pose/shot detail now lives in each image rule's promptStyle, see DEFAULT_IMG_RULES).
