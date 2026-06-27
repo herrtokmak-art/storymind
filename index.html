@@ -491,6 +491,8 @@
             <div style="margin-top:10px"><label><svg class="ic"><use href="#i-bulb"/></svg> Avoid providers (OpenRouter routing)</label>
               <input type="text" id="setProvDeny" placeholder="Baidu, Alibaba, StreamLake, SiliconFlow" style="width:100%">
               <div class="desc" style="margin-top:4px">Comma-separated provider names to skip for every call. The same model is hosted by many providers; some wrap it in their own content filter and return a Chinese "无法…" refusal. Denying those routes you to a cleaner host (fallbacks stay on, so this never breaks a request). Leave blank for no restriction. If it seems ignored, the exact provider slug may differ from the display name — check a debug response's <code>provider</code> field and match it here.</div></div>
+            <div class="kvline" style="margin-top:10px;padding:0"><label style="margin:0"><svg class="ic"><use href="#i-bulb"/></svg> Relax Gemini safety filter <span class="desc" style="display:inline">(sends BLOCK_NONE on google/gemini-* so Google's filter stops blocking scenes; no effect on other models)</span></label>
+              <label class="switchLbl"><input type="checkbox" id="setGeminiUnsafe"><span class="sl"></span></label></div>
           </div>
         </div>
 
@@ -1315,7 +1317,7 @@
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
-  reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",provDeny:"sm_provdeny",
+  reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",provDeny:"sm_provdeny",geminiUnsafe:"sm_geminiunsafe",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",
   memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",poiGossip:"sm_poigossip",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
@@ -3747,6 +3749,10 @@ function loadState(){
     // "" = no restriction. If the deny-list seems ignored, check a debug response's `provider`
     // field for the exact slug and edit this to match.
     provDeny:store.raw(K.provDeny,"Baidu, Alibaba, StreamLake, SiliconFlow"),
+    // GEMINI SAFETY OVERRIDE. When ON (default), Gemini calls send safety_settings=BLOCK_NONE to
+    // relax Google's own content filter (which otherwise blocks many roleplay scenes). Only affects
+    // google/gemini-* models; no effect on DeepSeek or others.
+    geminiUnsafe:store.get(K.geminiUnsafe,true),
     mem:store.get(K.mem,true),
     autoImg:store.get(K.autoImg,true),
     rewritePrompt:store.raw(K.rewritePrompt,DEFAULT_REWRITE),
@@ -4641,6 +4647,20 @@ async function chatCompletion(messages,model,opts={}){
   } else if(state.provDeny && String(state.provDeny).trim()){
     const ignore=String(state.provDeny).split(",").map(s=>s.trim()).filter(Boolean);
     if(ignore.length) body.provider={ ignore, allow_fallbacks:true };
+  }
+  // GEMINI SAFETY SETTINGS. Google's Gemini models apply their OWN content filter on top of the
+  // model, often returning finishReason:SAFETY and killing legitimate roleplay scenes. When the
+  // target is a Gemini model, we forward an OpenRouter-supported top-level `safety_settings` array
+  // setting all four harm categories to BLOCK_NONE — this relaxes Google's filter (it does NOT
+  // guarantee compliance; the model can still decline truly disallowed content). Only attaches for
+  // Gemini (ignored/irrelevant elsewhere) and only when state.geminiUnsafe isn't turned off.
+  if(/gemini/i.test(String(model||"")) && state.geminiUnsafe!==false){
+    body.safety_settings=[
+      {category:"HARM_CATEGORY_HARASSMENT",       threshold:"BLOCK_NONE"},
+      {category:"HARM_CATEGORY_HATE_SPEECH",      threshold:"BLOCK_NONE"},
+      {category:"HARM_CATEGORY_SEXUALLY_EXPLICIT",threshold:"BLOCK_NONE"},
+      {category:"HARM_CATEGORY_DANGEROUS_CONTENT",threshold:"BLOCK_NONE"}
+    ];
   }
   const entry=dbg(opts.dbg||"Chat / roleplay","OpenRouter",OR+"/chat/completions",body);
   // Retry transient failures (rate-limit 429 / 5xx) a couple of times with backoff. This is what
@@ -13614,6 +13634,7 @@ function syncSettingsUI(){
     });
   })();
   {const pd=document.getElementById('setProvDeny'); if(pd)pd.value=state.provDeny||"";}
+  {const gu=document.getElementById('setGeminiUnsafe'); if(gu)gu.checked=state.geminiUnsafe!==false;}
   document.getElementById('setMem').checked=state.mem;
   document.getElementById('setFont').value=state.font;document.getElementById('fontVal').textContent=state.font;
   {const sr=document.getElementById('setStreamReveal'); if(sr)sr.checked=state.streamReveal!==false;}
@@ -13731,6 +13752,7 @@ function saveSettings(notify){
   store.set(K.reasoningOn,state.reasoningOn);
   store.setRaw(K.topP,state.topP);store.setRaw(K.freqPenalty,state.freqPenalty);store.setRaw(K.presPenalty,state.presPenalty);
   {const pd=document.getElementById('setProvDeny'); if(pd){ state.provDeny=pd.value.trim(); store.setRaw(K.provDeny,state.provDeny); }}
+  {const gu=document.getElementById('setGeminiUnsafe'); if(gu){ state.geminiUnsafe=gu.checked; store.set(K.geminiUnsafe,state.geminiUnsafe); }}
   state.mem=document.getElementById('setMem').checked;
   state.font=+document.getElementById('setFont').value;
   {const sr=document.getElementById('setStreamReveal'); if(sr)state.streamReveal=sr.checked;}
