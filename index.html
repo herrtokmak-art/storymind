@@ -753,6 +753,9 @@
           <details class="acc"><summary><svg class="ic"><use href="#i-film"/></svg> Video-prompt rewriter instructions</summary>
             <textarea class="fld" id="setVidPrompt" style="min-height:110px"></textarea>
             <div class="desc">Turns a still scene into a motion prompt when you tap <svg class="ic"><use href="#i-film"/></svg> Animate.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-film"/></svg> Movie-prompt rewriter instructions (6-segment)</summary>
+            <textarea class="fld" id="setMoviePrompt" style="min-height:110px"></textarea>
+            <div class="desc">Turns a still scene into a JSON array of 6 consecutive 5-second motion segments for the 🎞️ Movie button (infinite image-to-video, one continuous ~30s clip).</div></details>
           <details class="acc"><summary><svg class="ic"><use href="#i-compass"/></svg> Router instructions (image/video model picker)</summary>
             <textarea class="fld" id="setRouterPrompt" style="min-height:120px"></textarea></details>
         </div>
@@ -811,6 +814,7 @@
           <div style="height:1px;background:var(--border);margin:6px 0"></div>
           <div><label>Video length</label><div class="seg" id="durSeg"></div></div>
           <div style="margin-top:6px"><label>Video resolution</label><div class="seg" id="resSeg"></div><div class="desc">AtlasCloud WAN i2v supports 480p, 720p, 1080p. Higher resolution costs more and takes longer.</div></div>
+          <div style="margin-top:6px"><label>🎞️ Movie segments (1–6)</label><div class="seg" id="movieSegSeg"></div><div class="desc">How many consecutive scene images the 🎞️ Movie button stitches into one continuous clip. Each segment is 5s; it reads the image-prompt of the clicked image and the next images after it. More segments = longer clip and higher cost. Movie always renders at 480p to keep it affordable.</div></div>
           <div class="kvline"><span><svg class="ic"><use href="#i-volume"/></svg> Generate sound (WAN audio)</span>
             <label class="switchLbl"><input type="checkbox" id="setVidSound"><span class="sl"></span></label></div>
           <div class="desc">When supported by the video model (e.g. WAN 2.x i2v), requests audio along with the clip.</div>
@@ -1318,7 +1322,7 @@ const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",provDeny:"sm_provdeny",geminiUnsafe:"sm_geminiunsafe",
-  rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",
+  rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",moviePrompt:"sm_movieprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",movieSegs:"sm_moviesegs",
   memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",poiGossip:"sm_poigossip",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
   autoRpOn:"sm_autorpon",playerNarratePrompt:"sm_playernarrate",playerNarrateModel:"sm_playernarratemodel",userPersonality:"sm_userpersonality",userStyle:"sm_userstyle",
@@ -1809,6 +1813,54 @@ Relaxed natural atmosphere. [0s-2s] Female shifts weight to one hip, arms uncros
 3. **No camera movements** unless the still implies a dynamic shot. The wan model handles camera separately.
 4. **No dialogue, no sound descriptions.** This is visual motion only.
 5. **If the still doesn't show it, don't animate it.** Ground every motion in the still image details.`;
+
+/* ===== MOVIE (multi-segment infinite I2V) prompt rewriter =====
+   For atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video, which takes ONE image and a JSON
+   ARRAY of up to 6 prompts — each prompt is one consecutive 5-second segment, and the API stitches
+   them into a single continuous clip. So unlike DEFAULT_VIDPROMPT (one motion block), this writer
+   must output SIX segments that flow into one another as a continuous shot. */
+const DEFAULT_MOVIEPROMPT=`## SYSTEM ROLE
+
+You are a prompt engineer for the wan-2.2 INFINITE image-to-video model. It animates ONE first-frame image as a single continuous clip built from consecutive 5-second segments — one segment per prompt, stitched in order.
+
+You are given a numbered, ORDERED list of scene frames (FRAME 1, FRAME 2, …), each written as a still image-generation prompt. These frames are consecutive moments of the SAME unfolding scene. Your job: write ONE motion segment for EACH frame, in order, describing the MOVEMENT that carries the scene from that frame toward the next — so the segments play as one unbroken, continuously evolving clip.
+
+## OUTPUT FORMAT — STRICT
+- Output ONLY a JSON array of strings — EXACTLY one string per FRAME given (if you are given 4 frames, output 4 strings; if 6, output 6). Never more than 6.
+- No preamble, no commentary, no markdown, no time labels, no frame labels. Just the array.
+- Example shape for 3 frames: ["motion for frame 1","motion for frame 2","motion for frame 3"]
+- Each string = the motion for ONE 5-second segment. Keep it to 1–2 short declarative sentences.
+
+## CONTINUITY IS EVERYTHING
+- The segments are CONSECUTIVE. Segment 2 begins exactly where segment 1 ended; identity, body, framing and lighting carry across all of them. Treat the frames as keyframes and describe the motion BETWEEN them, evolving smoothly — never a hard cut, never an unrelated shot.
+- Read FRAME i and FRAME i+1: the motion in segment i should move the scene from what FRAME i shows toward what FRAME i+1 shows (a turn, a step, a shift of pose, the act progressing). For the LAST frame, write a natural settling or continuing motion.
+- Keep the SAME person(s), same clothing-state unless a frame's prompt clearly changes it.
+
+## DESCRIBE MOVEMENT ONLY
+- Per segment: who/what moves, direction (in/out/up/down/toward/away/arching), speed (slow/steady/fast/grinding/thrusting), a breathing cue (chest rising, sharp gasp, steady rhythm), and at most one secondary motion (hair swaying, hands gripping tighter, fabric slipping).
+- Do NOT restate static appearance, do NOT add new characters or environments not in the frames, no camera moves unless a frame is already a dynamic shot, no dialogue, no sound.
+
+## CLASSIFY SILENTLY, THEN WRITE (match the frames' content)
+- PENETRATION (explicit): name anatomy and the stroke — direction, depth, rhythm, speed; orifice response (stretching, gripping); bodies arching/bucking/pushing back; secondary (gripping tighter, bouncing). Let rhythm evolve across the frames.
+- TEMPTATION (charged, no penetration): proximity, hovering, leaning in/pulling back, grinding without insertion, hands tracing/teasing, breath on skin.
+- STANDARD (non-sexual): natural motion — shifting weight, turning, reaching, breathing, hair/clothing swaying, ambient motion.
+
+## SPEED VOCABULARY (use these)
+glacial · slow, deliberate · steady, rhythmic · medium, natural · fast, urgent · erratic, desperate
+Sexual rhythm: shallow teasing strokes (just the tip) · slow deep strokes (full length) · fast pounding rhythm · grinding circular hip motion · pull out, pause, slam back in · building speed, starting slow then accelerating
+
+## EXAMPLE — 3 frames given (continuous)
+FRAME 1: Woman standing by a window, looking out, arms crossed.
+FRAME 2: Woman turned toward the camera, half-smile, hand lowering.
+FRAME 3: Woman stepping closer, reaching toward the lens.
+Output: ["She slowly uncrosses her arms and begins to turn from the window, weight shifting, hair swaying with the motion.","She completes the turn to face the camera, a half-smile forming, her hand lowering to her side, chest rising with a soft breath.","She steps closer, one hand rising toward the lens, gaze steady, the distance to the camera closing."]
+
+## EXAMPLE — 2 frames given (penetration, continuous)
+FRAME 1: POV from above, Woman supine, missionary, tip just entering.
+FRAME 2: POV from above, same Woman, back arched, full depth, mouth open.
+Output: ["Slow shallow strokes begin, just the tip easing in and out, her hips tilting up, a slow breath drawn in.","Strokes deepen to full length, her back arching off the bed, mouth falling open on a sharp inhale, fingers curling into the sheets."]
+
+Output ONLY the JSON array — one string per frame given, in order.`;
 
 /* ===== MODELSLAB SMART ROUTING =====
    Each rule = a content condition + which ModelsLab model/endpoint to use.
@@ -3751,8 +3803,10 @@ function loadState(){
     vidModel:store.raw(K.vidModel,"atlascloud/wan-2.2-turbo-spicy/image-to-video"),
     segVidPath:store.raw(K.segVidPath,"wan-2.2-i2v-flash"),
     vidPrompt:store.raw(K.vidPrompt,DEFAULT_VIDPROMPT),
+    moviePrompt:store.raw(K.moviePrompt,DEFAULT_MOVIEPROMPT),
     vidDur:+store.raw(K.vidDur,5),
     vidRes:store.raw(K.vidRes,"480p"),
+    movieSegs:(()=>{const n=parseInt(store.raw(K.movieSegs,"6"),10);return (n>=1&&n<=6)?n:6;})(),
     vidSound:store.get(K.vidSound,false),
     user:store.raw(K.user,"You"),
     userLook:store.raw(K.userLook,""),
@@ -5197,6 +5251,8 @@ const PROMPT_REGISTRY=[
    hint:"Turns each roleplay reply into a vivid image-generation prompt."},
   {key:"vidPrompt", label:"Video-prompt rewriter", def:()=>DEFAULT_VIDPROMPT, json:false,
    hint:"Turns a still scene into a motion prompt on Animate."},
+  {key:"moviePrompt", label:"Movie-prompt rewriter (6-segment)", def:()=>DEFAULT_MOVIEPROMPT, json:false,
+   hint:"Turns a still scene into a JSON array of 6 consecutive 5s motion segments for the infinite-video Movie button."},
   {key:"routerPrompt", label:"Image/Video router", def:()=>DEFAULT_ROUTER, json:false,
    hint:"Picks which image/video model rule fits the scene."},
   {key:"memBuild", label:"Memory builder", def:()=>DEFAULT_MEMBUILD, json:true,
@@ -10195,8 +10251,8 @@ function sceneHTML(m){
     return `<div class="scene"><div class="retry">⚠️ Couldn't illustrate.<button class="btn sec small" onclick="reIllustrate('${mid}')">Retry</button></div></div>`;
   if(m.img){
     let v="";
-    if(m.vidState==="error") v=`<button class="btn sec small" onclick="animateScene('${mid}')">⚠️ Retry video</button>`;
-    else v=`<button class="btn sec small" onclick="animateScene('${mid}')">🎬 Animate</button>`;
+    if(m.vidState==="error") v=`<button class="btn sec small" onclick="animateScene('${mid}')">⚠️ Retry video</button> <button class="btn sec small" onclick="movieScene('${mid}')">🎞️ Movie</button>`;
+    else v=`<button class="btn sec small" onclick="animateScene('${mid}')">🎬 Animate</button> <button class="btn sec small" onclick="movieScene('${mid}')">🎞️ Movie</button>`;
     return `<div class="scene"><img src="${m.img}" referrerpolicy="no-referrer" onclick="viewSceneImage('${mid}')">
             <div style="padding:8px">${v}</div></div>`;
   }
@@ -11225,6 +11281,100 @@ async function animateScene(mid){
   }catch(err){
     msg.vidState="error";persistChats();refreshBubble(mid);
     toast(""+(err.friendly||"Video failed"));
+  }
+}
+
+// Parse the movie-prompt writer's output into an array of 1..6 non-empty segment strings.
+// The writer is asked for a strict JSON array; this is defensive against a model that wraps it in
+// prose, ```json fences, or returns newline-separated lines instead. Always returns at least one
+// string so the call never sends an empty prompt array (which the API rejects).
+function parseMovieSegments(raw){
+  let txt=String(raw||"").trim();
+  // Strip ```json / ``` fences if present.
+  txt=txt.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"").trim();
+  let arr=null;
+  // First try: a clean JSON array anywhere in the text.
+  const m=txt.match(/\[[\s\S]*\]/);
+  if(m){ try{ const j=JSON.parse(m[0]); if(Array.isArray(j)) arr=j; }catch(e){} }
+  // Fallback: split on newlines, dropping numbering / bullets / time labels.
+  if(!arr){
+    arr=txt.split(/\n+/).map(s=>s.replace(/^\s*(?:\d+[.)]|[-*•]|\[\d+s?-\d+s?\])\s*/,"").trim());
+  }
+  arr=arr.map(s=>String(s||"").trim()).filter(Boolean).slice(0,6);   // cap at the model's 6-segment max
+  if(!arr.length) arr=[txt.slice(0,400)||"subtle natural motion grounded in the still frame"];
+  return arr;
+}
+
+// MOVIE: the multi-segment "infinite" image-to-video. Same flow as animateScene, but it writes SIX
+// continuous motion segments and submits them as a JSON ARRAY to the wan-2.2 infinite model on
+// AtlasCloud. atlasVideo() already forwards `prompt` verbatim into the request body, so passing an
+// array sends the required array shape; we force the infinite model id via a synthetic rule.
+async function movieScene(mid){
+  const msg=findMsg(mid);if(!msg||!msg.img)return;
+  if(msg.vidState==="loading")return;
+  if(!state.atlasKey){ toast("Movie needs your AtlasCloud API key (Settings → set the AtlasCloud key)"); return; }
+  msg.vidState="loading";msg.video=null;persistChats();refreshBubble(mid);
+  const setStat=t=>{const e=document.getElementById('vidstat_'+mid);if(e)e.textContent=t;};
+  try{
+    const cast=curCast();
+    let castSheet=cast.filter(c=>c.look).map(c=>`${c.name}: ${c.look}`).join("\n")||cast.map(c=>c.name).join(", ");
+    if(state.userLook)castSheet+=`\n${state.user}: ${state.userLook}`;
+
+    // ---- Collect the N consecutive image-prompts, starting from the CLICKED image and walking
+    // FORWARD through the chat. The clicked image is the FIRST frame (the only image the model
+    // takes), and segment 1..N are built from the image-prompts of this image and the images that
+    // follow it. If fewer than N later images exist (you clicked near the latest image), we use as
+    // many as are available — down to just this image's own prompt — rather than fail.
+    // imgPrompt survives image eviction (only the heavy img/url is freed), so older prompts persist.
+    const N=Math.min(6,Math.max(1,+state.movieSegs||6));
+    const chat=state.curChat&&state.chats[state.curChat];
+    let promptList=[];
+    if(chat&&Array.isArray(chat.messages)){
+      const startIdx=chat.messages.findIndex(m=>m&&(m.mid===mid||m.id===mid));
+      if(startIdx>=0){
+        for(let i=startIdx;i<chat.messages.length && promptList.length<N;i++){
+          const om=chat.messages[i];
+          const p=om&&(om.imgPrompt||"");      // only frames that actually had an image generated
+          if(p) promptList.push(p);
+        }
+      }
+    }
+    if(!promptList.length) promptList=[msg.imgPrompt||msg.content||""];   // fallback: this frame alone
+    const got=promptList.length;
+
+    // ---- Convert the ordered image-prompts into `got` CONTINUOUS motion segments (one LLM call).
+    setStat(`Directing the movie (${got} shot${got>1?"s":""})…`);
+    const framesBlock=promptList.map((p,i)=>`FRAME ${i+1}:\n${p}`).join("\n\n");
+    const out=await chatCompletion([
+      {role:"system",content:up("moviePrompt")},
+      {role:"user",content:`Characters present:\n${castSheet}\n\nNumber of segments: ${got}\n\nThese are ${got} CONSECUTIVE scene frames, in order. Write ONE continuous motion segment per frame (${got} total), each flowing into the next as a single unbroken clip:\n\n${framesBlock}`}
+    ],state.rewriter,{temp:fnTemp("rewriter",0.6),max:fnTok("rewriter",900),dbg:"Movie motion prompt writer"});
+    let segments=parseMovieSegments(out);
+    // Align the segment count to the frames we actually have (the API allows 1..6, max 6).
+    if(segments.length>got) segments=segments.slice(0,got);
+    while(segments.length<got) segments.push(segments[segments.length-1]||"continuous subtle motion grounded in the frame");
+    segments=segments.slice(0,6);
+
+    // ---- Submit to the infinite model. Force its model id + AtlasCloud + 480p (Movie always runs
+    // at the cheapest tier). First frame is the CLICKED image. atlasVideo forwards the array verbatim.
+    const movieRule={ id:"_movie", label:"Movie (infinite)", provider:"atlascloud",
+      model_id:"atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video",
+      resolution:"480p" };
+    setStat(`Generating ${segments.length}-shot movie on AtlasCloud at 480p… (this takes longer than Animate)`);
+    const baseNeg="blur, distortion, artifacts, watermark, text";
+    const videoUrl=await atlasVideo(segments,msg.img,baseNeg,movieRule);
+    msg.videoSrc=httpsMedia(videoUrl);
+    msg.video=msg.videoSrc;
+    msg.vidState="done";msg.vidPrompt=segments.join(" | ");msg.isMovie=true;
+    state.videos.push({id:"vid_"+Date.now(),url:videoUrl,prompt:segments.join(" | "),character:cast.map(c=>c.name).join(", "),date:Date.now(),movie:true});
+    const VID_MEM_CAP=12;
+    if(state.videos.length>VID_MEM_CAP){
+      for(let i=0;i<state.videos.length-VID_MEM_CAP;i++){ if(state.videos[i]&&state.videos[i].url){state.videos[i].url="";state.videos[i].evicted=true;} }
+    }
+    persistVideos();persistChats();refreshBubble(mid);
+  }catch(err){
+    msg.vidState="error";persistChats();refreshBubble(mid);
+    toast(""+(err.friendly||"Movie failed"));
   }
 }
 async function submitVideo(prompt,firstFrameDataUrl){
@@ -13503,13 +13653,22 @@ function renderToggleSegs(){
       rsg.appendChild(b);
     });
   }
+  const msg2=document.getElementById('movieSegSeg');
+  if(msg2){
+    msg2.innerHTML="";
+    [1,2,3,4,5,6].forEach(n=>{
+      const b=document.createElement('button');b.textContent=String(n);if(n===(+state.movieSegs||6))b.classList.add('on');
+      b.onclick=()=>{state.movieSegs=n;msg2.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
+      msg2.appendChild(b);
+    });
+  }
   injectGlobalPromptAiButtons();
 }
 // Map each global-prompt textarea (in Settings → Prompts) to its registry key, and add a
 // "✨ Write with AI" button under each so the same generator works on global prompts too.
 const GLOBAL_PROMPT_TEXTAREAS={
   setBaseInstruction:"baseInstruction", setFormatRules:"formatRules",
-  setRewritePrompt:"rewritePrompt", setVidPrompt:"vidPrompt", setRouterPrompt:"routerPrompt",
+  setRewritePrompt:"rewritePrompt", setVidPrompt:"vidPrompt", setMoviePrompt:"moviePrompt", setRouterPrompt:"routerPrompt",
   setMemBuild:"memBuild", setGistBuild:"gistBuild", setGossipPrompt:"gossipPrompt", setPoiGossip:"poiGossip", setConfrontJudge:"confrontJudge", setOvertureJudge:"overtureJudge", setIntentForm:"intentForm", setIntentTick:"intentTick", setContemplate:"contemplate", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
   setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setDirectorAuthor:"directorAuthor", setPromptTuner:"promptTuner", setRelPrompt:"relPrompt", setRelShortPrompt:"relShortPrompt", setRelGenPrompt:"relGenPrompt", setPlayerNarratePrompt:"playerNarratePrompt", setTrackPrompt:"trackPrompt",
   setVoiceCheckPrompt:"voiceCheckPrompt", setTravelPrompt:"travelPrompt", setCalPrompt:"calPrompt",
@@ -13655,6 +13814,7 @@ function syncSettingsUI(){
   document.getElementById('setCalOn').checked=state.calOn;
   document.getElementById('setCalPrompt').value=state.calPrompt;
   document.getElementById('setVidPrompt').value=state.vidPrompt;
+  {const e=document.getElementById('setMoviePrompt'); if(e)e.value=state.moviePrompt||DEFAULT_MOVIEPROMPT;}
   document.getElementById('setTokens').value=state.tokens;document.getElementById('tokVal').textContent=state.tokens;
   document.getElementById('setTemp').value=state.temp;document.getElementById('tempVal').textContent=state.temp;
   // Global sampling controls: reasoning toggle + top_p / freq / presence (each Auto when "")
@@ -13778,6 +13938,7 @@ function saveSettings(notify){
   state.calOn=document.getElementById('setCalOn').checked;
   state.calPrompt=document.getElementById('setCalPrompt').value.trim()||DEFAULT_CAL;
   state.vidPrompt=document.getElementById('setVidPrompt').value.trim()||DEFAULT_VIDPROMPT;
+  {const e=document.getElementById('setMoviePrompt'); if(e)state.moviePrompt=e.value.trim()||DEFAULT_MOVIEPROMPT;}
   state.tokens=+document.getElementById('setTokens').value;
   state.temp=+document.getElementById('setTemp').value;
   // Global sampling controls
@@ -13801,6 +13962,8 @@ function saveSettings(notify){
   store.set(K.routeOn,state.routeOn);store.setRaw(K.routerModel,state.routerModel);store.setRaw(K.routerPrompt,state.routerPrompt);
   store.setRaw(K.steps,state.steps);
   store.setRaw(K.vidPrompt,state.vidPrompt);store.setRaw(K.vidDur,state.vidDur);store.setRaw(K.vidRes,state.vidRes);store.set(K.vidSound,state.vidSound);
+  store.setRaw(K.moviePrompt,state.moviePrompt);
+  store.setRaw(K.movieSegs,String(state.movieSegs||6));
   store.set(K.autoImg,state.autoImg);store.setRaw(K.rewritePrompt,state.rewritePrompt);
   store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.gistBuild,state.gistBuild);store.setRaw(K.poiGossip,state.poiGossip);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
   store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);store.setRaw(K.memRecentCount,state.memRecentCount);store.setRaw(K.memDistantCount,state.memDistantCount);store.set(K.gossipOn,state.gossipOn);store.setRaw(K.gossipThreshold,state.gossipThreshold);store.setRaw(K.gossipMaxPerDay,state.gossipMaxPerDay);store.setRaw(K.gossipModel,state.gossipModel||"");store.setRaw(K.gossipPrompt,state.gossipPrompt);store.set(K.confrontOn,state.confrontOn);store.setRaw(K.confrontJudge,state.confrontJudge);store.setRaw(K.overtureJudge,state.overtureJudge);store.set(K.intentOn,state.intentOn);store.setRaw(K.intentMax,state.intentMax);store.setRaw(K.intentForm,state.intentForm);store.setRaw(K.intentTick,state.intentTick);store.setRaw(K.contemplate,state.contemplate);
