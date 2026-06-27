@@ -10075,7 +10075,7 @@ function openCast(){
     row.innerHTML=`<span class="avatarChip lg" style="font-size:22px">${p.image?`<img src="${esc(p.image)}" alt="">`:esc(p.avatar||"🎭")}</span>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600">${esc(p.name)}</div>
-        <div class="desc" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${present?"🟢 nearby":"⚪ away"}${areaLabel} · ${esc((p.look||p.personality||"").slice(0,28))}</div>
+        <div class="desc" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${present?"🟢 nearby":"⚪ away"}${areaLabel} · ${esc((lookProse(p.look)||p.personality||"").slice(0,28))}</div>
       </div>
       ${callBtn}
       <button class="btn sec small" data-present style="white-space:nowrap">${present?"Send away":"Bring nearby"}</button>`;
@@ -10960,7 +10960,7 @@ async function runMultiCharTurn(chat,playerText){
       return;
     }
     const roster=cast.map(c=>{
-      let line=`- ${c.name}: ${(c.personality||c.look||"").slice(0,90)}`;
+      let line=`- ${c.name}: ${(c.personality||lookProse(c.look)||"").slice(0,90)}`;
       if(c.interject&&c.interject.trim())line+=`\n    hooks: ${c.interject.trim().slice(0,140)}`;
       return line;
     }).join("\n");
