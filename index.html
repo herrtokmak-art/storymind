@@ -1808,80 +1808,115 @@ Relaxed natural atmosphere. [0s-2s] Female shifts weight to one hip, arms uncros
 const DEFAULT_IMG_RULES=[
   {id:"r_portrait",label:"Portrait / single subject",
    when:"One character is the whole frame — a reaction, a look, an emotional close moment, or a deliberate solo shot of one person. Not a group, not action, not sexual.",
-   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
+   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PORTRAIT / SINGLE SUBJECT
-One person fills the frame. Third-person camera unless the exchange is clearly the player's own point of view.
-- Shot: Close-up Face, Medium Close-up, or Waist-up — pick by how much emotion vs body matters.
-- Framing: \`cinematic portrait\`, subject off-centre or centered as the mood wants; shallow depth of field to lift them off the background.
-- Pose: head angle + gaze + a single hand/shoulder beat if the exchange gives one. Body facing front/three-quarter.
-- Expression: 1-2 tags (\`soft gaze, parted lips\` / \`jaw tight, eyes down\`).
-- Clothing: colour on every garment. Location: 2-5 words, blurred. Lighting: one mood phrase. Focus: \`sharp focus on the face\`.`,
+One person fills the frame.
+
+### CAMERA & ORIENTATION (decide this FIRST)
+- Choose the camera: a third-person angle (the subject is seen from outside) or the player's POV (the subject faces the lens because she is looking at the player who IS the camera).
+- Describe the subject's body and face RELATIVE TO THE LENS, never relative to the fiction. "She looks at him" only means a front view if the lens is where he is.
+  - Face toward the lens → \`front view, head facing camera\`, full features.
+  - Turned ~90° → \`profile to camera\` / \`three-quarter view\`, partial features only (jawline, profile, one eye).
+  - Fully turned away → \`back to camera, face not visible\` and give NO facial features at all (naming eyes/lips forces the generator to render a face that breaks the pose).
+- Shot: Close-up Face, Medium Close-up, or Waist-up.
+- Clothing: colour on every garment. Location: 2-5 words, blurred. Lighting: one mood phrase. Focus: \`sharp focus on the face\` (or on the hair/silhouette if back-to-camera).
+
+### EXAMPLE
+Fiction: she turns away from him to hide her tears, glancing back over her shoulder.
+Prompt: \`third-person medium shot, Woman ((Margot Robbie)), three-quarter back view, head quarter-turned toward camera, profile partly visible, one visible eye glistening, charcoal wool coat, Location: rain-streaked window, Lighting: cold blue dusk, sharp focus on her profile, shallow depth of field\``,
    enabled:true},
 
   {id:"r_multichar",label:"Multi-character group",
    when:"Two or more characters sharing the frame in a non-combat, non-sexual moment — a conversation, a confrontation, a gathering, people reacting to each other. Use the ALSO PRESENT cast.",
-   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
+   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused faces, watermark, text, signature",
    promptStyle:`## SCENE TYPE: MULTI-CHARACTER GROUP
-Several people share the frame. Third-person cinematic camera — wide enough to hold everyone the exchange involves.
-- Include each involved person with their ((appearance)) from the sheet; give each a distinct position and posture so they don't fuse.
-- Shot: Wide or Full Body; \`group composition\`, characters arranged by who is addressing whom (facing, turned away, between two others).
-- Blocking: state where each stands/sits relative to the others (foreground/background, left/right, closer/farther) and who looks at whom.
-- Expression: one short tag per key person, no more.
-- Clothing: colour on every garment, per person. Location: 2-5 words. Lighting: one phrase. Focus: \`sharp focus on the central figures, soft background\`.
-- Keep it to the people who matter to this beat — do not cram in everyone listed if only two are interacting.`,
+Several people share the frame. Third-person cinematic camera wide enough to hold everyone involved.
+
+### CAMERA & ORIENTATION (the most important step — do it per person)
+- Pick ONE camera position for the whole frame, then place each person relative to THAT lens. Do not describe anyone by who they are looking at in the fiction — translate it into lens geometry.
+- For EACH person, state body facing AND face visibility explicitly:
+  - Facing the lens → \`front view\`, full features.
+  - Turned ~90° (e.g. two people facing each other in profile) → \`profile to camera\`, partial features (jawline/profile/one eye).
+  - Back toward the lens (e.g. a foreground figure we see from behind, or someone kneeling/bowing away from camera) → \`back to camera, face not visible\`, NO facial features. The classic case: the player stands facing camera and another character faces the player → that character has their BACK to the lens; describe only their hair, build, and clothing from behind, never a face.
+- Give each person a distinct position (foreground/background, left/right, nearer/farther) so they don't fuse. Only describe faces for the people actually turned toward the lens.
+- Shot: Wide or Full Body, \`group composition\`. Clothing: colour per person. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the front-facing figures\`.
+
+### EXAMPLE
+Fiction: the player stands facing Lilith; Lilith kneels before him looking up at him; Diablo stands to one side watching.
+Prompt: \`third-person full body shot, three figures, foreground Man ((20-year-old handsome male, sharp jawline, messy brown hair, fit build)) standing front view facing camera, before him a Woman ((Adriana Lima)) kneeling with her back to camera, face not visible, only her bare back and dark hair shown from behind, to the left a Woman ((Kim Kardashian, muscular frame, crimson hair, black horns)) standing in profile to camera watching, Location: obsidian throne hall, Lighting: torchlit amber, sharp focus on the standing man, soft background\``,
    enabled:true},
 
   {id:"r_combat",label:"Combat / action",
    when:"Physical conflict or dynamic action — a fight, a strike, a chase, magic or powers being used, someone lunging, falling, or being thrown. One or more characters in motion.",
-   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
+   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: COMBAT / ACTION
 A dynamic action beat. Third-person cinematic camera that captures motion.
-- Shot: Wide or Full Body; use a \`dynamic angle\` (low angle for power, dutch tilt for chaos) and \`motion blur on the moving limb/weapon\` only where it reads.
-- Freeze ONE decisive instant — the strike landing, the lunge, the spell cast, the body mid-fall. Not a sequence.
-- Blocking: who is attacking whom, weapon/power and where it is aimed, stance and balance of each fighter. Include both fighters from the sheet if it's a duel.
-- Expression: one tag (\`teeth bared\`, \`cold focus\`).
-- Clothing/armour: colour on every piece. Effects (fire, sparks, energy) described visually if present. Location: 2-5 words. Lighting: one dramatic phrase. Focus: \`sharp focus on the point of impact\`.`,
+
+### CAMERA & ORIENTATION
+- Fix the camera angle (low angle for power, side-on for a clash, behind one fighter looking at the other), then orient each fighter to THAT lens.
+- A fighter lunging AWAY from the lens or whose back is to us → \`back to camera, face not visible\`, no facial features; show stance, weapon, and motion from behind. A fighter facing the lens → full features. A side-on clash → both in \`profile to camera\`, partial features.
+- Don't give a face to a body that is turned away just because the fiction says they're attacking "you" — if the camera sits behind the player, the attacker faces the player's back and may face the lens, while the player is back-to-camera.
+- Freeze ONE instant. \`motion blur\` only on the moving limb/weapon. Shot: Wide or Full Body, \`dynamic angle\`. Clothing/armour colour on every piece. Location 2-5 words. Lighting one dramatic phrase. Focus: \`sharp focus on the point of impact\`.
+
+### EXAMPLE
+Fiction: the player swings at Diablo; she charges him head-on.
+Prompt: \`third-person full body shot, low dynamic angle, foreground Man ((fit build, messy brown hair)) seen from behind, back to camera, face not visible, mid-swing with a dark blade, charging toward him a Woman ((Kim Kardashian, muscular frame, crimson hair, black horns, bone armor)) front view facing camera, snarling, motion blur on her fists, Location: blood-stained war pit, Lighting: harsh red torchlight, sharp focus on the point of impact\``,
    enabled:true},
 
   {id:"r_establishing",label:"Establishing / location",
    when:"The setting itself is the subject — a place, a landscape, a building, a room, an arriving wide shot — with characters small in it or absent. Atmosphere over person.",
-   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
+   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, watermark, text, signature",
    promptStyle:`## SCENE TYPE: ESTABLISHING / LOCATION
 The place is the subject. Third-person, wide.
-- Shot: \`establishing wide shot\` or \`extreme wide shot\`; emphasise scale, architecture, landscape, weather, and time of day.
-- People (if any) are small within the frame — give position and rough posture only, ((appearance)) optional at this distance.
-- Lead with the environment: structures, terrain, sky, light, atmosphere (mist, dust, smoke, rain).
-- Location: name the place in 2-5 words. Lighting: one strong mood phrase (\`golden hour haze\`, \`cold blue dusk\`). Focus: \`deep focus, sharp throughout\` or \`sharp on the structure, soft sky\`.`,
+- Shot: \`establishing wide shot\` or \`extreme wide shot\`; emphasise scale, architecture, landscape, weather, time of day.
+- People (if any) are small in the frame — give position and rough posture only; at this distance faces are not resolved, so do NOT describe facial features for anyone. State orientation only as silhouette (figure facing the gate, figure walking away).
+- Lead with the environment: structures, terrain, sky, light, atmosphere (mist, dust, smoke, rain). Location: name the place 2-5 words. Lighting: one strong mood phrase. Focus: \`deep focus\` or \`sharp on the structure, soft sky\`.
+
+### EXAMPLE
+Fiction: the player approaches the obsidian castle at dusk.
+Prompt: \`establishing extreme wide shot, vast black volcanic-glass castle on a ridge, a lone small figure walking toward the gate seen from behind as a silhouette, no facial features, smoke and embers drifting, Location: obsidian castle ridge, Lighting: cold blue dusk with ember glow, deep focus, sharp throughout\``,
    enabled:true},
 
   {id:"r_kissing",label:"Kissing",
    when:"Two characters kissing or about to — lips meeting, mouths together, a kiss against a wall, faces closing the last inch. Romantic/sexual but not undressed or explicit.",
-   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
+   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused faces, watermark, text, signature",
    promptStyle:`## SCENE TYPE: KISSING
-Two people kissing. Choose the camera by what the exchange shows:
-- Intimate two-shot (third person, profile or three-quarter) for a shared, equal kiss — both faces visible, lips meeting.
-- First-person (\`Image from his POV\`) only if the exchange is clearly from one person's eyes — her face approaching the lens, eyes closing, lips filling the frame.
-- Shot: Close-up or Medium Close-up; \`pressing close\`, heads tilted to meet.
-- Pose: who leans into whom, hand placements (cupping a jaw, fingers in hair, a hand at the waist or the small of the back) — gentle, never gripping.
-- Expression: \`eyes closed, lips parted\` / \`lips barely touching\`. One physical marker at most.
-- Clothing: colour on every garment (still dressed). Location: 2-5 words. Lighting: warm/intimate phrase. Focus: \`sharp focus on the lips\`, shallow depth of field.`,
+Two people kissing.
+
+### CAMERA & ORIENTATION
+- Pick the camera, then orient both heads to the lens:
+  - Player POV (his eyes) → her face approaches the lens, \`front view, eyes closing, lips toward camera\`, full features; he is the camera (not visible except maybe a jaw/hand at the edge).
+  - Third-person profile two-shot → both faces in \`profile to camera\`, partial features (one eye, the line of nose and lips meeting); this is the most reliable for a shared kiss.
+  - Third-person from behind one partner → the near partner is \`back of head to camera, face not visible\` (describe hair only), the far partner's face may be partly visible over their shoulder. NEVER give full front features to a head we see from behind.
+- Shot: Close-up or Medium Close-up, \`pressing close\`. Hand placements gentle (cupping a jaw, fingers in hair, hand at waist). Clothing colour on every garment. Location 2-5 words. Lighting warm phrase. Focus: \`sharp focus on the lips\`.
+
+### EXAMPLE
+Fiction: she pulls him in and kisses him; we see it from over his shoulder.
+Prompt: \`third-person medium close-up over the man's shoulder, near Man ((messy brown hair)) back of head to camera, face not visible, far Woman ((Anya Taylor-Joy)) front view tilted up, eyes closed, lips meeting his, hand cupping the back of his head, cream silk blouse, Location: dim foyer, Lighting: warm tungsten glow, sharp focus on her face, shallow depth of field\``,
    enabled:true},
 
   {id:"r_embrace",label:"Embrace / hug / tenderness",
    when:"Non-kissing physical closeness — a hug, an embrace, holding each other, a head on a shoulder, hands held, a comforting or longing closeness. Clothed, tender, not explicit.",
-   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
+   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: EMBRACE / TENDERNESS
-Two people physically close but not kissing. Third-person two-shot unless the exchange is one person's POV.
-- Shot: Medium Close-up or Waist-up; \`pressing close\`, \`embracing\`.
-- Pose: exactly how they hold each other — arms around back, one head resting on the other's shoulder or chest, hands clasped, a forehead against a temple. State who is enfolding whom.
-- Expression: soft and minimal (\`eyes closed, faint smile\` / \`eyes shut, brow eased\`).
-- Clothing: colour on every garment. Location: 2-5 words. Lighting: warm, soft phrase. Focus: \`sharp focus on the two faces\`, soft background.`,
+Two people physically close but not kissing.
+
+### CAMERA & ORIENTATION
+- In an embrace one person almost always faces away from the lens. Decide the camera, then:
+  - The partner whose back is to the lens → \`back to camera, face not visible\`, describe hair/shoulders/clothing from behind only, NO facial features.
+  - The partner facing over the other's shoulder → face may be visible; give features only if truly toward the lens (often \`eyes closed, chin on the other's shoulder\`, partial).
+  - Side-on two-shot → both \`profile to camera\`, partial features.
+- Shot: Medium Close-up or Waist-up, \`pressing close, embracing\`. State who enfolds whom and arm placement. Clothing colour on every garment. Location 2-5 words. Lighting warm soft phrase. Focus: \`sharp focus on the visible face\`.
+
+### EXAMPLE
+Fiction: she buries herself in his chest; he holds her, looking down at her.
+Prompt: \`third-person waist-up two-shot, Woman ((Kim Kardashian)) back to camera, face not visible, dark hair and bare shoulders shown from behind, pressed into the chest of Man ((sharp jawline, messy brown hair)) front view facing camera over her head, eyes lowered, arms wrapped around her, charcoal shirt, Location: candlelit chamber, Lighting: warm low glow, sharp focus on the man's face, soft background\``,
    enabled:true},
 
   {id:"r_temptation",label:"Temptation / foreplay",
@@ -1889,12 +1924,18 @@ Two people physically close but not kissing. Third-person two-shot unless the ex
    model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: TEMPTATION / FOREPLAY
-Erotic build-up, no penetration. Camera follows the exchange — third-person two-shot, or his POV if it reads as his eyes.
-- Shot: Cowboy or Medium Close-up; \`leaning in\`, \`straddling his lap\`, \`undressing\`, whatever the beat is.
-- Pose & contact: the specific tease — a strap sliding off a shoulder, fingertips at a zipper, a mouth hovering near skin, a body pressed close. State exact contact and proximity; explicitly NO penetration.
-- Partial nudity described plainly (exposed shoulder/back, bra visible, dress pushed aside) with colours.
-- Expression: \`half-lidded eyes, parted lips\` / \`wicked smirk\`. One physical marker at most.
-- Location: 2-5 words. Lighting: warm/dim phrase. Focus: \`shallow depth of field\` on the point of contact.`,
+Erotic build-up, no penetration.
+
+### CAMERA & ORIENTATION
+- Choose POV (his eyes) or a third-person angle, then orient each body to the lens:
+  - POV → she faces the lens or is positioned for him; full features if she looks at the camera, partial/back if she's turned (e.g. undressing with her back to him → \`back to camera, face not visible\`, show the bare back).
+  - Third-person → state body facing and face visibility per person. A figure straddling someone whose back is to the lens gets NO face described.
+  - "She looks back at you" → \`back/three-quarter to camera, head turned over shoulder\`, only a partial profile visible — not a full front face on a body that is turned away.
+- Shot: Cowboy or Medium Close-up. Name the exact tease (strap sliding, fingertips at a zipper, mouth near skin), explicitly NO penetration. Partial nudity plainly with colours. One physical marker max. Location 2-5 words. Lighting warm/dim phrase. Focus: shallow DOF on the point of contact.
+
+### EXAMPLE
+Fiction: she slides her dress off her shoulders, back to him, glancing over her shoulder.
+Prompt: \`third-person cowboy shot, Woman ((Margot Robbie)) three-quarter back to camera, head turned over her shoulder, partial profile, one visible eye, deep red silk dress sliding off her shoulders, bare back exposed, fingertips at the zipper, Location: luxury suite, Lighting: moody chiaroscuro, sharp focus on her bare back, shallow depth of field\``,
    enabled:true},
 
   {id:"r_oral",label:"Oral",
@@ -1902,12 +1943,17 @@ Erotic build-up, no penetration. Camera follows the exchange — third-person tw
    model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: ORAL
-Explicit oral. Camera usually \`Image from above, his POV\` (looking down at the kneeling partner) — or a third-person side angle if the exchange frames both bodies.
+Explicit oral.
+
+### CAMERA & ORIENTATION
+- Usually \`Image from above, his POV\` looking down at the kneeling partner — her face is tilted UP toward the lens, so full features are correct here (she faces the camera).
+- If instead it is a third-person SIDE angle, her head is in \`profile to camera\` → partial features (one eye, the line of cheek and lips). If shot from BEHIND her, \`back of head to camera, face not visible\`, no features.
 - Distinguish the act precisely: mouth WRAPPED AROUND (fellatio, suction) vs lips KISSING/PRESSED to skin (worship, no suction). Never blur the two.
-- Shot: Close-up on the interaction zone.
-- Pose: kneeling/leaning, head angle, where his hands rest (in her hair, under her chin, on the back of her head) — resting/guiding, never forcing.
-- Expression: \`shy glance upward\` / \`eyes closed\`. One physical marker at most; no drool/saliva description.
-- Clothing/state with colours. Location: 2-5 words. Lighting: one phrase. Focus: \`sharp focus on the lips\`.`,
+- Shot: Close-up on the interaction zone. His hands rest/guide (in her hair, under her chin), never force. One physical marker max; no drool/saliva description. Clothing/state with colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the lips\`.
+
+### EXAMPLE
+Fiction: she kneels and takes him in her mouth, looking up at him (his POV).
+Prompt: \`Image from above his POV, close-up shot, Woman ((Sydney Sweeney)) kneeling, head tilted up toward camera, front view, shy glance upward, mouth wrapped around erect penis, lips stretched, black lace bra, his hand resting in her hair from the frame edge, Location: dim bedroom, Lighting: warm tungsten glow, sharp focus on the lips, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_missionary",label:"Penetration — missionary / on back",
@@ -1915,11 +1961,17 @@ Explicit oral. Camera usually \`Image from above, his POV\` (looking down at the
    model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — MISSIONARY
-Receiving partner on her back. Camera \`Image from above, his POV\` (looking down the body) or a third-person side angle showing both.
-- Pose: \`supine, head tilted back, leaning backward\`; legs position per the exchange (around his waist, knees pushed back, ankles up).
-- Action: explicit — penetration stated, point of insertion visible. His hands spreading/holding her thighs or hips, entering from the frame's lower edge if POV; he stays upright, never weight-bearing on her.
-- Expression: 1-2 tags. One physical marker at most.
-- State of undress with colours where any clothing remains. Location: 2-5 words. Lighting: one phrase. Focus: \`sharp focus on the point of penetration\`.`,
+Receiving partner on her back.
+
+### CAMERA & ORIENTATION
+- \`Image from above, his POV\` (looking down her body) → she lies facing UP toward the lens, full features correct (face toward camera).
+- Third-person side angle → she is \`supine, head in profile to camera\`, partial features; the penetrating partner above her may be back/side to the lens (if his back is to the camera, \`back to camera, face not visible\`, no features for him).
+- Never give a front face to a head turned away from the lens just because the fiction says she looks at him.
+- Pose: \`supine, leaning back\`; legs per the exchange. Action explicit, point of insertion visible. His hands hold/spread thighs from the frame edge; he stays upright. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+
+### EXAMPLE
+Fiction: he takes her in missionary, his POV looking down.
+Prompt: \`Image from above his POV, full body shot, Woman ((Ana de Armas)) supine, head tilted back toward camera, front view, eyes half-lidded, completely nude, skin glistening, erect penis penetrating vagina, point of insertion visible, his hands spreading her thighs at the frame edges, Location: rumpled white sheets, Lighting: warm tungsten glow, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_doggy",label:"Penetration — from behind / doggy",
@@ -1927,11 +1979,17 @@ Receiving partner on her back. Camera \`Image from above, his POV\` (looking dow
    model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — FROM BEHIND / DOGGY
-Penetration from behind. Camera \`Image from above, his POV\` (behind her) or third-person side angle.
-- Pose: \`back view, arched back\`, on all fours OR bent over a surface (state which); head down or \`quarter turn looking back over shoulder\` if the exchange says she looks back.
-- Action: explicit penetration from behind, point of contact visible. His hands gripping her hips or backside from the frame's lower edge; he is upright.
-- Expression: 1-2 tags. One physical marker at most.
-- Clothing pushed aside/up with colours if partial. Location: 2-5 words. Lighting: one phrase. Focus: \`sharp focus on the point of penetration\`.`,
+Penetration from behind.
+
+### CAMERA & ORIENTATION
+- \`Image from above, his POV\` (behind her) → we see her BACK; she is \`back to camera, arched, face not visible\` UNLESS the exchange explicitly has her looking back over her shoulder, in which case \`head quarter-turned over shoulder, partial profile, one visible eye\` only — never a full front face.
+- Third-person side angle → she is in \`profile to camera\`, partial features; he is behind her, often \`back/side to camera, face not visible\`.
+- Default to NO facial features for her here (back-to-camera is the norm for this position); add a partial profile only if she looks back.
+- Pose: \`on all fours\` or \`bent over a surface\`, arched back. Action explicit from behind, point of contact visible. His hands grip hips/backside from the frame edge. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+
+### EXAMPLE
+Fiction: he takes her from behind on all fours; she faces forward, away from him.
+Prompt: \`Image from above his POV, full body shot, Woman ((Sydney Sweeney)) on all fours, back to camera, arched back, face not visible, only her back, hips and hair shown, erect penis penetrating from behind, his hands gripping her hips at the frame edge, Location: luxury hotel bed, Lighting: moody chiaroscuro, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_cowgirl",label:"Penetration — riding / cowgirl",
@@ -1939,11 +1997,17 @@ Penetration from behind. Camera \`Image from above, his POV\` (behind her) or th
    model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — RIDING / COWGIRL
-Receiving partner on top, facing him. Camera \`Image from below, his POV\` (looking up at her) or third-person.
-- Pose: \`front view, straddling, leaning forward or upright\`, hips lowered onto him.
-- Action: explicit — she is lowering onto / riding him, point of penetration visible. His hands guiding her hips or thighs from the frame's lower edge; do not let his hands block the view.
-- Expression: \`half-lidded eyes, parted lips\`. One physical marker at most.
-- State of undress with colours. Location: 2-5 words. Lighting: one phrase. Focus: \`sharp focus on the point of penetration\`.`,
+Receiving partner on top, facing the penetrating partner.
+
+### CAMERA & ORIENTATION
+- \`Image from below, his POV\` (he lies, looking up) → she faces DOWN toward the lens, \`front view\`, full features correct (she faces camera).
+- Third-person side angle → she is in \`profile to camera\`, partial features.
+- Because she faces HIM and he is the camera in POV, her looking at him = looking at the lens = full front face — this is the one position where "looking at you" genuinely means front view.
+- Pose: \`straddling, leaning forward or upright\`, hips lowered onto him. Action explicit, point of penetration visible. His hands guide her hips/thighs from the frame edge; keep hands from blocking the view. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+
+### EXAMPLE
+Fiction: she rides him, hands on his chest, looking down at him (his POV up).
+Prompt: \`Image from below his POV, full body shot, Woman ((Zendaya)) straddling, leaning forward, front view facing camera, half-lidded eyes, parted lips, completely nude, skin glistening, riding erect penis, point of penetration visible, his hands on her hips from the lower frame edge, Location: sunlit bed, Lighting: golden hour glow, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_reverse",label:"Penetration — reverse cowgirl",
@@ -1951,11 +2015,17 @@ Receiving partner on top, facing him. Camera \`Image from below, his POV\` (look
    model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — REVERSE COWGIRL
-Receiving partner on top, facing away. Camera \`Image from below, his POV\` or third-person from behind her.
-- Pose: \`three-quarter back view, head quarter turn looking back, leaning forward\`, straddling with back to him.
-- Action: explicit penetration, her back arched, point of contact visible. His hands on her waist or hips from the lower frame edge.
-- Expression: \`looking over shoulder\` + one tag. One physical marker at most.
-- State of undress with colours. Location: 2-5 words. Lighting: one phrase. Focus: \`sharp focus on the point of penetration\`.`,
+Receiving partner on top, facing AWAY from the penetrating partner.
+
+### CAMERA & ORIENTATION
+- \`Image from below, his POV\` (he lies beneath, she faces away) → we see her BACK and backside; she is \`back to camera, face not visible\`, no facial features, UNLESS she looks back over her shoulder → \`head quarter-turned, partial profile, one visible eye\` only.
+- Third-person from behind her → same: back to camera, no front face.
+- This position almost never shows a front face — default to back-to-camera with no features.
+- Pose: \`straddling, back to camera, leaning forward, back arched\`. Action explicit, point of contact visible. His hands on her waist/hips from the lower frame edge. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+
+### EXAMPLE
+Fiction: she rides him facing away; he watches her back (his POV up).
+Prompt: \`Image from below his POV, full body shot, Woman ((Scarlett Johansson)) straddling with back to camera, face not visible, back arched, bare back and hips shown from behind, riding erect penis, point of penetration visible, his hands gripping her waist from the lower frame edge, Location: steamy bathroom, Lighting: soft diffused backlight, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_pen_standing",label:"Penetration — standing / lifted / other",
@@ -1963,11 +2033,19 @@ Receiving partner on top, facing away. Camera \`Image from below, his POV\` or t
    model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PENETRATION — STANDING / LIFTED / OTHER
-Penetration in an upright or non-standard position. Pick the camera that best shows the configuration — third-person side/three-quarter is usually clearest; POV if the exchange is his eyes.
-- Read the exact position from the exchange and state it: standing, pinned against a wall, lifted with legs around his waist, seated on his lap, or side-lying/spooning. Set body, head, and inclination to match.
-- Action: explicit penetration, point of contact visible; describe how the bodies are braced (against a wall, his arms holding her thighs, etc.).
-- Expression: 1-2 tags. One physical marker at most.
-- State of undress with colours. Location: 2-5 words. Lighting: one phrase. Focus: \`sharp focus on the point of penetration\`.`,
+Penetration in an upright or non-standard position. Pick the camera that shows the configuration best (third-person side/three-quarter is usually clearest; POV if it is his eyes).
+
+### CAMERA & ORIENTATION
+- Read the exact position and set each body's facing relative to the lens. Then apply face visibility:
+  - Pinned face-first against a wall → she is \`front pressed to wall, back/side to camera, face not visible or cheek in partial profile\`, no full front face.
+  - Lifted facing him in POV → she faces the lens, full features.
+  - Spooning (side-lying, both facing one way) → both \`side/profile to camera\`, partial features; the rear partner often back-of-head to camera.
+- Never grant a full front face to a head turned away just because the fiction says she faces "you".
+- Action explicit, point of contact visible; describe how the bodies are braced. One physical marker max. Undress/colours. Location 2-5 words. Lighting one phrase. Focus: \`sharp focus on the point of penetration\`.
+
+### EXAMPLE
+Fiction: he takes her standing, pressing her front against the wall from behind.
+Prompt: \`third-person three-quarter angle, Woman ((Adriana Lima)) pressed front-first against a stone wall, back to camera, face not visible, cheek turned slightly showing partial profile, taken from behind, point of penetration visible, Man ((fit build)) behind her side-to-camera, his hands braced on her hips, Location: torchlit corridor, Lighting: warm flickering glow, sharp focus on the point of penetration, shallow depth of field\``,
    enabled:true},
 
   {id:"r_aftermath",label:"Aftermath / intimate rest",
@@ -1976,10 +2054,17 @@ Penetration in an upright or non-standard position. Pick the camera that best sh
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: AFTERMATH / INTIMATE REST
 The still moment after intimacy. Third-person, soft.
-- Shot: Medium or Full Body from the side; \`lying together\`, \`tangled in sheets\`, calm and unhurried — no active sexual act.
-- Pose: how the bodies rest against each other — one arm draped over, head on a chest, legs tangled, facing or spooning.
-- State of undress: nude or half-dressed, described plainly with colours for any garment/sheet; one physical marker at most (\`skin glistening\`).
-- Expression: serene, eyes closed or soft gaze. Location: 2-5 words. Lighting: warm, low, soft phrase. Focus: \`shallow depth of field\`, soft on the bodies.`,
+
+### CAMERA & ORIENTATION
+- Decide the camera, then orient each resting body to the lens. People lying together usually face different ways:
+  - A partner facing the lens → features visible (often \`eyes closed\`).
+  - A partner facing away or curled into the other → \`back/side to camera, face not visible\`, describe only the back/shoulder line, no features.
+  - Spooning → rear partner back-of-head to camera (no face), front partner side/profile (partial).
+- Shot: Medium or Full Body from the side, \`lying together, tangled in sheets\`, no active act. Undress nude/half-dressed plainly with colours for any garment/sheet; one physical marker max. Location 2-5 words. Lighting warm low soft phrase. Focus: shallow DOF on the visible face/bodies.
+
+### EXAMPLE
+Fiction: they lie spooning afterward, her back against his chest.
+Prompt: \`third-person medium shot from the side, two figures lying together, foreground Woman ((Liv Tyler)) on her side, back to camera, face not visible, bare shoulders and tousled hair shown from behind, behind her Man ((messy brown hair)) side-to-camera, eyes closed, arm draped over her, white rumpled sheets, Location: dim bedroom, Lighting: warm low afterglow, shallow depth of field, soft on the bodies\``,
    enabled:true}
 ];
 const DEFAULT_VID_RULES=[
@@ -3854,25 +3939,27 @@ function loadState(){
     }
     store.setRaw(K.imgModelMigration,"v3");
   }
-  // v4: route the NON-EXPLICIT scene rules to AtlasCloud z-image/turbo as the standard.
-  // The six non-sexual rules (portrait, multi-character, combat, establishing, kissing, embrace)
-  // ship with model_id "realtime_t2i" and no provider, so they followed the global imgProvider
-  // toggle. We pin them to provider:"atlascloud" + model_id:"z-image/turbo" so non-explicit images
-  // always render on z-image/turbo, regardless of the global toggle. The eight EXPLICIT rules
-  // (temptation, oral, the penetration positions, aftermath) are left on ModelsLab/gurilamash.
-  // Per-rule safety: we only touch a rule that is still on the stock "realtime_t2i" model AND has
-  // no provider already set — so a rule you customised (different model or an explicit provider)
-  // is never clobbered. Independent of v2/v3; flag guards re-running.
+  // v4: the 14-rule promptStyles were upgraded with camera-relative ORIENTATION logic (a person whose
+  // face is turned from the lens must be drawn back/side-to-camera with features suppressed, so the
+  // generator stops lining everyone up facing front). Refresh the set ONLY if it is still the previous
+  // stock 14-rule taxonomy AND untouched — detected by: every rule id matches a current default id, the
+  // count matches, and NONE of the stored promptStyles already contains the new "CAMERA & ORIENTATION"
+  // marker (i.e. they're the older stock styles). Any custom/edited set fails the test and is preserved.
   if(store.raw(K.imgModelMigration,null)!=="v4"){
-    const NONEXPLICIT=new Set(["r_portrait","r_multichar","r_combat","r_establishing","r_kissing","r_embrace"]);
-    let touched=false;
-    (state.imgRules||[]).forEach(r=>{
-      if(r && NONEXPLICIT.has(String(r.id||"")) && !r.provider
-         && String(r.model_id||"")==="realtime_t2i"){
-        r.provider="atlascloud"; r.model_id="z-image/turbo"; touched=true;
-      }
+    const rules=state.imgRules||[];
+    const defIds=new Set(DEFAULT_IMG_RULES.map(r=>r.id));
+    const sameShape = rules.length===DEFAULT_IMG_RULES.length
+      && rules.every(r=>defIds.has(String(r.id||"")));
+    const alreadyUpgraded = rules.some(r=>String(r.promptStyle||"").indexOf("CAMERA & ORIENTATION")!==-1);
+    const looksEdited = rules.some(r=>{
+      const def=DEFAULT_IMG_RULES.find(d=>d.id===r.id);
+      // if a rule's label or when no longer matches the default, the user edited it → don't clobber
+      return def && (String(r.label||"")!==def.label || String(r.when||"")!==def.when);
     });
-    if(touched) store.set(K.imgRules,state.imgRules);
+    if(!rules.length || (sameShape && !alreadyUpgraded && !looksEdited)){
+      state.imgRules=DEFAULT_IMG_RULES.map(r=>({...r}));
+      store.set(K.imgRules,state.imgRules);
+    }
     store.setRaw(K.imgModelMigration,"v4");
   }
   // One-time upgrade: the old default Scene-Setup prompt told the model a character's
