@@ -488,6 +488,9 @@
             <div><label>Presence penalty: <span id="presPenVal">Auto</span></label>
               <div class="kvline" style="padding:0"><label class="switchLbl" style="transform:scale(.85)"><input type="checkbox" id="setPresPenOn"><span class="sl"></span></label>
               <input type="range" id="setPresPen" min="-2" max="2" step="0.1" value="0" style="flex:1;opacity:.35;pointer-events:none"></div></div>
+            <div style="margin-top:10px"><label><svg class="ic"><use href="#i-bulb"/></svg> Avoid providers (OpenRouter routing)</label>
+              <input type="text" id="setProvDeny" placeholder="Baidu, Alibaba, StreamLake, SiliconFlow" style="width:100%">
+              <div class="desc" style="margin-top:4px">Comma-separated provider names to skip for every call. The same model is hosted by many providers; some wrap it in their own content filter and return a Chinese "无法…" refusal. Denying those routes you to a cleaner host (fallbacks stay on, so this never breaks a request). Leave blank for no restriction. If it seems ignored, the exact provider slug may differ from the display name — check a debug response's <code>provider</code> field and match it here.</div></div>
           </div>
         </div>
 
@@ -1312,7 +1315,7 @@
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
-  reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",
+  reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",provDeny:"sm_provdeny",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",
   memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",poiGossip:"sm_poigossip",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
@@ -3737,6 +3740,13 @@ function loadState(){
     topP:store.raw(K.topP,"0.95"),            // "" = Auto (omit, use provider default)
     freqPenalty:store.raw(K.freqPenalty,"0.3"),
     presPenalty:store.raw(K.presPenalty,"0.2"),
+    // PROVIDER DENY-LIST (OpenRouter routing). Comma-separated provider names to AVOID. Default
+    // skips the China-based hosts that wrap deepseek-v4-pro in their own content filter and emit a
+    // canned Chinese refusal ("无法...") on content the model itself would write. allow_fallbacks
+    // stays on, so denying these never causes a hard failure — OpenRouter just uses another host.
+    // "" = no restriction. If the deny-list seems ignored, check a debug response's `provider`
+    // field for the exact slug and edit this to match.
+    provDeny:store.raw(K.provDeny,"Baidu, Alibaba, StreamLake, SiliconFlow"),
     mem:store.get(K.mem,true),
     autoImg:store.get(K.autoImg,true),
     rewritePrompt:store.raw(K.rewritePrompt,DEFAULT_REWRITE),
@@ -4623,6 +4633,15 @@ async function chatCompletion(messages,model,opts={}){
     const pp = opts.presence_penalty ?? state.presPenalty;
     if(pp!==undefined && pp!==null && pp!=="") body.presence_penalty=+pp;
   }
+  // PROVIDER ROUTING (OpenRouter). Avoid hosts that wrap the model in their own content filter.
+  // Sent as { ignore:[...], allow_fallbacks:true } so denied providers are skipped but a healthy
+  // one is always used. Per-call opts.provider overrides; "" deny-list omits the field entirely.
+  if(opts.provider){
+    body.provider=opts.provider;
+  } else if(state.provDeny && String(state.provDeny).trim()){
+    const ignore=String(state.provDeny).split(",").map(s=>s.trim()).filter(Boolean);
+    if(ignore.length) body.provider={ ignore, allow_fallbacks:true };
+  }
   const entry=dbg(opts.dbg||"Chat / roleplay","OpenRouter",OR+"/chat/completions",body);
   // Retry transient failures (rate-limit 429 / 5xx) a couple of times with backoff. This is what
   // turned a burst of schedule calls into "Network error" rows — too many requests at once.
@@ -4674,6 +4693,27 @@ async function chatCompletion(messages,model,opts={}){
   // looking like a success that did nothing (the old behaviour). The caller still gets "".
   dbgDone(entry, out.trim()?"ok":"error", out.trim()?out:"(empty response — model returned no content; if using a reasoning model, raise the token limit in Settings)");
   return out;
+}
+// REFUSAL DETECTOR. A model can return a NON-EMPTY reply that is actually a content refusal —
+// e.g. DeepSeek v4-pro emits a canned Chinese refusal ("你好，我无法给到相关内容。") on content it
+// won't generate. That text passes the empty-response rescue and renders as if it were a normal
+// turn, and the caller's "empty reply — raise Max tokens" toast misattributes it to a token limit.
+// This flags such replies so the caller can retry on a fallback model and surface an honest message.
+// Detects: (1) known canned refusal phrasings (CJK + English), (2) a reply that is overwhelmingly
+// CJK when the story language is not CJK (the roleplay here is Turkish/English).
+function looksLikeRefusal(txt){
+  const s=(txt||"").trim();
+  if(!s) return false;
+  const phrases=[/无法(给到|提供|满足|回答|完成|继续)/, /我(不能|无法)(协助|帮助|提供|继续)/,
+    /抱歉[，,].{0,12}(无法|不能)/,
+    /\bI\s+can(?:not|'t)\s+(?:provide|assist|help|continue|comply|generate)/i,
+    /\bI(?:'m| am)\s+(?:sorry|unable)\b.{0,40}\b(?:can(?:not|'t)|unable|won'?t)\b/i,
+    /\bI'?m\s+not\s+able\s+to\b/i];
+  if(phrases.some(re=>re.test(s))) return true;
+  const cjk=(s.match(/[\u3400-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/g)||[]).length;
+  const letters=(s.match(/[A-Za-z\u00C0-\u024F\u0400-\u04FF\u0600-\u06FF\u3400-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/g)||[]).length;
+  if(letters>=8 && cjk/letters>=0.4) return true;
+  return false;
 }
 async function imageCompletion(prompt,model,size){
   if(!state.key)throw{friendly:"No API key set."};
@@ -7863,11 +7903,29 @@ function renderUePrompts(){
         <div class="pill" style="font-size:10px;margin-top:3px;border-color:${overridden?'var(--accent)':'var(--border)'};color:${overridden?'var(--accent)':'var(--muted)'}">${overridden?'Custom for this universe':'Default (global)'}</div>
       </div>
       <button class="btn sec small" type="button" style="width:auto;padding:6px 10px" onclick="openPromptEdit('${reg.key}','universe')">Edit</button>
-      ${overridden?`<button class="btn sec small" type="button" style="width:auto;padding:6px 8px" title="Revert to global" onclick="clearUePrompt('${reg.key}')">↺</button>`:''}`;
+      <button class="btn sec small" type="button" style="width:auto;padding:6px 8px" title="Paste the current global prompt into this universe as a copy" onclick="setUePromptToGlobal('${reg.key}')">Set to default</button>
+      ${overridden?`<button class="btn sec small" type="button" style="width:auto;padding:6px 8px" title="Revert to global (inherit, track future global edits)" onclick="clearUePrompt('${reg.key}')">↺</button>`:''}`;
     box.appendChild(row);
   });
 }
 function clearUePrompt(key){ delete _uePrompts[key]; renderUePrompts(); toast("Reverted to global — Save the universe to apply"); }
+
+// The EFFECTIVE global value of a prompt: the customized global (state[key]) if set, else the
+// hard-coded DEFAULT_X. Mirrors the global half of up(), without any per-universe override.
+function globalPromptValue(key){
+  const g=state[key];
+  if(typeof g==="string"&&g.trim()!=="") return g;
+  const reg=PROMPT_BY_KEY[key];
+  return reg?(reg.def?reg.def():""):"";
+}
+// "Set to default": copy the effective global INTO this universe as an explicit override snapshot.
+// This freezes a copy — the universe will NOT track later global edits (that's the ↺ revert button).
+function setUePromptToGlobal(key){
+  const reg=PROMPT_BY_KEY[key]; if(!reg)return;
+  _uePrompts[key]=globalPromptValue(key);
+  renderUePrompts();
+  toast("Pasted current global into this universe — Save the universe to apply");
+}
 
 // Open the prompt editor for either a universe override or a global prompt.
 function openPromptEdit(key,scope){
@@ -9320,7 +9378,15 @@ function buildTailGuidance(opts){
     }
     // FIRST ENCOUNTER (player only): if there is no recorded relationship/evaluation toward the
     // user yet, the character does not know them. Tell the model so it stops acting familiar.
-    if(targetId==="__user__" && !hasEval){
+    // BUT: an AUTHORED tie/relationship (from the character sheet, e.g. "brother", "wife",
+    // "king and master") means they are NOT a stranger even before any rapport has been *scored*
+    // in play. hasEval only reflects runtime-scored axes/desc, so also gate on the authored sheet —
+    // otherwise a fully-authored bond (Sistua → her brother/king) wrongly triggers the stranger block.
+    const _selfP=resolveChar(opts.selfId,chat);
+    const _authoredTie=relSheetEntry(_selfP,"__user__");
+    const _hasAuthoredTie=!!(_authoredTie && (_authoredTie.tie || _authoredTie.relationship)
+      && !/^stranger$/i.test((_authoredTie.tie||"").trim()));
+    if(targetId==="__user__" && !hasEval && !_hasAuthoredTie){
       knowsTarget=false;
       blocks.push(`# YOU DON'T KNOW ${(targetName||state.user).toUpperCase()} YET\nYou have no prior history, evaluation, or relationship with ${targetName||state.user} — this is effectively a stranger to you. React as a real person would to someone they've just encountered: with the reserve, politeness, wariness, curiosity, or indifference your character would actually show. Do NOT display warmth, flirtation, trust, rivalry, or emotional investment you have not earned. Let any rapport build gradually from how they actually behave toward you.`);
     }
@@ -10317,8 +10383,26 @@ async function sendMessage(){
       messages.push({role:"system",content:`[Director's note — do not mention or acknowledge this as out-of-character. React to it naturally in-scene as ${solo.name}:] ${chat.pendingGmNudge}`});
       chat.pendingGmNudge=null;persistChats();
     }
-    const reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply"});
+    let reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply"});
+    // REFUSAL HANDLING (mirrors the multi-character path): a non-empty reply can be a content
+    // refusal (e.g. v4-pro's canned "无法" line), which is NOT a token problem. Retry once on the
+    // fallback model, then surface an honest message rather than blaming Max tokens.
+    let refused=looksLikeRefusal(reply);
+    if(refused){
+      const fb=(state.mcModel&&state.mcModel!==state.model)?state.mcModel:state.model;
+      if(fb!==state.model){
+        try{
+          const alt=await chatCompletion(messages,fb,{dbg:"Roleplay reply (refusal fallback)"});
+          if(alt&&alt.trim()&&!looksLikeRefusal(alt)){ reply=alt; refused=false; }
+        }catch(e){/* keep refused=true */}
+      }
+    }
     typing.remove();
+    if(refused){
+      document.getElementById('sendBtn').disabled=false;
+      toast("The model declined this content — try a different model for this scene in Settings → LLMs");
+      return;
+    }
     // Empty reply even after the token-bump retry — surface a clear hint instead of a blank bubble.
     if(!reply||!reply.trim()){
       document.getElementById('sendBtn').disabled=false;
@@ -10697,11 +10781,29 @@ async function playCharacterTurn(chat,p,addressed){
       messages.push({role:"system",content:`[Director's note — react naturally in-scene as ${p.name}, do not mention this:] ${chat.pendingGmNudge}`});
       chat.pendingGmNudge=null;persistChats();
     }
-    const reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply · "+p.name});
+    let reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply · "+p.name});
+    // REFUSAL HANDLING. A non-empty reply can still be a content refusal (e.g. v4-pro returns a
+    // canned Chinese "无法" line). That isn't a token problem — bumping max_tokens won't fix it.
+    // If the primary model refused, retry ONCE on the fallback model (flash tends to be more
+    // permissive here). If the fallback also refuses or comes back empty, we surface an honest
+    // "model declined" message below rather than rendering the refusal or blaming the token limit.
+    let refused=looksLikeRefusal(reply);
+    if(refused){
+      const fb=(state.mcModel&&state.mcModel!==state.model)?state.mcModel:state.model;
+      if(fb!==state.model){
+        try{
+          const alt=await chatCompletion(messages,fb,{dbg:"Roleplay reply (refusal fallback) · "+p.name});
+          if(alt&&alt.trim()&&!looksLikeRefusal(alt)){ reply=alt; refused=false; }
+        }catch(e){/* keep refused=true; honest message below */}
+      }
+    }
     typing.remove();
     // strip a leading "Name:" prefix if the model added one (regex-safe)
     const prefix=p.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
     const cleaned=reply.replace(new RegExp("^\\s*"+prefix+"\\s*:\\s*","i"),"").trim();
+    // The model declined this content (not a token/length issue) — say so honestly and skip the
+    // turn instead of pushing the refusal text as a bubble or blaming Max tokens.
+    if(refused){ toast(""+p.name+": the model declined this content — try a different model for this scene in Settings → LLMs"); return false; }
     // Empty reply (model returned nothing even after the token-bump retry) — don't push a blank
     // bubble or run image/voice on nothing. Skip this character's turn cleanly.
     if(!cleaned){ toast(""+p.name+": empty reply (try raising Max tokens in Settings)"); return false; }
@@ -13511,6 +13613,7 @@ function syncSettingsUI(){
       val.textContent=set?(+state[key]).toFixed(2):'Auto';
     });
   })();
+  {const pd=document.getElementById('setProvDeny'); if(pd)pd.value=state.provDeny||"";}
   document.getElementById('setMem').checked=state.mem;
   document.getElementById('setFont').value=state.font;document.getElementById('fontVal').textContent=state.font;
   {const sr=document.getElementById('setStreamReveal'); if(sr)sr.checked=state.streamReveal!==false;}
@@ -13627,6 +13730,7 @@ function saveSettings(notify){
   state.presPenalty= document.getElementById('setPresPenOn').checked ? +document.getElementById('setPresPen').value : "";
   store.set(K.reasoningOn,state.reasoningOn);
   store.setRaw(K.topP,state.topP);store.setRaw(K.freqPenalty,state.freqPenalty);store.setRaw(K.presPenalty,state.presPenalty);
+  {const pd=document.getElementById('setProvDeny'); if(pd){ state.provDeny=pd.value.trim(); store.setRaw(K.provDeny,state.provDeny); }}
   state.mem=document.getElementById('setMem').checked;
   state.font=+document.getElementById('setFont').value;
   {const sr=document.getElementById('setStreamReveal'); if(sr)state.streamReveal=sr.checked;}
