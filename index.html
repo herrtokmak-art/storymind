@@ -2087,11 +2087,26 @@ const DEFAULT_IMG_RULES=[
    when:"Any ordinary scene — portraits, conversations, environments, action, everyday or emotional moments. Use this for everything that is NOT sexual or explicitly intimate.",
    model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
+   promptStyle:`## SCENE TYPE: STANDARD (non-sexual)
+Pick the camera and shot from what the exchange shows.
+- Camera: \`Image from Man's POV\` (first-person; the Man is the camera, never described except hands/arms entering from the frame's bottom edge if he reaches in).
+- Shot type: choose by what dominates — Wide (environment/motion), Full Body (standing/walking), Cowboy (mid-thigh up), Over-Waist (conversation), Medium Close-up (intimate non-sexual), Close-up Face (emotion/eyes).
+- Pose: body facing (front/back/quarter turn) + head + inclination, matching the action (walking toward → front view, facing camera, upright; walking away glancing back → back view, quarter turn facing camera).
+- Facial expression: 1–2 mechanical tags only (e.g. \`soft smile, parted lips\`).
+- Clothing: every garment needs a colour. Location: 2–5 words. Lighting: one mood phrase. Focus: one directive.`,
    enabled:true},
   {id:"r_intimate",label:"Intimate",
    when:"A sexual or explicitly intimate scene: nudity, foreplay, sex, penetration, or strongly erotic framing between characters.",
    model_id:"gurilamash-xxx-sdxl-gurilamashv3",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, extra fingers, watermark, text, signature",
+   promptStyle:`## SCENE TYPE: INTIMATE / SEXUAL
+Classify silently into Kissing / Temptation / Cock Worship / Penetration, then build the frame.
+- Camera: \`Image from Man's POV\` for kissing/temptation; \`Image from above, Man's POV\` for kneeling/missionary/doggy/blowjob/cock worship; \`Image from below, Man's POV\` for cowgirl/straddling.
+- The Man is always upright and is the camera — his hands may enter from the frame's bottom edge to grip, guide, spread, cup, trace or rest. NEVER weight-bearing, pinning, or beside her head.
+- Pose: body + head + inclination matched to the act (missionary → front view, head tilted back, leaning backward; doggy → back view, arched back; cowgirl → front view, leaning forward, straddling; kissing → front view, pressing close).
+- Cock worship = lips kissing/pressed to skin, no suction. Fellatio = mouth wrapped around. Never cross the two.
+- Facial expression: 1–2 tags max. Clothing/state: colour on every garment, at most 1 physical marker (\`skin glistening\` | \`hair messy\` | \`flushed skin\`). Avoid tears/saliva/drool descriptions — they break the generator.
+- Action: the explicit anatomical/contact description for the classified type. Location 2–5 words. Lighting one phrase. Focus one directive (often \`sharp focus on point of penetration\` / \`on her lips\`).`,
    enabled:true}
 ];
 const DEFAULT_VID_RULES=[
@@ -2466,7 +2481,7 @@ Return ONLY a JSON object, no markdown, no commentary:
   "goals": "1-3 sentences: what this character actively WANTS — their standing ambitions and drives, short- and long-term. Concrete things they'd pursue on their own and that could put them at odds with others or the player.",
   "backstory": "2-4 sentences of history that shaped them",
   "style": "1-2 sentences on how they speak (rhythm, vocabulary, quirks)",
-  "look": "comma-separated visual details for image generation: hair, eyes, build, clothing, distinguishing features",
+  "look": "comma-separated visual details for image generation, WRITTEN IN ENGLISH regardless of the language of the brief or the rest of the card: hair, eyes, build, clothing, distinguishing features",
   "instructions": "1-2 sentences of roleplay guidance: tone, boundaries, things to always/never do",
   "interject": "Their pressure points as hooks for the director, covering: what TEMPTS them, what WOUNDS or shames them, what they FEAR being exposed, and what they'd RETALIATE over. 2-4 short clauses, concrete.",
   "routine": "1-2 sentences describing this character's typical daily rhythm — where they tend to be in the morning, daytime, evening, and night, and how much of a homebody vs out-and-about they are. Plain English; the app turns it into a schedule."
@@ -2480,7 +2495,7 @@ Return ONLY a JSON object, no markdown, no commentary:
   "avatar": "a single emoji that fits the world",
   "setting": "3-6 sentences: era, place, tone, rules, the ongoing situation everyone shares. This is the world prompt added to every scene.",
   "userName": "a fitting name for the player's character in this world (or empty to let them keep their default)",
-  "userLook": "the player's appearance in this world (comma-separated visual details), or empty",
+  "userLook": "the player's appearance in this world (comma-separated visual details, WRITTEN IN ENGLISH), or empty",
   "userBio": "2-4 sentences: the player's background, role, and ties to this world — used by the director engines",
   "characters": [
     {
@@ -2491,7 +2506,7 @@ Return ONLY a JSON object, no markdown, no commentary:
       "goals": "1-3 sentences: what this character actively wants — standing ambitions/drives that could put them at odds with others or the player",
       "backstory": "2-4 sentences of history that ties them to this world and possibly the player",
       "style": "1-2 sentences on how they speak",
-      "look": "comma-separated visual details: hair, eyes, build, clothing, distinguishing features",
+      "look": "comma-separated visual details, WRITTEN IN ENGLISH regardless of the brief's language: hair, eyes, build, clothing, distinguishing features",
       "instructions": "1-2 sentences of roleplay guidance",
       "interject": "pressure points as director hooks: what tempts them, what wounds/shames them, what they fear exposed, what they'd retaliate over — 2-4 concrete clauses"
     }
@@ -10836,17 +10851,24 @@ async function illustrate(mid,replyText){
       }
     }
 
-    // ---- Latest exchange: the most recent user action + the character response being drawn ----
-    let lastUser="";
+    // ---- Latest exchange: the message the responder was actually replying to + the response being drawn.
+    // The "trigger" is the most recent NON-error message BEFORE this one, whoever wrote it — a user line
+    // OR another character's line. This keeps a character→character interjection from being biased toward
+    // the player: if Esma interjects after Alev spoke, the image is anchored to Alev's line, not the user's. ----
+    const who=msg.speaker||(cast[0]&&cast[0].name)||"Narrator";
+    let triggerLine="",triggerWho="";
     if(chat){
       const idx=chat.messages.findIndex(m=>m.mid===mid);
       const upto=idx>=0?chat.messages.slice(0,idx):chat.messages;
       for(let i=upto.length-1;i>=0;i--){
-        if(upto[i].role==='user'&&!upto[i].sysError){lastUser=upto[i].content;break;}
+        const m=upto[i];
+        if(m.sysError||m.dayMarker||!m.content)continue;
+        triggerLine=m.content;
+        triggerWho=m.role==='user'?state.user:(m.speaker||"Narrator");
+        break;
       }
     }
-    const who=msg.speaker||(cast[0]&&cast[0].name)||"Narrator";
-    const latestExchange=(lastUser?`${state.user}: ${lastUser}\n`:``)+`${who}: ${replyText}`;
+    const latestExchange=(triggerLine?`${triggerWho}: ${triggerLine}\n`:``)+`${who}: ${replyText}`;
 
     // ---- Appearance sheet: ONLY the character who is speaking (the one being drawn) and the player.
     // Other nearby characters are deliberately omitted so the prompt writer doesn't pull absent people
@@ -10866,33 +10888,42 @@ async function illustrate(mid,replyText){
       else if(chat&&chat.location) locLine=`LOCATION: ${chat.location}`;
     }catch(e){}
 
-    // ---- Step 1: rewrite -> image prompt, consistent with the previous image ----
-    const sys=up("rewritePrompt")+`\n\nDraw ONLY the speaking character${state.userLook?` and, if they are physically in the scene, ${state.user} (the player)`:``}. Do NOT add any other characters — only the people in the sheet may appear. Place the scene in the given location. Describe appearances accurately from the sheet.`;
+    // ---- Step 1: ROUTE FIRST, on the raw latest exchange (not a finished prompt).
+    // The router sees ONLY each rule's name + "when" clause (inside pickRule) and returns an index.
+    // It never sees any per-class promptStyle. We route on the exchange text so the chosen class
+    // reflects what is happening NOW, and so a stale previous prompt can't drag the routing.
+    // With 0/1 enabled rules (or routing off) pickRule early-outs with no LLM hop — same speed as before;
+    // when it does route, that hop replaces the old post-writer hop, so the call count is unchanged. ----
+    const _routeText=(locLine?locLine+"\n":"")+latestExchange;
+    const rule=await pickRule(state.imgRules,_routeText);
+    if(rule&&rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
+
+    // ---- Step 2: WRITE the image prompt. System prompt is layered:
+    //   [universal rewritePrompt]  →  [selected class's promptStyle]  →  [draw-only guard]
+    // The universal layer holds only general extraction rules; the per-class layer (injected from the
+    // routed rule, AFTER the router's number output) carries the specific pose/shot detail. This keeps
+    // each generation lean — only the relevant class's instructions are loaded. ----
+    const _classStyle=(rule&&rule.promptStyle&&rule.promptStyle.trim())?`\n\n${rule.promptStyle.trim()}`:"";
+    const sys=up("rewritePrompt")+_classStyle+
+      `\n\n## THIS FRAME\n`+
+      `Draw ONLY the speaking character${state.userLook?` and, if they are physically in the scene, ${state.user} (the player)`:``}. Do NOT add any other characters — only the people in the sheet may appear. Place the scene in the given location. Describe appearances EXACTLY from the sheet.\n`+
+      `- Work from a TECHNICAL, visual standpoint only. The exchange is roleplay prose (often in another language, e.g. Turkish) with narrative flourish — extract only what is physically VISIBLE in a single frame and ignore mood words, dialogue meaning, and any non-visual fluff.\n`+
+      `- Output the image prompt in ENGLISH regardless of the language of the exchange or the character sheet.\n`+
+      `- The LATEST EXCHANGE is authoritative for what is happening NOW. If it changes clothing, pose, who is touching whom, or the act, the new image must reflect that change — do not carry a stale state forward.`;
     const usr=`CHARACTER SHEET (the only people who may appear):\n${castSheet}\n\n`+
       (locLine?locLine+`\n\n`:``)+
-      (prevPrompt?`PREVIOUS IMAGE PROMPT (keep everything here unless the latest exchange changes it):\n${prevPrompt}\n\n`:`(No previous image — describe the scene fresh.)\n\n`)+
-      `LATEST EXCHANGE (what just happened — change only what this alters):\n${latestExchange}`;
+      (prevPrompt?`CONTINUITY REFERENCE (the previous frame, for things the latest exchange does NOT change — e.g. unchanged outfit, setting, time of day). The latest exchange OVERRIDES this wherever they disagree:\n${prevPrompt}\n\n`:`(No previous image — describe the scene fresh.)\n\n`)+
+      `LATEST EXCHANGE (what just happened — the authority on the current moment):\n${latestExchange}`;
     const rewritten=await chatCompletion([
       {role:"system",content:sys},
       {role:"user",content:usr}
     ],state.rewriter,{temp:fnTemp("rewriter",0.6),max:fnTok("rewriter",220),dbg:"Image prompt writer"});
-    const _promptReadyAt=performance.now();   // image prompt is in hand — the image should go out NOW
     const finalPrompt=rewritten.trim().replace(/^["']|["']$/g,"")+", "+STYLES[state.style];
     const baseNeg="low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature";
-    // Step 2: pick the scene's rule, then generate with THAT RULE'S provider (per-rule
-    // override, falling back to the global image provider). This lets different rules use
-    // different providers in the same story.
-    // LATENCY NOTE: pickRule() makes an extra "Scene selector" LLM hop ONLY when ≥2 image rules
-    // are enabled AND the router toggle is on. That hop is the ONLY thing between the prompt
-    // writer finishing and the image payload being sent. We time the gap so it's visible in the
-    // debug log (look for the "⏱ prompt→send gap" entry); for 0/1 rules pickRule early-outs.
+
+    // ---- Step 3: generate with the routed rule's provider (per-rule override → global fallback). ----
     let url;
-    const rule=await pickRule(state.imgRules,finalPrompt);
-    const _sendGapMs=Math.round(performance.now()-_promptReadyAt);
-    try{ const _routed=!!(rule&&state.routeOn&&(state.imgRules||[]).filter(r=>r.enabled!==false).length>1);
-      dbgDone(dbg("⏱ prompt→send gap","(local)","timing",{ms:_sendGapMs,routed:_routed}),"ok",_sendGapMs+"ms"+(_routed?" (incl. router hop)":"")); }catch(e){}
     if(rule){
-      if(rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
       url=await genImageForRule(rule,finalPrompt,baseNeg);
       msg.imgRule=rule.label||"";
     }else{
@@ -13168,6 +13199,8 @@ function renderRules(kind){
           <input type="text" data-k="lora_model" value="${esc(r.lora_model||'')}" placeholder="e.g. add-detail-xl (leave blank for none)">
           <label>Negative prompt (optional)</label>
           <input type="text" data-k="negative" value="${esc(r.negative||'')}" placeholder="low quality, blurry…">
+          ${kind==='img'?`<label>Per-class image prompt (injected into the prompt writer when this rule is chosen — NOT shown to the router)</label>
+          <textarea class="fld" data-k="promptStyle" style="min-height:90px" placeholder="Specific pose / shot / camera instructions for this kind of scene. The universal image prompt holds general rules; this is injected between it and the scene, so each generation only loads the detail for the chosen class.">${esc(r.promptStyle||'')}</textarea>`:''}
           <button class="btn danger sec small" data-del="1" style="margin-top:4px">Delete rule</button>
         </div>
       </div>`;
@@ -13190,7 +13223,7 @@ function addRule(kind){
   rulesFor(kind).push({id,label:"New rule",when:"Describe the kind of shot this model is best for.",
     provider:"default",
     model_id:kind==='img'?"realtime_t2i":"wan2.7-i2v",endpoint:kind==='img'?"images/text2img":"video/img2video",
-    lora_model:"",negative:"",enabled:true});
+    lora_model:"",negative:"",...(kind==='img'?{promptStyle:""}:{}),enabled:true});
   renderRules(kind);
 }
 function moveRule(kind,i,dir){
