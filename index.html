@@ -1808,7 +1808,7 @@ Relaxed natural atmosphere. [0s-2s] Female shifts weight to one hip, arms uncros
 const DEFAULT_IMG_RULES=[
   {id:"r_portrait",label:"Portrait / single subject",
    when:"One character is the whole frame — a reaction, a look, an emotional close moment, or a deliberate solo shot of one person. Not a group, not action, not sexual.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: PORTRAIT / SINGLE SUBJECT
 One person fills the frame. Third-person camera unless the exchange is clearly the player's own point of view.
@@ -1821,7 +1821,7 @@ One person fills the frame. Third-person camera unless the exchange is clearly t
 
   {id:"r_multichar",label:"Multi-character group",
    when:"Two or more characters sharing the frame in a non-combat, non-sexual moment — a conversation, a confrontation, a gathering, people reacting to each other. Use the ALSO PRESENT cast.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused faces, watermark, text, signature",
    promptStyle:`## SCENE TYPE: MULTI-CHARACTER GROUP
 Several people share the frame. Third-person cinematic camera — wide enough to hold everyone the exchange involves.
@@ -1835,7 +1835,7 @@ Several people share the frame. Third-person cinematic camera — wide enough to
 
   {id:"r_combat",label:"Combat / action",
    when:"Physical conflict or dynamic action — a fight, a strike, a chase, magic or powers being used, someone lunging, falling, or being thrown. One or more characters in motion.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: COMBAT / ACTION
 A dynamic action beat. Third-person cinematic camera that captures motion.
@@ -1848,7 +1848,7 @@ A dynamic action beat. Third-person cinematic camera that captures motion.
 
   {id:"r_establishing",label:"Establishing / location",
    when:"The setting itself is the subject — a place, a landscape, a building, a room, an arriving wide shot — with characters small in it or absent. Atmosphere over person.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, watermark, text, signature",
    promptStyle:`## SCENE TYPE: ESTABLISHING / LOCATION
 The place is the subject. Third-person, wide.
@@ -1860,7 +1860,7 @@ The place is the subject. Third-person, wide.
 
   {id:"r_kissing",label:"Kissing",
    when:"Two characters kissing or about to — lips meeting, mouths together, a kiss against a wall, faces closing the last inch. Romantic/sexual but not undressed or explicit.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, fused faces, watermark, text, signature",
    promptStyle:`## SCENE TYPE: KISSING
 Two people kissing. Choose the camera by what the exchange shows:
@@ -1874,7 +1874,7 @@ Two people kissing. Choose the camera by what the exchange shows:
 
   {id:"r_embrace",label:"Embrace / hug / tenderness",
    when:"Non-kissing physical closeness — a hug, an embrace, holding each other, a head on a shoulder, hands held, a comforting or longing closeness. Clothed, tender, not explicit.",
-   model_id:"realtime_t2i",endpoint:"images/text2img",lora_model:"",
+   provider:"atlascloud",model_id:"z-image/turbo",endpoint:"images/text2img",lora_model:"",
    negative:"low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, signature",
    promptStyle:`## SCENE TYPE: EMBRACE / TENDERNESS
 Two people physically close but not kissing. Third-person two-shot unless the exchange is one person's POV.
@@ -3853,6 +3853,27 @@ function loadState(){
       store.set(K.imgRules,state.imgRules);
     }
     store.setRaw(K.imgModelMigration,"v3");
+  }
+  // v4: route the NON-EXPLICIT scene rules to AtlasCloud z-image/turbo as the standard.
+  // The six non-sexual rules (portrait, multi-character, combat, establishing, kissing, embrace)
+  // ship with model_id "realtime_t2i" and no provider, so they followed the global imgProvider
+  // toggle. We pin them to provider:"atlascloud" + model_id:"z-image/turbo" so non-explicit images
+  // always render on z-image/turbo, regardless of the global toggle. The eight EXPLICIT rules
+  // (temptation, oral, the penetration positions, aftermath) are left on ModelsLab/gurilamash.
+  // Per-rule safety: we only touch a rule that is still on the stock "realtime_t2i" model AND has
+  // no provider already set — so a rule you customised (different model or an explicit provider)
+  // is never clobbered. Independent of v2/v3; flag guards re-running.
+  if(store.raw(K.imgModelMigration,null)!=="v4"){
+    const NONEXPLICIT=new Set(["r_portrait","r_multichar","r_combat","r_establishing","r_kissing","r_embrace"]);
+    let touched=false;
+    (state.imgRules||[]).forEach(r=>{
+      if(r && NONEXPLICIT.has(String(r.id||"")) && !r.provider
+         && String(r.model_id||"")==="realtime_t2i"){
+        r.provider="atlascloud"; r.model_id="z-image/turbo"; touched=true;
+      }
+    });
+    if(touched) store.set(K.imgRules,state.imgRules);
+    store.setRaw(K.imgModelMigration,"v4");
   }
   // One-time upgrade: the old default Scene-Setup prompt told the model a character's
   // name could be "null", which made it literally create characters named "null". If the
