@@ -11316,9 +11316,11 @@ async function illustrate(mid,replyText){
     // rules (kissing, oral, a solo portrait) simply ignore them. We never list off-area or absent people,
     // so the writer can't pull someone who isn't here into the frame. ----
     const speaker=cast.find(c=>c.name===who);
+    // Labeled structured appearance (face/features/hair/build) so the rewriter can strip the face for
+    // back/profile shots. Legacy raw-only looks fall back to their prose string. Mirrors the movie path.
+    const _lookSheet=c=>{ const l=normalizeLook(c.look); if(lookHasParts(l)){ return [l.face_map&&`face: ${l.face_map}`, l.face&&`features: ${l.face}`, l.hair&&`hair: ${l.hair}`, l.body&&`build: ${l.body}`].filter(Boolean).join("; "); } return l.raw||""; };
     let focal="";
-    if(speaker&&speaker.look) focal+=`${speaker.name}: ${speaker.look}\n`;
-    else if(speaker) focal+=`${speaker.name}\n`;
+    {const _lk=speaker?_lookSheet(speaker):""; if(speaker&&_lk) focal+=`${speaker.name}: ${_lk}\n`; else if(speaker) focal+=`${speaker.name}\n`;}
     if(state.userLook) focal+=`${state.user} (the player): ${state.userLook}\n`;
     let others="";
     try{
@@ -12639,7 +12641,7 @@ async function maybeGamemaster(chat,force){
       trigger_context:triggerContext||"(none provided — infer a fitting complication from the scene)",
       energy:energy||"3"
     });
-    const presentSheet=present.map(c=>c.name+(c.look?` (${c.look})`:"")).join("; ")||"(nobody is currently nearby)";
+    const presentSheet=present.map(c=>{const _lk=lookProse(c.look);return c.name+(_lk?` (${_lk})`:"");}).join("; ")||"(nobody is currently nearby)";
     const offstageSheet=cast.filter(c=>!present.some(pc=>pc.id===c.id)).map(c=>c.name).join("; ");
     const nudge=await chatCompletion([
       {role:"system",content:authorSys},
