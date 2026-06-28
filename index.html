@@ -85,7 +85,7 @@
   [data-theme="light"] nav button.active{color:var(--accent);}
   /* Landscape-only chrome: the in-input Menu button and the screen-nav links inside the chat
      dropdown are hidden by default (portrait), shown only by the landscape media query below. */
-  .landMenuBtn{display:none;}
+  .iconBtn.landMenuBtn{display:none;}
   .chatMenuNav{display:none;}
   .chatMenuSep{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:8px 12px 4px;opacity:.7;}
   /* chat */
@@ -146,7 +146,7 @@
     #screen-chat > header{display:none;}
     body[data-screen="chat"] > nav, body:not([data-screen]) > nav{display:none;}
     /* Show the Menu button inside the input bar (next to auto-RP); open the dropdown upward. */
-    .landMenuBtn{display:flex;}
+    .iconBtn.landMenuBtn{display:flex;}
     #screen-chat .chatMenu{bottom:64px;top:auto;left:10px;right:auto;max-height:78vh;overflow-y:auto;}
     .chatMenuNav{display:block;border-top:1px solid var(--border);margin-top:4px;}
     /* Narrow the chat input so it sits under the text column, not the full width. */
@@ -423,28 +423,28 @@
     <div class="chatActions">
       <button class="btn sec small" onclick="toggleChatMenu(event)" title="Menu" style="position:relative">Menu <svg class="ic"><use href="#i-chevron-down"/></svg><span id="calBadge" class="calBadge" style="display:none"></span></button>
     </div>
-    <div id="chatMenu" class="chatMenu hide">
-      <button onclick="openCalendar();closeChatMenu()"><svg class="ic"><use href="#i-calendar"/></svg> Calendar</button>
-      <button onclick="openTravel();closeChatMenu()"><svg class="ic"><use href="#i-map"/></svg> Travel</button>
-      <button onclick="openSubMove();closeChatMenu()"><svg class="ic"><use href="#i-pin"/></svg> Move to area</button>
-      <button onclick="forceGamemaster();closeChatMenu()"><svg class="ic"><use href="#i-film"/></svg> Nudge the story (Gamemaster)</button>
-      <button onclick="manualConfront();closeChatMenu()"><svg class="ic"><use href="#i-scale"/></svg> Trigger a confrontation</button>
-      <button onclick="endDay();closeChatMenu()"><svg class="ic"><use href="#i-moon"/></svg> End Day</button>
-      <button onclick="openStoryState();closeChatMenu()"><svg class="ic"><use href="#i-chart"/></svg> Story State</button>
-      <button onclick="openCast();closeChatMenu()"><svg class="ic"><use href="#i-masks"/></svg> Nearby characters</button>
-      <button onclick="setSceneState();closeChatMenu()"><svg class="ic"><use href="#i-clock"/></svg> Set time / place</button>
-      <button onclick="restartScene();closeChatMenu()"><svg class="ic"><use href="#i-refresh"/></svg> Restart scene</button>
-      <div class="chatMenuNav">
-        <div class="chatMenuSep">Go to</div>
-        <button onclick="show('personas');closeChatMenu()"><svg class="ic"><use href="#i-masks"/></svg> Characters</button>
-        <button onclick="show('gallery');closeChatMenu()"><svg class="ic"><use href="#i-image"/></svg> Gallery</button>
-        <button onclick="show('memory');closeChatMenu()"><svg class="ic"><use href="#i-brain"/></svg> Memory</button>
-        <button onclick="show('diary');closeChatMenu()"><svg class="ic"><use href="#i-book"/></svg> Diary</button>
-        <button onclick="show('settings');closeChatMenu()"><svg class="ic"><use href="#i-settings"/></svg> Settings</button>
-        <button onclick="show('debug');closeChatMenu()"><svg class="ic"><use href="#i-bug"/></svg> Debug</button>
-      </div>
-    </div>
   </header>
+  <div id="chatMenu" class="chatMenu hide">
+    <button onclick="openCalendar();closeChatMenu()"><svg class="ic"><use href="#i-calendar"/></svg> Calendar</button>
+    <button onclick="openTravel();closeChatMenu()"><svg class="ic"><use href="#i-map"/></svg> Travel</button>
+    <button onclick="openSubMove();closeChatMenu()"><svg class="ic"><use href="#i-pin"/></svg> Move to area</button>
+    <button onclick="forceGamemaster();closeChatMenu()"><svg class="ic"><use href="#i-film"/></svg> Nudge the story (Gamemaster)</button>
+    <button onclick="manualConfront();closeChatMenu()"><svg class="ic"><use href="#i-scale"/></svg> Trigger a confrontation</button>
+    <button onclick="endDay();closeChatMenu()"><svg class="ic"><use href="#i-moon"/></svg> End Day</button>
+    <button onclick="openStoryState();closeChatMenu()"><svg class="ic"><use href="#i-chart"/></svg> Story State</button>
+    <button onclick="openCast();closeChatMenu()"><svg class="ic"><use href="#i-masks"/></svg> Nearby characters</button>
+    <button onclick="setSceneState();closeChatMenu()"><svg class="ic"><use href="#i-clock"/></svg> Set time / place</button>
+    <button onclick="restartScene();closeChatMenu()"><svg class="ic"><use href="#i-refresh"/></svg> Restart scene</button>
+    <div class="chatMenuNav">
+      <div class="chatMenuSep">Go to</div>
+      <button onclick="show('personas');closeChatMenu()"><svg class="ic"><use href="#i-masks"/></svg> Characters</button>
+      <button onclick="show('gallery');closeChatMenu()"><svg class="ic"><use href="#i-image"/></svg> Gallery</button>
+      <button onclick="show('memory');closeChatMenu()"><svg class="ic"><use href="#i-brain"/></svg> Memory</button>
+      <button onclick="show('diary');closeChatMenu()"><svg class="ic"><use href="#i-book"/></svg> Diary</button>
+      <button onclick="show('settings');closeChatMenu()"><svg class="ic"><use href="#i-settings"/></svg> Settings</button>
+      <button onclick="show('debug');closeChatMenu()"><svg class="ic"><use href="#i-bug"/></svg> Debug</button>
+    </div>
+  </div>
   <div id="recapBanner" class="hide"></div>
   <div id="chatBody">
     <div id="chatList"></div>
@@ -522,7 +522,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.2 (Landscape decluttered: top header + bottom nav hidden in landscape to widen the reading area · Menu button moved next to the auto-RP button, with screen navigation folded into it · narrower chat input · Pin button on images/videos pauses auto-generation while pinned)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.3 (Landscape decluttered + two fixes: the in-input Menu button now appears ONLY in landscape, and its dropdown opens correctly there — Pin button on images/videos pauses auto-generation while pinned)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
