@@ -495,7 +495,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18 (Landscape two-column layout: text left, image rail right · Pin button on images/videos: pinned image holds the rail & pauses auto-generation until unpinned · auto-applies when you hold the device landscape)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.1 (Rotation fix: PWA manifest no longer locks the installed app to portrait — landscape two-column layout now appears when you turn the device · Pin button on images/videos: pinned image holds the rail & pauses auto-generation until unpinned)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -15046,7 +15046,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
     name:"StoryMind", short_name:"StoryMind",
     description:"StoryMind roleplay",
     start_url:".", scope:".", display:"standalone",
-    orientation:"portrait", background_color:"#0B0810", theme_color:"#0B0810",
+    orientation:"any", background_color:"#0B0810", theme_color:"#0B0810",
     icons:[
       {src:ICON, sizes:"192x192", type:"image/svg+xml", purpose:"any"},
       {src:ICON, sizes:"512x512", type:"image/svg+xml", purpose:"any maskable"}
