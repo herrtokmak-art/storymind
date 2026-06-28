@@ -437,7 +437,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-28 · v15 (image rules reverted to SDXL ((appearance)) tags · 25 scene types · shot-type removed · DeepSeek when-triggers · groping/intimate/spooning/prone/facesit/bent-over/anal/sleeping/sitting/cheek-POV/gym/multichar)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-28 · v16 (Movie button now shows on freshly-generated images · Movie logic: one clicked image → N motion segments of that single scene)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -1839,27 +1839,26 @@ Relaxed natural atmosphere. [0s-2s] Female shifts weight to one hip, arms uncros
    must output SIX segments that flow into one another as a continuous shot. */
 const DEFAULT_MOVIEPROMPT=`## SYSTEM ROLE
 
-You are a prompt engineer for the wan-2.2 INFINITE image-to-video model. It animates ONE first-frame image as a single continuous clip built from consecutive 5-second segments — one segment per prompt, stitched in order.
+You are a prompt engineer for the wan-2.2 INFINITE image-to-video model. It animates ONE first-frame image as a single continuous clip built from consecutive 5-second segments — one segment per prompt, played in order.
 
-You are given a numbered, ORDERED list of scene frames (FRAME 1, FRAME 2, …), each written as a still image-generation prompt. These frames are consecutive moments of the SAME unfolding scene. Your job: write ONE motion segment for EACH frame, in order, describing the MOVEMENT that carries the scene from that frame toward the next — so the segments play as one unbroken, continuously evolving clip.
+You are given ONE still scene (written as an image-generation prompt) and a target NUMBER OF SEGMENTS. Your job: write that many CONSECUTIVE 5-second motion segments that animate THIS single scene as one unbroken, continuously developing clip. You are NOT given multiple frames — you INVENT the natural progression of motion for this one moment across the segments.
 
 ## OUTPUT FORMAT — STRICT
-- Output ONLY a JSON array of strings — EXACTLY one string per FRAME given (if you are given 4 frames, output 4 strings; if 6, output 6). Never more than 6.
-- No preamble, no commentary, no markdown, no time labels, no frame labels. Just the array.
-- Example shape for 3 frames: ["motion for frame 1","motion for frame 2","motion for frame 3"]
+- Output ONLY a JSON array of strings — EXACTLY the number of segments requested (if asked for 6, output 6; if 4, output 4). Never more than 6.
+- No preamble, no commentary, no markdown, no time labels, no segment labels. Just the array.
+- Example shape for 3 segments: ["motion 1","motion 2","motion 3"]
 - Each string = the motion for ONE 5-second segment. Keep it to 1–2 short declarative sentences.
 
 ## CONTINUITY IS EVERYTHING
-- The segments are CONSECUTIVE. Segment 2 begins exactly where segment 1 ended; identity, body, framing and lighting carry across all of them. Treat the frames as keyframes and describe the motion BETWEEN them, evolving smoothly — never a hard cut, never an unrelated shot.
-- Read FRAME i and FRAME i+1: the motion in segment i should move the scene from what FRAME i shows toward what FRAME i+1 shows (a turn, a step, a shift of pose, the act progressing). For the LAST frame, write a natural settling or continuing motion.
-- Keep the SAME person(s), same clothing-state unless a frame's prompt clearly changes it.
+- The segments are CONSECUTIVE and describe the SAME scene evolving in time. Segment 2 begins exactly where segment 1 ended; the same person(s), clothing-state, location, framing and lighting carry across ALL segments. Never cut to a different scene, a new location, or new characters.
+- Build a natural arc across the segments: an early segment establishes the motion, middle segments develop/intensify it, the final segment settles or peaks. Think of it as one continuous shot of this moment unfolding for (5 × N) seconds.
 
 ## DESCRIBE MOVEMENT ONLY
 - Per segment: who/what moves, direction (in/out/up/down/toward/away/arching), speed (slow/steady/fast/grinding/thrusting), a breathing cue (chest rising, sharp gasp, steady rhythm), and at most one secondary motion (hair swaying, hands gripping tighter, fabric slipping).
-- Do NOT restate static appearance, do NOT add new characters or environments not in the frames, no camera moves unless a frame is already a dynamic shot, no dialogue, no sound.
+- Do NOT restate static appearance, do NOT add new characters or environments not in the scene, no camera moves unless the scene is already a dynamic shot, no dialogue, no sound.
 
-## CLASSIFY SILENTLY, THEN WRITE (match the frames' content)
-- PENETRATION (explicit): name anatomy and the stroke — direction, depth, rhythm, speed; orifice response (stretching, gripping); bodies arching/bucking/pushing back; secondary (gripping tighter, bouncing). Let rhythm evolve across the frames.
+## CLASSIFY SILENTLY, THEN WRITE (match the scene's content)
+- PENETRATION (explicit): name anatomy and the stroke — direction, depth, rhythm, speed; orifice response (stretching, gripping); bodies arching/bucking/pushing back; secondary (gripping tighter, bouncing). Let the rhythm evolve across the segments (start slow, build).
 - TEMPTATION (charged, no penetration): proximity, hovering, leaning in/pulling back, grinding without insertion, hands tracing/teasing, breath on skin.
 - STANDARD (non-sexual): natural motion — shifting weight, turning, reaching, breathing, hair/clothing swaying, ambient motion.
 
@@ -1867,18 +1866,15 @@ You are given a numbered, ORDERED list of scene frames (FRAME 1, FRAME 2, …), 
 glacial · slow, deliberate · steady, rhythmic · medium, natural · fast, urgent · erratic, desperate
 Sexual rhythm: shallow teasing strokes (just the tip) · slow deep strokes (full length) · fast pounding rhythm · grinding circular hip motion · pull out, pause, slam back in · building speed, starting slow then accelerating
 
-## EXAMPLE — 3 frames given (continuous)
-FRAME 1: Woman standing by a window, looking out, arms crossed.
-FRAME 2: Woman turned toward the camera, half-smile, hand lowering.
-FRAME 3: Woman stepping closer, reaching toward the lens.
-Output: ["She slowly uncrosses her arms and begins to turn from the window, weight shifting, hair swaying with the motion.","She completes the turn to face the camera, a half-smile forming, her hand lowering to her side, chest rising with a soft breath.","She steps closer, one hand rising toward the lens, gaze steady, the distance to the camera closing."]
+## EXAMPLE — one STANDARD scene, 3 segments requested
+Scene: A woman stands by a window, looking out, arms crossed, soft daylight.
+Output: ["She slowly uncrosses her arms and begins to turn from the window, weight shifting, hair swaying with the motion.","She completes the turn to face the room, a half-smile forming, her hand lowering to her side, chest rising with a soft breath.","She steps forward, one hand rising, gaze steady, settling into a relaxed stance as the light shifts gently."]
 
-## EXAMPLE — 2 frames given (penetration, continuous)
-FRAME 1: POV from above, Woman supine, missionary, tip just entering.
-FRAME 2: POV from above, same Woman, back arched, full depth, mouth open.
-Output: ["Slow shallow strokes begin, just the tip easing in and out, her hips tilting up, a slow breath drawn in.","Strokes deepen to full length, her back arching off the bed, mouth falling open on a sharp inhale, fingers curling into the sheets."]
+## EXAMPLE — one PENETRATION scene, 4 segments requested (continuous build)
+Scene: POV from above, Woman supine in missionary, tip just entering, point of insertion visible.
+Output: ["Slow shallow strokes begin, just the tip easing in and out, her hips tilting up, a slow breath drawn in.","The strokes lengthen to full depth, steady and rhythmic, her back beginning to arch, fingers curling into the sheets.","The pace builds to a fast pounding rhythm, her body rocking with each thrust, mouth falling open on sharp breaths.","The rhythm peaks then eases into deep grinding strokes, her back fully arched, chest heaving, hands gripping tight."]
 
-Output ONLY the JSON array — one string per frame given, in order.`;
+Output ONLY the JSON array — exactly the requested number of segments, in order.`;
 
 /* ===== MODELSLAB SMART ROUTING =====
    Each rule = a content condition + which ModelsLab model/endpoint to use.
@@ -4426,6 +4422,11 @@ function loadState(){
   _refreshPipe("rewritePrompt","You convert a roleplay exchange into ONE image-generation prompt for a single cinematic frame","Assemble them into the person",DEFAULT_REWRITE);
   _refreshPipe("rewritePrompt","This universal prompt holds the rules that apply to EVERY image","Assemble them into the person",DEFAULT_REWRITE);
   _refreshPipe("rewritePrompt","You convert roleplay messages into SDXL image prompts","Assemble them into the person",DEFAULT_REWRITE);
+  // Movie prompt: logic changed from "you're given N ordered frames" to "you're given ONE scene, invent
+  // N motion segments". Any stored copy of the old multi-frame prompt (it has the wan-2.2 fingerprint
+  // but lacks the new "INVENT the natural progression" marker) is refreshed. Hand-customised movie
+  // prompts (lacking the fingerprint) are preserved.
+  _refreshPipe("moviePrompt","prompt engineer for the wan-2.2 INFINITE image-to-video model","INVENT the natural progression",DEFAULT_MOVIEPROMPT);
   try{persistUniverses&&persistUniverses();}catch(e){}
   // One-time upgrade: refresh the stock base instruction for installs still running the older one.
   // Only when it still looks like the unedited default (PUSH AND PULL + PACING markers) AND the new
@@ -10693,7 +10694,10 @@ function refreshBubble(mid){
     const bar=document.createElement('div');bar.style.padding="8px";
     const btn=document.createElement('button');btn.className="btn sec small";
     btn.textContent=m.vidState==="error"?"⚠️ Retry video":"🎬 Animate";btn.onclick=()=>animateScene(mid);
-    bar.appendChild(btn);scene.appendChild(img);scene.appendChild(bar);b.appendChild(scene);
+    const mbtn=document.createElement('button');mbtn.className="btn sec small";
+    mbtn.textContent="🎞️ Movie";mbtn.onclick=()=>movieScene(mid);
+    bar.appendChild(btn);bar.appendChild(document.createTextNode(" "));bar.appendChild(mbtn);
+    scene.appendChild(img);scene.appendChild(bar);b.appendChild(scene);
     return;
   }
   // Finished video: play the durable remote URL directly. A plain <video src=remote> does NOT
@@ -11712,39 +11716,24 @@ async function movieScene(mid){
     let castSheet=cast.map(c=>({n:c.name,lk:_lookSheet(c)})).filter(x=>x.lk).map(x=>`${x.n} — ${x.lk}`).join("\n")||cast.map(c=>c.name).join(", ");
     if(state.userLook)castSheet+=`\n${state.user}: ${state.userLook}`;
 
-    // ---- Collect the N consecutive image-prompts, starting from the CLICKED image and walking
-    // FORWARD through the chat. The clicked image is the FIRST frame (the only image the model
-    // takes), and segment 1..N are built from the image-prompts of this image and the images that
-    // follow it. If fewer than N later images exist (you clicked near the latest image), we use as
-    // many as are available — down to just this image's own prompt — rather than fail.
-    // imgPrompt survives image eviction (only the heavy img/url is freed), so older prompts persist.
+    // ---- NEW LOGIC: animate the SINGLE clicked image. Take this image's own generation prompt and
+    // expand it into N consecutive 5-second motion beats of THIS one scene — a continuous clip that
+    // develops the moment, not a walk across multiple later images. The clicked image is the first
+    // (and only) frame sent to the model. imgPrompt survives image eviction, so it's available even if
+    // the heavy image data was freed. Falls back to the message content if no stored prompt exists.
     const N=Math.min(6,Math.max(1,+state.movieSegs||6));
-    const chat=state.curChat&&state.chats[state.curChat];
-    let promptList=[];
-    if(chat&&Array.isArray(chat.messages)){
-      const startIdx=chat.messages.findIndex(m=>m&&(m.mid===mid||m.id===mid));
-      if(startIdx>=0){
-        for(let i=startIdx;i<chat.messages.length && promptList.length<N;i++){
-          const om=chat.messages[i];
-          const p=om&&(om.imgPrompt||"");      // only frames that actually had an image generated
-          if(p) promptList.push(p);
-        }
-      }
-    }
-    if(!promptList.length) promptList=[msg.imgPrompt||msg.content||""];   // fallback: this frame alone
-    const got=promptList.length;
+    const scenePrompt=(msg.imgPrompt||msg.content||"").trim();
 
-    // ---- Convert the ordered image-prompts into `got` CONTINUOUS motion segments (one LLM call).
-    setStat(`Directing the movie (${got} shot${got>1?"s":""})…`);
-    const framesBlock=promptList.map((p,i)=>`FRAME ${i+1}:\n${p}`).join("\n\n");
+    // ---- Ask the rewriter for N continuous motion segments derived from this one scene prompt.
+    setStat(`Directing the movie (${N} shot${N>1?"s":""})…`);
     const out=await chatCompletion([
       {role:"system",content:up("moviePrompt")},
-      {role:"user",content:`Characters present:\n${castSheet}\n\nNumber of segments: ${got}\n\nThese are ${got} CONSECUTIVE scene frames, in order. Write ONE continuous motion segment per frame (${got} total), each flowing into the next as a single unbroken clip:\n\n${framesBlock}`}
+      {role:"user",content:`Characters present:\n${castSheet}\n\nNumber of segments: ${N}\n\nThis is ONE still scene. Write ${N} CONSECUTIVE 5-second motion segments that animate THIS single scene as one continuous, unbroken clip — each segment flowing naturally into the next, developing the same moment (no cuts to other scenes, no new locations). Base every segment on this scene:\n\n${scenePrompt}`}
     ],state.rewriter,{temp:fnTemp("rewriter",0.6),max:fnTok("rewriter",900),dbg:"Movie motion prompt writer"});
     let segments=parseMovieSegments(out);
-    // Align the segment count to the frames we actually have (the API allows 1..6, max 6).
-    if(segments.length>got) segments=segments.slice(0,got);
-    while(segments.length<got) segments.push(segments[segments.length-1]||"continuous subtle motion grounded in the frame");
+    // Align the segment count to N (the API allows 1..6, max 6).
+    if(segments.length>N) segments=segments.slice(0,N);
+    while(segments.length<N) segments.push(segments[segments.length-1]||"continuous subtle motion grounded in the frame");
     segments=segments.slice(0,6);
 
     // ---- Submit to the infinite model. Force its model id + AtlasCloud + 480p (Movie always runs
