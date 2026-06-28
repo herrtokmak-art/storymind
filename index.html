@@ -18,6 +18,10 @@
 <!-- App icon: inline SVG data-URI so the whole app stays one self-contained file. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230B0810'/%3E%3Ccircle cx='256' cy='256' r='150' fill='none' stroke='%23E0489E' stroke-width='18'/%3E%3Ctext x='256' y='330' font-size='200' text-anchor='middle' fill='%23E0489E'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230B0810'/%3E%3Ctext x='256' y='360' font-size='300' text-anchor='middle'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
+<!-- Handwriting fonts for the diary reader. Loaded online; offline it degrades to system cursive. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Kalam:wght@400;700&family=Shadows+Into+Light&family=Patrick+Hand&family=Gloria+Hallelujah&family=Dancing+Script:wght@500;600&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#0B0810; --surface:#161320; --card:#1E1A2C; --user:#7A2E8F;
@@ -80,7 +84,22 @@
   nav button .ico{font-size:18px;width:38px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:12px;transition:.18s;}
   [data-theme="light"] nav button.active{color:var(--accent);}
   /* chat */
-  #chatList{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;}
+  #chatBody{flex:1;min-height:0;display:flex;flex-direction:row;}
+  #chatList{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0;}
+  /* Right image rail — hidden by default (portrait); shown as a column in landscape. */
+  #imageRail{display:none;}
+  #imageRailInner{display:flex;flex-direction:column;gap:10px;height:100%;}
+  .railImg{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#000;}
+  .railImg img,.railImg video{width:100%;display:block;max-height:100%;object-fit:contain;background:#000;cursor:zoom-in;}
+  .railEmpty{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:12px;padding:18px;border:1px dashed var(--border);border-radius:12px;}
+  .railTag{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;padding:3px 8px;border-radius:10px;display:flex;align-items:center;gap:5px;}
+  .railTag.pinned{background:var(--accent);}
+  /* Pin button shown under each scene image/video */
+  .pinBtn{background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:12px;padding:4px 9px;border-radius:9px;line-height:1;display:inline-flex;align-items:center;gap:5px;}
+  .pinBtn.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .pinBtn .ic{width:13px;height:13px;}
+  /* Portrait: a slim sticky banner showing the pinned image above the list */
+  #pinnedBanner{display:none;}
   .bubble{max-width:88%;padding:12px 14px;border-radius:20px;line-height:1.5;word-wrap:break-word;}
   .bubble.user{align-self:flex-end;background:var(--grad);color:#fff;border-bottom-right-radius:6px;max-width:82%;box-shadow:0 6px 18px -8px rgba(var(--accent-rgb),.6);}
   .bubble.ai{align-self:flex-start;background:var(--ai);border:1px solid var(--border);border-bottom-left-radius:6px;width:88%;}
@@ -100,11 +119,27 @@
   .scene img{width:100%;display:block;cursor:zoom-in;max-height:70vh;object-fit:contain;background:#000;}
   .scene.loading{min-height:240px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--muted);font-size:13px;}
   .scene .retry{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--muted);font-size:13px;text-align:center;padding:16px;}
+  /* ===== LANDSCAPE: two-column reading layout (text left, image rail right) =====
+     Auto-applies whenever the device is held landscape (wider than tall) and there is
+     enough width to make a side rail worthwhile. Portrait is untouched. */
+  @media (orientation:landscape) and (min-width:680px){
+    #imageRail{display:block;flex:0 0 42%;max-width:46%;border-left:1px solid var(--border);
+      padding:14px;overflow-y:auto;background:rgba(var(--accent-rgb),.03);}
+    /* All text bubbles flow on the LEFT in landscape — including the player's own lines. */
+    #chatList .bubble.user{align-self:flex-start;max-width:96%;}
+    #chatList .bubble.ai{width:96%;}
+    #chatList{max-width:none;}
+    /* In landscape the per-message inline scene is hidden — images live in the rail. The
+       pin controls move to the rail. (Inline scene is still built in the DOM for portrait;
+       we just collapse it here so the column stays text-only.) */
+    #chatList .scene{display:none;}
+    #chatList .sceneTools{display:none;}
+  }
   .typing span{display:inline-block;width:7px;height:7px;margin:0 2px;background:var(--muted);border-radius:50%;animation:blink 1.2s infinite;}
   .typing span:nth-child(2){animation-delay:.2s;}.typing span:nth-child(3){animation-delay:.4s;}
   @keyframes blink{0%,60%,100%{opacity:.25;}30%{opacity:1;}}
   .inputBar{display:flex;gap:8px;padding:10px 12px;background:rgba(var(--accent-rgb),.04);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);border-top:1px solid var(--border);flex-shrink:0;align-items:flex-end;}
-  .inputBar textarea{flex:1;resize:none;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:18px;padding:11px 14px;font-size:16px;font-family:inherit;max-height:120px;line-height:1.3;}
+  .inputBar textarea{flex:1;resize:none;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:18px;padding:11px 14px;font-size:16px;font-family:inherit;max-height:120px;line-height:1.3;caret-color:var(--accent);}
   .inputBar textarea:focus{outline:none;border-color:rgba(var(--accent-rgb),.6);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.12);}
   .iconBtn{background:var(--grad);color:#fff;border:none;width:44px;height:44px;border-radius:50%;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:var(--glow);}
   #autoRpBtn{background:var(--surface);color:var(--muted);box-shadow:none;border:1px solid var(--border);}
@@ -222,6 +257,11 @@
   .switchLbl .sl:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:.2s;}
   .switchLbl input:checked+.sl{background:var(--accent);border-color:var(--accent);}
   .switchLbl input:checked+.sl:before{transform:translateX(20px);background:#fff;}
+  /* Full-width checkbox row (visit-locations list). NOT the 46px toggle-switch above. */
+  .peVisitRow{display:flex;align-items:center;gap:9px;width:100%;font-size:14px;line-height:1.35;cursor:pointer;padding:2px 0;}
+  .peVisitRow input[type=checkbox]{flex:0 0 auto;width:17px;height:17px;margin:0;accent-color:var(--accent);cursor:pointer;}
+  .peVisitRow span{flex:1;min-width:0;}
+  .peVisitRow input:disabled{opacity:.5;cursor:default;}
   #onboard{position:fixed;inset:0;background:var(--bg);z-index:400;display:none;flex-direction:column;padding:28px 22px;justify-content:center;gap:16px;overflow-y:auto;}
   #onboard.show{display:flex;}
   #onboard h1{font-size:30px;margin:0;}
@@ -246,14 +286,27 @@
   .diaryDayTabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;justify-content:center;}
   .diaryDayTab{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:16px;padding:5px 12px;font-size:12px;cursor:pointer;}
   .diaryDayTab.on{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .paperPage{position:relative;background:#f6ecd6;color:#3a2f23;border-radius:6px;padding:26px 24px 30px;
-    box-shadow:0 6px 22px rgba(0,0,0,.4);
-    background-image:repeating-linear-gradient(transparent,transparent 27px,rgba(120,90,60,.18) 28px);
-    line-height:28px;}
-  .paperPage::before{content:"";position:absolute;top:0;bottom:0;left:34px;width:2px;background:rgba(190,80,70,.35);}
-  .paperPage .pp-date{font-weight:700;font-size:13px;color:#7a5b3a;margin-bottom:8px;padding-left:14px;letter-spacing:.5px;}
-  .paperPage .pp-body{font-family:'Segoe Print','Bradley Hand','Comic Sans MS',cursive;font-size:17px;color:#33291d;padding-left:14px;white-space:pre-wrap;}
-  .paperPage .pp-meta{margin-top:14px;padding-left:14px;font-size:11px;color:#8a6c4a;font-style:italic;}
+  .paperPage{position:relative;color:#4a3b27;border-radius:3px;padding:30px 26px 34px;
+    box-shadow:0 8px 28px rgba(0,0,0,.5), inset 0 0 60px rgba(120,85,40,.25);
+    background-color:#e8d5a8;
+    background-image:
+      radial-gradient(ellipse at 18% 12%, rgba(150,110,55,.18), transparent 45%),
+      radial-gradient(ellipse at 85% 88%, rgba(120,80,35,.22), transparent 50%),
+      radial-gradient(ellipse at 65% 25%, rgba(170,135,80,.12), transparent 40%),
+      repeating-linear-gradient(94deg, rgba(155,120,65,.05) 0 2px, transparent 2px 5px),
+      repeating-linear-gradient(2deg, rgba(140,100,50,.06) 0 3px, transparent 3px 7px),
+      linear-gradient(135deg,#e9d7ac,#dcc592 55%,#cdb27a);
+    line-height:30px;
+    border:1px solid rgba(120,85,40,.45);}
+  .paperPage::before{content:"";position:absolute;inset:0;border-radius:3px;pointer-events:none;
+    box-shadow:inset 0 0 22px rgba(90,60,25,.45), inset 0 0 4px rgba(90,60,25,.3);
+    background:none;width:auto;top:0;bottom:0;left:0;}
+  .paperPage .pp-date{font-weight:700;font-size:13px;color:#6e5126;margin-bottom:10px;letter-spacing:.5px;}
+  .paperPage .pp-body{font-family:var(--diary-font,'Caveat','Segoe Print','Bradley Hand',cursive);font-size:var(--diary-size,23px);color:#3b2c14;white-space:pre-wrap;}
+  .paperPage .pp-meta{margin-top:16px;font-size:12px;color:#7a5b2e;font-style:italic;}
+  .diaryFontBar{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px;}
+  .diaryFontBtn{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:14px;padding:5px 11px;font-size:14px;cursor:pointer;line-height:1;}
+  .diaryFontBtn.on{background:var(--accent);border-color:var(--accent);color:#fff;}
 </style>
 </head>
 <body data-theme="dark">
@@ -367,10 +420,15 @@
     </div>
   </header>
   <div id="recapBanner" class="hide"></div>
-  <div id="chatList"></div>
+  <div id="chatBody">
+    <div id="chatList"></div>
+    <aside id="imageRail" aria-label="Scene images">
+      <div id="imageRailInner"></div>
+    </aside>
+  </div>
   <div class="inputBar">
     <button class="iconBtn" id="autoRpBtn" onclick="toggleAutoRp()" title="Auto-narrate my turns — type a short action or line and the app writes it out in your voice"><svg class="ic"><use href="#i-feather"/></svg></button>
-    <textarea id="chatInput" rows="1" placeholder="Say or do something…  (/bring Name to call someone in)"></textarea>
+    <textarea id="chatInput" rows="1" placeholder="Say or do something…"></textarea>
     <button class="iconBtn" id="sendBtn" onclick="sendMessage()"><svg class="ic"><use href="#i-send"/></svg></button>
   </div>
 </div>
@@ -437,7 +495,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-28 · v16 (Movie button now shows on freshly-generated images · Movie logic: one clicked image → N motion segments of that single scene)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18 (Landscape two-column layout: text left, image rail right · Pin button on images/videos: pinned image holds the rail & pauses auto-generation until unpinned · auto-applies when you hold the device landscape)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -471,6 +529,9 @@
         <div class="card">
           <h3><svg class="ic"><use href="#i-masks"/></svg> Roleplay (main character replies)</h3>
           <div><label>Model</label><input type="text" id="setModel" list="modelList" placeholder="anthropic/claude-3.5-sonnet"><datalist id="modelList"></datalist></div>
+          <div style="margin-top:8px"><label><svg class="ic"><use href="#i-refresh"/></svg> Model rotation <span class="desc" style="display:inline">(optional — comma-separated; each reply uses the next one)</span></label>
+            <input type="text" id="setRpRotation" placeholder="e.g. deepseek/deepseek-v4-pro, deepseek/deepseek-v4-flash, anthropic/claude-3.5-sonnet"></div>
+          <div class="desc">Leave blank to always use the single Model above. With a list, each roleplay reply rotates to the next model and cycles back to the start — handy for mixing an expensive model with cheaper ones. The refusal fallback still applies to whichever model rotation picked.</div>
           <div><label><svg class="ic"><use href="#i-feather"/></svg> Auto-RP model <span class="desc" style="display:inline">(narrates your turns; blank = roleplay model)</span></label><input type="text" id="setPlayerNarrateModel" list="modelList" placeholder="(uses roleplay model)"></div>
           <div><label>Creativity (temperature): <span id="tempVal">0.85</span></label><input type="range" id="setTemp" min="0" max="1" step="0.05" value="0.85"></div>
           <div><label>Max tokens: <span id="tokVal">1200</span></label><input type="range" id="setTokens" min="500" max="4000" step="100" value="1200"></div>
@@ -881,7 +942,8 @@
           <div><label>Font size: <span id="fontVal">16</span>px</label><input type="range" id="setFont" min="14" max="20" step="1" value="16"></div>
           <div class="kvline"><span>Roll responses in as they appear</span>
             <label class="switchLbl"><input type="checkbox" id="setStreamReveal" checked><span class="sl"></span></label></div>
-          <div class="desc">Animates each reply into the chat word-by-word instead of pasting it all at once.</div>
+          <div><label>Reveal speed: <span id="revealVal">28</span> chars/sec</label><input type="range" id="setRevealCps" min="10" max="60" step="2" value="28"></div>
+          <div class="desc">Animates each reply into the chat word-by-word instead of pasting it all at once. Higher = faster roll.</div>
         </div>
       </div>
     </details>
@@ -1338,10 +1400,10 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",poiGossip:"sm_poigossip",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
   autoRpOn:"sm_autorpon",playerNarratePrompt:"sm_playernarrate",playerNarrateModel:"sm_playernarratemodel",userPersonality:"sm_userpersonality",userStyle:"sm_userstyle",
-  routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
+  routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",rpRotation:"sm_rprotation",rpRotIdx:"sm_rprotidx",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
   sceneOn:"sm_sceneon",sceneSetup:"sm_scenesetup",sceneWriter:"sm_scenewriter",sceneMin:"sm_scenemin",sceneMax:"sm_scenemax",
   confrontJudge:"sm_confrontjudge",confrontOn:"sm_confronton",overtureJudge:"sm_overturejudge",
-  theme:"sm_theme",font:"sm_font",streamReveal:"sm_streamreveal",chats:"sm_chats",curChat:"sm_curchat",
+  theme:"sm_theme",font:"sm_font",streamReveal:"sm_streamreveal",revealCps:"sm_revealcps",chats:"sm_chats",curChat:"sm_curchat",
   personas:"sm_personas",curPersona:"sm_curpersona",universes:"sm_universes",curUniverse:"sm_curuniverse",memory:"sm_memory",images:"sm_images",videos:"sm_videos",onboarded:"sm_onboarded",
   // ModelsLab + smart routing
   imgRules:"sm_imgrules",vidRules:"sm_vidrules",imgModelMigration:"sm_imgmodelmig",routeOn:"sm_routeon",routerModel:"sm_routermodel",routerPrompt:"sm_routerprompt",steps:"sm_steps",
@@ -3792,23 +3854,101 @@ function splitSystemSections(text){
 // params, each system-prompt section (instructions / response format / character
 // bios / scenario / memories / etc.), and each roleplay turn as its own capsule.
 // Returns null for non-chat payloads (image/video) so they render as before.
+//
+// DENSE sections are further broken into child capsules so the inspector reads
+// cleanly: relationships → one child per person; SCENE RIGHT NOW → location /
+// sub-areas / presence / each tracker; <character_you_play> → one child per XML
+// field; the image-prompt user message → character sheet / continuity / exchange.
+function _subCapsules(title,body){
+  const t=String(title||""), b=String(body||"");
+  // --- RELATIONSHIPS: split per person (#1). Handles both the new "• [Name — tie]\n  desc"
+  //     format and the older "- Name (tie): desc" bullets, and the <relationships> xml body.
+  if(/RELATIONSHIP/i.test(t)||/^<relationships>/.test(t)){
+    // new bullet form
+    let units=b.split(/\n(?=•\s*\[)/).map(s=>s.trim()).filter(Boolean);
+    if(units.length<=1) units=b.split(/\n(?=-\s+\S)/).map(s=>s.trim()).filter(Boolean);
+    if(units.length>1){
+      // first unit may carry the section's intro sentence; keep it as a header child
+      const kids=[];
+      units.forEach(u=>{
+        const nm=(u.match(/\[([^\]\—\-:]+)/)||u.match(/^-\s+([^(:\n]+)/)||[])[1];
+        const isIntro=!/^[•\-]/.test(u.trim());
+        kids.push({label:isIntro?"intro":(nm?nm.trim():"tie"),text:u});
+      });
+      return kids;
+    }
+  }
+  // --- SCENE RIGHT NOW: location / sub-areas / presence / each tracker (#2). ---
+  if(/SCENE RIGHT NOW/i.test(t)){
+    const kids=[]; const lines=b.split("\n");
+    let buf=[],lbl="scene";
+    const flush=()=>{ if(buf.length){kids.push({label:lbl,text:buf.join("\n").trim()}); buf=[];} };
+    for(const ln of lines){
+      if(/^>>\s*YOUR CURRENT LOCATION/i.test(ln)){ flush(); lbl="current location"; buf.push(ln); }
+      else if(/^These are the sub-areas/i.test(ln)){ flush(); lbl="sub-areas"; buf.push(ln); }
+      else if(/^(Also physically present|You are alone)/i.test(ln)){ flush(); lbl="who is present"; buf.push(ln); }
+      else if(/^(STORY TRACKERS|YOUR PERSONAL TRACKERS)/i.test(ln)){ flush(); lbl="trackers"; buf.push(ln); }
+      else if(/^\[\s+\S/.test(ln) && lbl==="trackers"){ /* one tracker per child */ flush(); lbl="tracker"; buf.push(ln); flush(); lbl="trackers"; }
+      else buf.push(ln);
+    }
+    flush();
+    // drop a 'trackers' child that holds only the header line (its trackers became their own children)
+    const cleaned=kids.filter(k=>!(k.label==="trackers" && /TRACKERS[^\n]*:?\s*$/i.test(k.text.trim())));
+    if(cleaned.length>1) return cleaned;
+  }
+  // --- <character_you_play>: one child per inner XML field (#7). ---
+  if(/^<character_you_play>/.test(t)){
+    // strip the outer wrapper so its own tag doesn't swallow the inner fields
+    let inner=b.replace(/^[\s\S]*?<character_you_play>/,"").replace(/<\/character_you_play>[\s\S]*$/,"");
+    const kids=[]; const re=/<([a-z_]+)>([\s\S]*?)<\/\1>/g; let m2;
+    const head=inner.split("<")[0].trim();
+    if(head) kids.push({label:"identity",text:head});
+    while((m2=re.exec(inner))){ kids.push({label:m2[1],text:m2[0].trim()}); }
+    if(kids.length>1) return kids;
+  }
+  // --- IMAGE-PROMPT user message: character sheet / continuity / latest exchange (#11). ---
+  if(/CHARACTER SHEET/i.test(b) && /LATEST EXCHANGE/i.test(b)){
+    const kids=[];
+    const parts=b.split(/\n(?=(?:CHARACTER SHEET|CONTINUITY REFERENCE|LATEST EXCHANGE|\(No previous image))/);
+    parts.forEach(p2=>{
+      const lbl=(p2.match(/^([A-Z][A-Z ]+)/)||[])[1];
+      kids.push({label:lbl?lbl.trim().toLowerCase():"frame",text:p2.trim()});
+    });
+    if(kids.length>1) return kids;
+  }
+  return null;
+}
 function payloadCapsules(p){
   if(!p||!Array.isArray(p.messages))return null;
   const cap={};
   Object.keys(p).forEach(k=>{if(k!=="messages")cap[k]=p[k];});
   const capsules=[];let turn=0;
+  const pushInstr=(section,content)=>{
+    const kids=_subCapsules(section,content);
+    if(kids&&kids.length>1){
+      capsules.push({type:"instruction",section,role:"system",parts:kids.map(k=>({label:k.label,content:k.text}))});
+    }else{
+      capsules.push({type:"instruction",section,role:"system",content});
+    }
+  };
   p.messages.forEach(m=>{
     const role=m.role||"?";
     const content=typeof m.content==="string"?m.content:JSON.stringify(m.content,null,2);
     if(role==="system"){
       const secs=splitSystemSections(content);
       if(secs.length){
-        secs.forEach(s=>capsules.push({type:"instruction",section:s.title,role:"system",content:s.body}));
+        secs.forEach(s=>pushInstr(s.title,s.body));
       }else{
-        capsules.push({type:"instruction",section:"SYSTEM",role:"system",content});
+        pushInstr("SYSTEM",content);
       }
     }else{
-      capsules.push({type:"message",turn:turn++,role,name:m.name||null,content});
+      // user/assistant turns: break the image-prompt writer's user message into child capsules too
+      const kids=(role==="user")?_subCapsules("",content):null;
+      if(kids&&kids.length>1){
+        capsules.push({type:"message",turn:turn++,role,name:m.name||null,parts:kids.map(k=>({label:k.label,content:k.text}))});
+      }else{
+        capsules.push({type:"message",turn:turn++,role,name:m.name||null,content});
+      }
     }
   });
   cap.capsules=capsules;
@@ -4015,6 +4155,8 @@ function loadState(){
     routerChar:store.raw(K.routerChar,DEFAULT_ROUTER_CHAR),
     mcChainCap:+store.raw(K.mcChainCap,2),
     mcModel:store.raw(K.mcModel,"deepseek/deepseek-v4-flash"),
+    rpRotation:store.raw(K.rpRotation,""),
+    rpRotIdx:+store.get(K.rpRotIdx,0)||0,
     style:store.raw(K.style,"Cinematic"),
     ratio:store.raw(K.ratio,"Tall"),
     imgRules:store.get(K.imgRules,null)||DEFAULT_IMG_RULES.map(r=>({...r})),
@@ -4068,6 +4210,7 @@ function loadState(){
     theme:store.raw(K.theme,"dark"),
     font:+store.raw(K.font,14),
     streamReveal:store.get(K.streamReveal,true),
+    revealCps:store.get(K.revealCps,REVEAL_CPS_DEFAULT),
     chats:(_idbColl?_idbColl.chats:store.get(K.chats,{}))||{},
     curChat:store.raw(K.curChat,null),
     personas:(_idbColl?_idbColl.personas:store.get(K.personas,null)),
@@ -4727,7 +4870,8 @@ function cancelReveal(mid){ if(_revealTimers[mid]){ clearTimeout(_revealTimers[m
 // sentence-ending punctuation adds a short beat. The full text is already in hand — this is
 // purely presentation, so nothing downstream (illustration, the next character, memory, voice
 // check) waits on it.
-const REVEAL_CPS=18;                          // characters per second (letter-by-letter, slightly slower than word reveal)
+const REVEAL_CPS_DEFAULT=28;                  // characters per second (default; user-adjustable in Appearance)
+function revealCps(){ const v=+state.revealCps; return (v>=8&&v<=80)?v:REVEAL_CPS_DEFAULT; }
 function typewriterReveal(mid,fullText,onDone){
   const b=document.querySelector('.bubble[data-mid="'+mid+'"]');
   const body=b&&b.querySelector('.body');
@@ -4754,7 +4898,7 @@ function typewriterReveal(mid,fullText,onDone){
   const stopFollow=()=>{ if(list) list.removeEventListener('scroll',onScroll); };
   body.innerHTML="";                         // clear immediately so the full text never flashes
   let i=0;                                    // character index into fullText
-  const baseTick=Math.round(1000/REVEAL_CPS); // ms per character
+  const baseTick=Math.round(1000/revealCps()); // ms per character
   const tick=()=>{
     const liveBody=document.querySelector('.bubble[data-mid="'+mid+'"] .body');
     if(!liveBody){ cancelReveal(mid); stopFollow(); if(onDone)onDone(); return; }
@@ -6933,7 +7077,7 @@ function trackerContext(chat,viewerId){
       const v=trackerVal(c,t,ownerKey);
       const st=activeStage(t,v);
       const who=(owner==="__story__")?"":` (${ownerLabel(ownerKey)})`;
-      return `${t.name}${who}: ${v}${t.max!=null?"/"+t.max:""}`+(st&&st.text?` — ${st.text}`:"");
+      return `[ ${t.name}${who}: ${v}${t.max!=null?"/"+t.max:""}`+(st&&st.text?` — ${st.text}`:"")+` ]`;
     };
     if(owner==="__story__"){
       const line=render("__story__"); sharedLines.push(line); dashLines.push(line);
@@ -8517,7 +8661,7 @@ function renderPeVisitLocs(p){
     const checked=isHome||visit.includes(l.id);
     const tag=l.type==='home'?' <span class="desc">(home)</span>':'';
     const note=isHome?' <span class="desc">— always (lives here)</span>':'';
-    return `<label class="switchLbl" style="justify-content:flex-start;gap:8px">
+    return `<label class="peVisitRow">
       <input type="checkbox" class="peVisitChk" value="${l.id}" ${checked?'checked':''} ${isHome?'disabled':''}>
       <span>${esc(l.name)}${tag}${note}</span></label>`;
   }).join("");
@@ -8885,7 +9029,7 @@ function relSheetBlockFull(persona){
       if(!who)continue;
       const tie=(e.tie||"").trim(), rel=(e.relationship||"").trim();
       if(!tie&&!rel)continue;
-      lines.push(`- ${who}${tie?` (${tie})`:""}${id==="__user__"?"":mark(id)}: ${rel||tie}`);
+      lines.push(`• [${who}${tie?` — ${tie}`:""}${id==="__user__"?"":mark(id)}]\n  ${rel||tie}`);
     }
     if(lines.length)return lines.join("\n");
   }
@@ -9775,7 +9919,13 @@ function buildTailGuidance(opts){
       othersHere=present.length?present.join(", "):"";
     }catch(e){}
     let sn=`# SCENE RIGHT NOW\n${ssBits.join(", ")}.`;
-    if(chat.location&&chat.location.trim())sn+=` (This location is authoritative for this turn — it overrides any usual or home location.)`;
+    if(chat.location&&chat.location.trim()){
+      const _here2=(()=>{try{return chat.locationId?locById(chat.locationId):null;}catch(e){return null;}})();
+      let _curSubName="";
+      try{ if(_here2&&Array.isArray(_here2.sublocations)&&_here2.sublocations.length>1){ const _ps=subById(_here2,curSubId(chat)); if(_ps)_curSubName=_ps.name; } }catch(e){}
+      sn+=`\n>> YOUR CURRENT LOCATION: ${chat.location.trim()}${_curSubName?` — specifically the ${_curSubName}`:""}. THIS IS WHERE YOU ARE RIGHT NOW. <<`;
+      sn+=` (This location is authoritative for this turn — it overrides any usual or home location.)`;
+    }
     // Sub-areas (privacy) + how private each area / the venue is, so a character can reason about
     // discretion ("not here, too many ears — let's move to the back"). Mirrors the director context.
     try{
@@ -9785,7 +9935,7 @@ function buildTailGuidance(opts){
         if(Array.isArray(here.sublocations)&&here.sublocations.length>1){
           const pSub=subById(here,curSubId(chat));
           const areaList=here.sublocations.map(s=>`${s.name} — ${gossipLabel(areaGossipChance(here,s.id))}`).join("; ");
-          sn+=`\nAreas within ${here.name} (and how private each is): ${areaList}.\nYou are in the ${pSub?pSub.name:"Entrance"} with ${targetName||state.user}. Each area is its own earshot — people in another area can't hear you here. If you want privacy you may suggest moving to a more private area.`;
+          sn+=`\nThese are the sub-areas inside ${here.name} (and how private each is): ${areaList}.\nYou are in the ${pSub?pSub.name:"Entrance"} with ${targetName||state.user}. Each sub-area is its own earshot — people in another sub-area can't hear you here. If you want privacy you may suggest moving to a more private sub-area.`;
         }else{
           sn+=`\nPrivacy here: ${gossipLabel(locGossipChance(here))}.`;
         }
@@ -9897,6 +10047,78 @@ function buildTailGuidance(opts){
 function curChat(){
   if(!state.curChat||!state.chats[state.curChat])enterUniverseChat(state.curUniverse,true);
   return state.chats[state.curChat];
+}
+
+/* ===== IMAGE PIN + RIGHT RAIL (landscape two-column) ========================
+   - chat.pinnedMid holds the mid of the one pinned image (only one at a time).
+   - While anything is pinned, auto image generation is OFF (autoImgActive() returns
+     false), so the pinned reference stays put and isn't pushed out by new auto images.
+   - The right rail (landscape) shows the PINNED image if set, else the LATEST image/
+     video in the chat. Tapping the pin toggles it (and re-enables auto-gen on unpin).
+   - Portrait keeps inline images; the rail is hidden by CSS but the pin still freezes
+     auto-gen and shows a small sticky pinned banner above the list. */
+function autoImgActive(){
+  if(!state.autoImg) return false;
+  const c=state.chats&&state.curChat?state.chats[state.curChat]:null;
+  if(c&&c.pinnedMid){
+    // Only treat the pin as active if the pinned message still actually holds media. After a
+    // reload, inline images aren't persisted (see _slimChat → hadImg), so a stale pinnedMid must
+    // NOT permanently freeze auto-gen. If the media is gone, clear the pin and resume auto images.
+    const pm=Array.isArray(c.messages)?c.messages.find(m=>m.mid===c.pinnedMid):null;
+    if(pm && (pm.img || pm.video)) return false;   // genuine live pin → pause auto generation
+    if(c.pinnedMid){ c.pinnedMid=null; }            // stale pin (media gone) → drop it, resume
+  }
+  return true;
+}
+// The message whose media should fill the rail right now: pinned if set & still has media,
+// otherwise the most recent message that carries a finished image or video.
+function railMessage(chat){
+  const c=chat||curChat(); if(!c||!Array.isArray(c.messages)) return null;
+  if(c.pinnedMid){
+    const pm=c.messages.find(m=>m.mid===c.pinnedMid);
+    if(pm && (pm.img || pm.video)) return pm;
+    // pinned message lost its media (e.g. evicted/deleted) — clear the stale pin
+    if(!pm){ c.pinnedMid=null; }
+  }
+  for(let i=c.messages.length-1;i>=0;i--){
+    const m=c.messages[i];
+    if(m && ((m.img && m.imgState==="done") || m.video)) return m;
+  }
+  return null;
+}
+function togglePin(mid){
+  const c=curChat(); if(!c) return;
+  if(c.pinnedMid===mid){ c.pinnedMid=null; toast("Unpinned — auto images back on"); }
+  else { c.pinnedMid=mid; toast("📌 Pinned — auto images paused while pinned"); }
+  markChatDirty(c); persistChats();
+  renderImageRail();
+  // refresh the affected bubbles so the pin button reflects state
+  refreshBubble(mid);
+  if(c.pinnedMid && c.pinnedMid!==mid) refreshBubble(c.pinnedMid);
+}
+// Render the landscape right rail (and the portrait sticky banner) from railMessage().
+function renderImageRail(){
+  const rail=document.getElementById('imageRailInner');
+  const chat=(state.chats&&state.curChat)?state.chats[state.curChat]:null;
+  if(!rail) return;
+  const m=chat?railMessage(chat):null;
+  const pinned=!!(chat&&chat.pinnedMid&&m&&chat.pinnedMid===m.mid);
+  if(!m){
+    rail.innerHTML=`<div class="railEmpty">Scene images will appear here.<br>Pin one to keep it while you read.</div>`;
+    return;
+  }
+  const media = m.video
+    ? `<video src="${m.video}" controls playsinline loop></video>`
+    : `<img src="${m.img}" referrerpolicy="no-referrer" onclick="viewSceneImage('${m.mid}')">`;
+  const tag = pinned
+    ? `<span class="railTag pinned"><svg class="ic" style="width:12px;height:12px"><use href="#i-pin"/></svg> Pinned</span>`
+    : `<span class="railTag">Latest</span>`;
+  const pinLabel = pinned ? "Unpin" : "Pin";
+  rail.innerHTML=`<div class="railImg">${tag}${media}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      <button class="pinBtn ${pinned?"on":""}" onclick="togglePin('${m.mid}')"><svg class="ic"><use href="#i-pin"/></svg> ${pinLabel}</button>
+      ${m.img&&!m.video?`<button class="btn sec small" onclick="animateScene('${m.mid}')">🎬 Animate</button>`:""}
+    </div>`;
 }
 // Find or create the single persistent chat for a universe. No anchor character.
 function chatForUniverse(uid){
@@ -10400,6 +10622,7 @@ function renderChat(){ return perf("renderChat",()=>{
   requestAnimationFrame(_pin);
   setTimeout(_pin,60);
   setTimeout(_pin,200);
+  renderImageRail();
 }); }
 // Incremental render — append only messages not yet in the DOM. Falls back to a full
 // rebuild if the rendered chat changed underneath us (e.g. chat-switch) so callers can
@@ -10451,6 +10674,7 @@ function appendNewBubbles(){ return perf("appendNewBubbles",()=>{
     if(wasAtBottom||_followAfterSend){ setScrollTop(list,list.scrollHeight); hideNewMsgPill(); }
     else { showNewMsgPill(); }
   }
+  renderImageRail();
 }); }
 function findMsg(mid){
   // Search the current chat first, then all chats (async image/video calls can
@@ -10619,12 +10843,15 @@ function deleteMessage(mid){
 }
 function sceneHTML(m){
   const mid=m.mid;
+  const _c=(state.chats&&state.curChat)?state.chats[state.curChat]:null;
+  const _pinned=!!(_c&&_c.pinnedMid===mid);
+  const pinBtn=`<button class="pinBtn ${_pinned?"on":""}" onclick="togglePin('${mid}')" title="${_pinned?"Unpin (re-enables auto images)":"Pin this image to the side & pause auto images"}"><svg class="ic"><use href="#i-pin"/></svg> ${_pinned?"Pinned":"Pin"}</button>`;
   // ---- video states take over the scene area once started ----
   if(m.vidState==="loading")
     return `<div class="scene loading"><div class="spin"></div><span id="vidstat_${mid}">Animating scene…</span></div>`;
   if(m.video)
     return `<div class="scene"><video src="${m.video}" controls playsinline loop style="width:100%;display:block;border-radius:12px"></video>
-            <div style="padding:8px"><button class="btn sec small" onclick="downloadVideo('${mid}')">⬇ Save video</button></div></div>`;
+            <div class="sceneTools" style="padding:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn sec small" onclick="downloadVideo('${mid}')">⬇ Save video</button>${pinBtn}</div></div>`;
   // ---- image states ----
   if(m.imgState==="loading")
     return `<div class="scene loading"><div class="spin"></div>Illustrating the scene…</div>`;
@@ -10635,7 +10862,7 @@ function sceneHTML(m){
     if(m.vidState==="error") v=`<button class="btn sec small" onclick="animateScene('${mid}')">⚠️ Retry video</button> <button class="btn sec small" onclick="movieScene('${mid}')">🎞️ Movie</button>`;
     else v=`<button class="btn sec small" onclick="animateScene('${mid}')">🎬 Animate</button> <button class="btn sec small" onclick="movieScene('${mid}')">🎞️ Movie</button>`;
     return `<div class="scene"><img src="${m.img}" referrerpolicy="no-referrer" onclick="viewSceneImage('${mid}')">
-            <div style="padding:8px">${v}</div></div>`;
+            <div class="sceneTools" style="padding:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">${v}${pinBtn}</div></div>`;
   }
   // No image yet and not auto-illustrating -> offer a per-request generate button
   if(!state.autoImg && m.imgState!=="loading"){
@@ -10691,13 +10918,18 @@ function refreshBubble(mid){
     // Restore scroll only AFTER the image lays out (its height isn't known until loaded).
     img.onload=_restoreScroll;
     img.src=m.img;img.onclick=()=>viewSceneImage(mid);
-    const bar=document.createElement('div');bar.style.padding="8px";
+    const bar=document.createElement('div');bar.className="sceneTools";bar.style.cssText="padding:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center";
     const btn=document.createElement('button');btn.className="btn sec small";
     btn.textContent=m.vidState==="error"?"⚠️ Retry video":"🎬 Animate";btn.onclick=()=>animateScene(mid);
     const mbtn=document.createElement('button');mbtn.className="btn sec small";
     mbtn.textContent="🎞️ Movie";mbtn.onclick=()=>movieScene(mid);
-    bar.appendChild(btn);bar.appendChild(document.createTextNode(" "));bar.appendChild(mbtn);
+    const _c=(state.chats&&state.curChat)?state.chats[state.curChat]:null;
+    const _pinned=!!(_c&&_c.pinnedMid===mid);
+    const pbtn=document.createElement('button');pbtn.className="pinBtn"+(_pinned?" on":"");
+    pbtn.innerHTML=`<svg class="ic"><use href="#i-pin"/></svg> ${_pinned?"Pinned":"Pin"}`;pbtn.onclick=()=>togglePin(mid);
+    bar.appendChild(btn);bar.appendChild(mbtn);bar.appendChild(pbtn);
     scene.appendChild(img);scene.appendChild(bar);b.appendChild(scene);
+    renderImageRail();
     return;
   }
   // Finished video: play the durable remote URL directly. A plain <video src=remote> does NOT
@@ -10731,10 +10963,15 @@ function refreshBubble(mid){
       fb.innerHTML=`▶️ Video ready. <a href="${remote}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">Tap to open ↗</a>`;
       if(vid.parentNode){ vid.parentNode.insertBefore(fb,vid); vid.remove(); }
     };
-    const bar=document.createElement('div');bar.style.padding="8px";
+    const bar=document.createElement('div');bar.className="sceneTools";bar.style.cssText="padding:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center";
     const btn=document.createElement('button');btn.className="btn sec small";btn.textContent="⬇ Save video";btn.onclick=()=>downloadVideo(mid);
-    bar.appendChild(btn);scene.appendChild(vid);scene.appendChild(bar);b.appendChild(scene);
+    const _c=(state.chats&&state.curChat)?state.chats[state.curChat]:null;
+    const _pinned=!!(_c&&_c.pinnedMid===mid);
+    const pbtn=document.createElement('button');pbtn.className="pinBtn"+(_pinned?" on":"");
+    pbtn.innerHTML=`<svg class="ic"><use href="#i-pin"/></svg> ${_pinned?"Pinned":"Pin"}`;pbtn.onclick=()=>togglePin(mid);
+    bar.appendChild(btn);bar.appendChild(pbtn);scene.appendChild(vid);scene.appendChild(bar);b.appendChild(scene);
     _restoreScroll();
+    renderImageRail();
     return;
   }
   // Loading / error states use the string template (small height change — restore immediately)
@@ -10871,14 +11108,15 @@ async function sendMessage(){
       messages.push({role:"system",content:`[Director's note — do not mention or acknowledge this as out-of-character. React to it naturally in-scene as ${solo.name}:] ${chat.pendingGmNudge}`});
       chat.pendingGmNudge=null;persistChats();
     }
-    let reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply"});
+    const _rpModel=rpModel();
+    let reply=await chatCompletion(messages,_rpModel,{dbg:"Roleplay reply"});
     // REFUSAL HANDLING (mirrors the multi-character path): a non-empty reply can be a content
     // refusal (e.g. v4-pro's canned "无法" line), which is NOT a token problem. Retry once on the
     // fallback model, then surface an honest message rather than blaming Max tokens.
     let refused=looksLikeRefusal(reply);
     if(refused){
-      const fb=(state.mcModel&&state.mcModel!==state.model)?state.mcModel:state.model;
-      if(fb!==state.model){
+      const fb=(state.mcModel&&state.mcModel!==_rpModel)?state.mcModel:_rpModel;
+      if(fb!==_rpModel){
         try{
           const alt=await chatCompletion(messages,fb,{dbg:"Roleplay reply (refusal fallback)"});
           if(alt&&alt.trim()&&!looksLikeRefusal(alt)){ reply=alt; refused=false; }
@@ -10897,12 +11135,12 @@ async function sendMessage(){
       toast("Empty reply — try raising Max tokens in Settings (reasoning models need headroom)");
       return;
     }
-    const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
+    const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     // BACKGROUND (does not wait on screen): persist, fire the image pipeline the instant text is
     // ready, run the voice check. The bubble itself is shown by the presentation queue.
     persistChats();
-    if(state.autoImg) illustrate(msg.mid,reply);
+    if(autoImgActive()) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,solo);
     // ON SCREEN: append + reveal this one line, in order, via the presentation queue. Not awaited,
     // so the turn loop proceeds (memory/presence/GM run in the background) while it rolls.
@@ -11120,6 +11358,28 @@ function castHistory(chat,forP){
   });
   return compactHistory(mapped);
 }
+/* ===== ROLEPLAY MODEL ROTATION (#6) =========================================
+   Optional. If state.rpRotation holds a comma-separated list of model ids, each
+   roleplay reply uses the NEXT model in the list, cycling round. This lets you mix
+   expensive and cheap models so consecutive turns spread across them. When the list
+   is empty (the default), rpModel() just returns state.model, so behaviour is
+   unchanged. The rotation index persists (sm_rprotidx) so it survives reload and
+   doesn't reset every session. The existing refusal/empty fallback (state.mcModel)
+   is untouched and still applies to whatever model rotation picked — rotation only
+   chooses the PRIMARY model for the turn; it does not change fallback handling and
+   does not advance again on a fallback. */
+function rpRotationList(){
+  return String(state.rpRotation||"").split(",").map(s=>s.trim()).filter(Boolean);
+}
+function rpModel(){
+  const list=rpRotationList();
+  if(!list.length) return state.model;          // rotation off → normal single model
+  let i=+state.rpRotIdx; if(!(i>=0)) i=0;
+  const pick=list[i % list.length];
+  state.rpRotIdx=(i+1) % list.length;           // advance for the NEXT reply
+  try{ store.set(K.rpRotIdx,state.rpRotIdx); }catch(e){}
+  return pick||state.model;
+}
 async function runMultiCharTurn(chat,playerText){
   const cap=Math.max(1,state.mcChainCap||4);
   document.getElementById('sendBtn').disabled=true;
@@ -11277,7 +11537,8 @@ async function playCharacterTurn(chat,p,addressed){
       messages.push({role:"system",content:`[Director's note — react naturally in-scene as ${p.name}, do not mention this:] ${chat.pendingGmNudge}`});
       chat.pendingGmNudge=null;persistChats();
     }
-    let reply=await chatCompletion(messages,state.model,{dbg:"Roleplay reply · "+p.name});
+    const _rpModel=rpModel();
+    let reply=await chatCompletion(messages,_rpModel,{dbg:"Roleplay reply · "+p.name});
     // REFUSAL HANDLING. A non-empty reply can still be a content refusal (e.g. v4-pro returns a
     // canned Chinese "无法" line). That isn't a token problem — bumping max_tokens won't fix it.
     // If the primary model refused, retry ONCE on the fallback model (flash tends to be more
@@ -11303,12 +11564,12 @@ async function playCharacterTurn(chat,p,addressed){
     // Empty reply (model returned nothing even after the token-bump retry) — don't push a blank
     // bubble or run image/voice on nothing. Skip this character's turn cleanly.
     if(!cleaned){ toast(""+p.name+": empty reply (try raising Max tokens in Settings)"); return false; }
-    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null,_reveal:true};
+    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     // BACKGROUND: persist + fire image pipeline immediately (text is ready) + voice check. The
     // next character can generate while this one is still queued/rolling on screen.
     persistChats();
-    if(state.autoImg) illustrate(msg.mid,reply);
+    if(autoImgActive()) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
     // ON SCREEN: append + reveal in strict order via the presentation queue. We AWAIT the reveal so
     // the chain paces to the animation — the next character's line doesn't paste in while this one is
@@ -11608,7 +11869,7 @@ async function illustrate(mid,replyText){
 function reIllustrate(mid){const m=findMsg(mid);if(!m)return;illustrate(mid,m.content);}
 function autoIllustrateLast(){
   const chat=curChat();const m=chat.messages[chat.messages.length-1];
-  if(m&&state.autoImg&&m.role==='assistant'&&!m.img&&!m.dayMarker&&!m.sysError){illustrate(m.mid,m.content);}
+  if(m&&autoImgActive()&&m.role==='assistant'&&!m.img&&!m.dayMarker&&!m.sysError){illustrate(m.mid,m.content);}
 }
 
 /* ---- VIDEO PIPELINE (provider-routed: Segmind WAN sync, or OpenRouter async) ---- */
@@ -12844,10 +13105,10 @@ async function playGamemasterBeat(chat,nudge){
     // Post the event as a NARRATOR line everyone present can see.
     const msg={mid:newMid(),role:"assistant",speaker:"Narrator",gmBeat:true,narratorEvent:true,
       present:presentIds(chat).slice(),content:text,_reveal:true,
-      img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
+      img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();
-    if(state.autoImg) illustrate(msg.mid,text);
+    if(autoImgActive()) illustrate(msg.mid,text);
     // Show the event in order via the presentation queue — it won't jump ahead of a line that's
     // still rolling, and it won't yank the viewport if the user has scrolled up to read.
     enqueuePresent(msg.mid);
@@ -13227,9 +13488,9 @@ async function runSceneWriter(chat){
     if(beat){
       const nm={mid:newMid(),role:"assistant",speaker:"Narrator",narratorEvent:true,sceneBeat:true,
         present:presentIds(chat).slice(),content:beat,_reveal:true,
-        img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
+        img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null};
       chat.messages.push(nm);persistChats();
-      if(state.autoImg) illustrate(nm.mid,nm.content);
+      if(autoImgActive()) illustrate(nm.mid,nm.content);
       enqueuePresent(nm.mid);
     }
     // Bring an approaching character into the room when the writer says so — or when
@@ -13435,12 +13696,12 @@ async function playSingleReaction(chat,p,eventText){
       chat, selfId:p.id, selfName:p.name,
       targetName:state.user, targetId:"__user__", multi:false, injected
     })};
-    const reply=await chatCompletion([sysMsg,...taggedHistory,tailMsg],state.model,{dbg:"Roleplay reply (gamemaster reaction)"});
+    const reply=await chatCompletion([sysMsg,...taggedHistory,tailMsg],rpModel(),{dbg:"Roleplay reply (gamemaster reaction)"});
     typing.remove();
-    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:state.autoImg?"loading":"idle",vidState:"idle",video:null};
+    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
-    if(state.autoImg) illustrate(msg.mid,reply);
+    if(autoImgActive()) illustrate(msg.mid,reply);
     runVoiceCheck(chat,msg,p);
   }catch(err){typing.remove();toast(""+(err.friendly||"reaction failed"));}
 }
@@ -13760,9 +14021,14 @@ async function retrieveMemories(userText,chat,ownerId){
 let memFilterOwner="all";
 function renderMemory(){
   const el=document.getElementById('memoryList');el.innerHTML="";
-  if(!state.memory.length){el.innerHTML=`<div class="empty"><div class="big">🧠</div><div>No story memories yet.<br>Each character forms their own memories every 10 messages.</div><button class="btn small" onclick="addMemoryManual()">＋ Add</button></div>`;return;}
+  // Universe scoping: in a universe, only show that universe's memories (mirrors the Diaries screen).
+  // Legacy memories with no universeId are always shown so nothing silently disappears.
+  const _uni=curUniverseObj();
+  const inUni=m=>!_uni || !m.universeId || m.universeId===_uni.id;
+  const pool=state.memory.filter(inUni);
+  if(!pool.length){el.innerHTML=`<div class="empty"><div class="big">🧠</div><div>No story memories${_uni?" in "+esc(_uni.name):""} yet.<br>Each character forms their own memories every 10 messages.</div><button class="btn small" onclick="addMemoryManual()">＋ Add</button></div>`;return;}
   // owner filter chips
-  const owners=[...new Set(state.memory.map(m=>m.ownerId).filter(Boolean))];
+  const owners=[...new Set(pool.map(m=>m.ownerId).filter(Boolean))];
   const ownerName=id=>{const p=state.personas.find(x=>x.id===id);return p?p.name:"(unknown)";};
   const ownerAvatar=id=>{const p=state.personas.find(x=>x.id===id);return p?(p.avatar||"🎭"):"❓";};
   const bar=document.createElement('div');bar.className="chips";bar.style.cssText="gap:6px;margin-bottom:12px;flex-wrap:wrap";
@@ -13773,14 +14039,14 @@ function renderMemory(){
     b.onclick=()=>{memFilterOwner=val;renderMemory();};
     return b;
   };
-  bar.appendChild(mkChip("all","All ("+state.memory.length+")"));
-  owners.forEach(id=>bar.appendChild(mkChip(id,ownerAvatar(id)+" "+ownerName(id)+" ("+memoriesOf(id).length+")")));
+  bar.appendChild(mkChip("all","All ("+pool.length+")"));
+  owners.forEach(id=>bar.appendChild(mkChip(id,ownerAvatar(id)+" "+ownerName(id)+" ("+pool.filter(m=>m.ownerId===id).length+")")));
   // memories with no owner (legacy) get their own bucket
-  const orphan=state.memory.filter(m=>!m.ownerId);
+  const orphan=pool.filter(m=>!m.ownerId);
   if(orphan.length)bar.appendChild(mkChip("__none__","⚠️ Unassigned ("+orphan.length+")"));
   el.appendChild(bar);
 
-  let list=state.memory.slice();
+  let list=pool.slice();
   if(memFilterOwner==="__none__")list=list.filter(m=>!m.ownerId);
   else if(memFilterOwner!=="all")list=list.filter(m=>m.ownerId===memFilterOwner);
 
@@ -13845,7 +14111,22 @@ function renderDiary(){
   el.appendChild(hint);
 }
 let _diaryReaderDay=null;
-function _diaryClose(){ const m=document.getElementById('diaryReaderModal'); if(m)m.remove(); _diaryReaderDay=null; }
+/* Handwriting fonts for the diary. Each entry: stack (CSS font-family) + a sensible default size.
+   Choice persists in localStorage so it sticks across sessions. Offline, the stacks fall back to
+   system cursive automatically. */
+const DIARY_FONTS=[
+  {id:"caveat",   name:"Caveat",   css:"'Caveat','Segoe Print',cursive", size:24},
+  {id:"kalam",    name:"Kalam",    css:"'Kalam','Bradley Hand',cursive", size:20},
+  {id:"shadows",  name:"Casual",   css:"'Shadows Into Light','Segoe Print',cursive", size:21},
+  {id:"patrick",  name:"Patrick",  css:"'Patrick Hand','Comic Sans MS',cursive", size:21},
+  {id:"gloria",   name:"Playful",  css:"'Gloria Hallelujah','Comic Sans MS',cursive", size:17},
+  {id:"dancing",  name:"Script",   css:"'Dancing Script','Segoe Script',cursive", size:25},
+  {id:"system",   name:"Plain",    css:"'Segoe Print','Bradley Hand','Comic Sans MS',cursive", size:18}
+];
+function diaryFont(){ const id=localStorage.getItem('sm_diaryfont')||"caveat"; return DIARY_FONTS.find(f=>f.id===id)||DIARY_FONTS[0]; }
+function setDiaryFont(id){ localStorage.setItem('sm_diaryfont',id); if(_diaryReaderOwner!=null)openDiaryReader(_diaryReaderOwner,_diaryReaderDay); }
+let _diaryReaderOwner=null;
+function _diaryClose(){ const m=document.getElementById('diaryReaderModal'); if(m)m.remove(); _diaryReaderOwner=null; }
 function openDiaryReader(ownerId,day){
   const p=state.personas.find(x=>x.id===ownerId); if(!p)return;
   const uni=curUniverseObj();
@@ -13860,8 +14141,11 @@ function openDiaryReader(ownerId,day){
   const emo=dayEntries[0]&&dayEntries[0].emotion;
   const loc=dayEntries[0]&&dayEntries[0].location;
   _diaryClose();
+  _diaryReaderOwner=ownerId;   // set AFTER _diaryClose (which nulls it)
   const tabs=days.map(d=>`<button class="diaryDayTab ${d===day?"on":""}" onclick="openDiaryReader('${ownerId}',${d})">Day ${d}</button>`).join("");
   const coverBtn=(state.key)?`<button class="btn sec small" style="width:auto;padding:6px 10px" onclick="genDiaryCover('${ownerId}',this)">🎨 ${p.diaryCover?"Redo cover":"Make cover"}</button>`:"";
+  const curFont=diaryFont();
+  const fontBar=DIARY_FONTS.map(f=>`<button class="diaryFontBtn ${f.id===curFont.id?"on":""}" style="font-family:${f.css}" onclick="setDiaryFont('${f.id}')">${esc(f.name)}</button>`).join("");
   const m=document.createElement('div'); m.id="diaryReaderModal"; m.className="modal show";
   m.innerHTML=`<button class="x" onclick="_diaryClose()">×</button>
     <div class="diaryReader">
@@ -13871,7 +14155,8 @@ function openDiaryReader(ownerId,day){
       </div>
       <div style="display:flex;justify-content:center;margin-bottom:10px">${coverBtn}</div>
       <div class="diaryDayTabs">${tabs}</div>
-      <div class="paperPage">
+      <div class="diaryFontBar">${fontBar}</div>
+      <div class="paperPage" style="--diary-font:${curFont.css};--diary-size:${curFont.size}px">
         <div class="pp-date">Day ${day}${loc?` · ${esc(loc)}`:""}</div>
         <div class="pp-body">${esc(bodyText)}</div>
         ${emo?`<div class="pp-meta">— feeling ${esc(emo)}</div>`:""}
@@ -14107,6 +14392,7 @@ function syncSettingsUI(){
   {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud")aim.value=state.imgModel||'';}
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")avm.value=state.vidModel||'';}
   document.getElementById('setModel').value=state.model;
+  {const e=document.getElementById('setRpRotation'); if(e)e.value=state.rpRotation||"";}
   document.getElementById('setRewriter').value=state.rewriter;
   document.getElementById('setImgModel').value=state.imgModel;
   document.getElementById('setVidModel').value=state.vidModel;
@@ -14215,6 +14501,7 @@ function syncSettingsUI(){
   document.getElementById('setMem').checked=state.mem;
   document.getElementById('setFont').value=state.font;document.getElementById('fontVal').textContent=state.font;
   {const sr=document.getElementById('setStreamReveal'); if(sr)sr.checked=state.streamReveal!==false;}
+  {const rc=document.getElementById('setRevealCps'),rv=document.getElementById('revealVal'); if(rc){rc.value=revealCps(); if(rv)rv.textContent=revealCps();}}
   document.querySelectorAll('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.t===state.theme));
   renderToggleSegs();renderOvrFields();updateStorage();
 }
@@ -14233,6 +14520,7 @@ function saveSettings(notify){
   state.segkey=document.getElementById('setSegKey').value.trim();
   {const ak=document.getElementById('setAtlasKey'); if(ak)state.atlasKey=ak.value.trim();}
   state.model=document.getElementById('setModel').value.trim()||"anthropic/claude-3.5-sonnet";
+  {const e=document.getElementById('setRpRotation'); if(e){const v=e.value.trim(); if(v!==state.rpRotation){state.rpRotation=v; state.rpRotIdx=0; store.set(K.rpRotIdx,0);} store.setRaw(K.rpRotation,v);}}
   state.rewriter=document.getElementById('setRewriter').value.trim()||"openai/gpt-4o-mini";
   state.imgModel=document.getElementById('setImgModel').value.trim()||"x-ai/grok-imagine-image-quality";
   state.vidModel=document.getElementById('setVidModel').value.trim()||"x-ai/grok-imagine-video";
@@ -14335,6 +14623,7 @@ function saveSettings(notify){
   state.font=+document.getElementById('setFont').value;
   {const sr=document.getElementById('setStreamReveal'); if(sr)state.streamReveal=sr.checked;}
   store.set(K.streamReveal,state.streamReveal);
+  {const rc=document.getElementById('setRevealCps'); if(rc){const v=+rc.value; state.revealCps=(v>=8&&v<=80)?v:REVEAL_CPS_DEFAULT; store.set(K.revealCps,state.revealCps);}}
   store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.atlasKey,state.atlasKey||"");store.setRaw(K.model,state.model);
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
@@ -14713,16 +15002,16 @@ function init2(){
   renderChat();updateChatHeader();
   // illustrate opening greeting if not yet done
   const chat=curChat();const last=chat.messages[chat.messages.length-1];
-  if(last&&last.role==='assistant'&&!last.img&&last.imgState!=='loading'&&state.autoImg){autoIllustrateLast();}
+  if(last&&last.role==='assistant'&&!last.img&&last.imgState!=='loading'&&autoImgActive()){autoIllustrateLast();}
 }
 
 /* listeners */
 document.getElementById('peAvatar').addEventListener('input',renderAvatarPreview);
 document.getElementById('chatInput').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';});
 document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
-['setTokens','setTemp','setFont','setSteps','setGmEvery','setMcCap','setSceneMin','setSceneMax'].forEach(id=>document.getElementById(id).addEventListener('input',e=>{
-  const map={setTokens:'tokVal',setTemp:'tempVal',setFont:'fontVal',setSteps:'stepsVal',setGmEvery:'gmEveryVal',setMcCap:'mcCapVal',setSceneMin:'sceneMinVal',setSceneMax:'sceneMaxVal'};document.getElementById(map[id]).textContent=e.target.value;
-  if(id==='setFont')document.body.style.fontSize=e.target.value+'px';}));
+['setTokens','setTemp','setFont','setSteps','setGmEvery','setMcCap','setSceneMin','setSceneMax','setRevealCps'].forEach(id=>{const _el=document.getElementById(id); if(!_el)return; _el.addEventListener('input',e=>{
+  const map={setTokens:'tokVal',setTemp:'tempVal',setFont:'fontVal',setSteps:'stepsVal',setGmEvery:'gmEveryVal',setMcCap:'mcCapVal',setSceneMin:'sceneMinVal',setSceneMax:'sceneMaxVal',setRevealCps:'revealVal'};const lbl=document.getElementById(map[id]); if(lbl)lbl.textContent=e.target.value;
+  if(id==='setFont')document.body.style.fontSize=e.target.value+'px';});});
 // Global sampling sliders: live value label on drag; on-toggle enables/disables the slider.
 [['setTopP','setTopPOn','topPVal'],['setFreqPen','setFreqPenOn','freqPenVal'],['setPresPen','setPresPenOn','presPenVal']].forEach(([rngId,onId,valId])=>{
   const rng=document.getElementById(rngId), on=document.getElementById(onId), val=document.getElementById(valId);
@@ -14737,6 +15026,12 @@ document.querySelectorAll('#themeSeg button').forEach(b=>b.onclick=()=>{state.th
 document.querySelectorAll('#imgProvSeg button').forEach(b=>b.onclick=()=>{state.imgProvider=b.dataset.p;setProvSeg('imgProvSeg',state.imgProvider);updateProvVis();});
 document.querySelectorAll('#vidProvSeg button').forEach(b=>b.onclick=()=>{state.vidProvider=b.dataset.p;setProvSeg('vidProvSeg',state.vidProvider);updateProvVis();});
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change',()=>{if(state.theme==='system')applyTheme();});
+// When the device rotates (or the window resizes across the landscape breakpoint), refresh the
+// image rail so the latest/pinned image populates the right column immediately. CSS does the actual
+// show/hide; this just fills it. Cheap and idempotent.
+{let _orT;const _onOrient=()=>{clearTimeout(_orT);_orT=setTimeout(()=>{ if(document.getElementById('screen-chat')&&document.getElementById('screen-chat').classList.contains('active')) renderImageRail(); },120);};
+ window.addEventListener('resize',_onOrient);
+ if(window.matchMedia){try{window.matchMedia('(orientation:landscape)').addEventListener('change',_onOrient);}catch(e){window.addEventListener('orientationchange',_onOrient);}}}
 // Flush any pending (debounced) chat write before the page is backgrounded or closed.
 // pagehide/visibilitychange are the reliable signals on mobile Safari & Chrome-Android.
 window.addEventListener('pagehide',flushPersistChats);
