@@ -528,7 +528,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.13 (Fix: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.15 (Fix: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -609,11 +609,11 @@
           <div class="desc">Summarizes a character's oldest, low-importance memories into compact recollections once they pile up — bounds growth over long sessions and sharpens retrieval. Uses the Memory model above.</div>
           <div class="kvline"><span>Enable condenser</span>
             <label class="switchLbl"><input type="checkbox" id="setCondenseOn" checked><span class="sl"></span></label></div>
-          <div><label>Condense when a character exceeds (memories)</label><input type="number" id="setCondenseThreshold" min="10" step="5" value="40"></div>
+          <div><label>Condense when a character exceeds (memories)</label><input type="number" id="setCondenseThreshold" min="6" step="2" value="12"></div>
           <div><label>Keep verbatim if importance ≥ (0–1)</label><input type="number" id="setCondenseKeep" min="0" max="1" step="0.05" value="0.8"></div>
-          <div><label>Memories merged per pass</label><input type="number" id="setCondenseBatch" min="3" step="1" value="15"></div>
+          <div><label>Memories merged per pass</label><input type="number" id="setCondenseBatch" min="3" step="1" value="6"></div>
           <div class="desc" style="margin-top:8px"><svg class="ic"><use href="#i-brain"/></svg> <b>Two-tier recall.</b> Each turn the app injects a few <b>recent</b> (sharp, verbatim) memories and a few <b>distant</b> (condensed, fuzzier) ones under separate headings. Condensed memories become the distant pool.</div>
-          <div><label>Recent memories per turn</label><input type="number" id="setMemRecentCount" min="0" max="10" step="1" value="3"></div>
+          <div><label>Recent memories per turn</label><input type="number" id="setMemRecentCount" min="0" max="10" step="1" value="4"></div>
           <div><label>Distant memories per turn</label><input type="number" id="setMemDistantCount" min="0" max="10" step="1" value="2"></div>
         </div>
 
@@ -4283,10 +4283,10 @@ function loadState(){
     steps:+store.raw(K.steps,25),
     fnCfg:store.get(K.fnCfg,{"gm": {"temp": null, "tok": 1600}, "mc": {"temp": 0.8, "tok": 1000}, "rewriter": {"tok": 4000}, "mem": {"tok": 4000}, "unigen": {"tok": 4000}})||{},
     condenseOn:store.get(K.condenseOn,true),
-    condenseThreshold:+store.raw(K.condenseThreshold,40),
+    condenseThreshold:+store.raw(K.condenseThreshold,12),
     condenseKeep:+store.raw(K.condenseKeep,0.8),
-    condenseBatch:+store.raw(K.condenseBatch,15),
-    memRecentCount:+store.raw(K.memRecentCount,3),
+    condenseBatch:+store.raw(K.condenseBatch,6),
+    memRecentCount:+store.raw(K.memRecentCount,4),
     memDistantCount:+store.raw(K.memDistantCount,2),
     condensePrompt:store.raw(K.condensePrompt,DEFAULT_CONDENSE),
     gossipOn:store.get(K.gossipOn,true),
@@ -14347,26 +14347,41 @@ async function genQuery(userText,chat){
   const out=await chatCompletion([
     {role:"system",content:up("queryGen")},
     {role:"user",content:`Recent conversation:\n${recent}\n\n${state.user}'s newest message:\n${userText}`}
-  ],state.memModel,{temp:fnTemp("mem",0.3),max:fnTok("mem",120),dbg:"Memory query generator"});
+  ],state.mcModel||state.memModel||state.model,{temp:fnTemp("mc",0.3),max:fnTok("mc",120),dbg:"Memory query generator"});
   return (out||"").replace(/```/g,"").trim();
 }
 
+/* Tokenize text into searchable words. Unicode-aware (\p{L}\p{N}) so Turkish letters (ç ğ ı İ ö ş ü)
+   are word characters, NOT separators — the old ASCII-only /[a-z0-9]+/ split "Boğaz"→"bo","az" and
+   "güzel"→"g","zel", silently breaking retrieval for Turkish memories. Lowercased with the Turkish
+   locale so "İ"→"i" and "I"→"ı" map correctly. Falls back gracefully if \p{} is unsupported. */
+function memTokens(s){
+  s=String(s||"");
+  try{ s=s.toLocaleLowerCase("tr"); }catch(e){ s=s.toLowerCase(); }
+  let words;
+  try{ words=s.match(/[\p{L}\p{N}]+/gu)||[]; }
+  catch(e){ words=s.match(/[a-z0-9çğıöşü]+/g)||[]; }   // fallback if Unicode property escapes unsupported
+  return words.filter(w=>w.length>2);
+}
 /* keyword pre-filter so the ranker sees a bounded candidate set */
 function prefilter(query,limit,poolOverride){
-  const qWords=new Set((query.toLowerCase().match(/[a-z0-9]+/g)||[]).filter(w=>w.length>2));
+  const qWords=new Set(memTokens(query));
   const pool=poolOverride||visibleMemories();
   // Names of characters present in the current scene — memories involving them get a light boost so
   // a character recalls their history with whoever just walked in. Soft (a boost, not a filter), so
   // general-topic memories still surface. Uses the richer `people` field the arc builder now stores.
   const here=new Set();
-  try{ const c=curChat(); if(c) presentCast(c).forEach(p=>{ if(p&&p.name) here.add(p.name.toLowerCase()); }); }catch(e){}
+  try{ const c=curChat(); if(c) presentCast(c).forEach(p=>{ if(p&&p.name){ try{ here.add(p.name.toLocaleLowerCase("tr")); }catch(e){ here.add(p.name.toLowerCase()); } } }); }catch(e){}
   const scored=pool.map(m=>{
     // SEARCH over the full memory surface (content + people + details + tags), not just content —
-    // the richer format moved searchable specifics out of content into their own fields.
-    const hay=(memSearchText(m)+" "+(m.location||"")).toLowerCase();
-    let score=0; qWords.forEach(w=>{if(hay.includes(w))score++;});
+    // the richer format moved searchable specifics out of content into their own fields. The query is
+    // tokenized Unicode-aware (so Turkish words stay whole), but matched as a SUBSTRING against the
+    // haystack — Turkish is agglutinative ("restoran" must match "restoranda"), so whole-word equality
+    // would miss suffixed forms. Turkish-locale lowercase on both sides for correct İ/I handling.
+    let hay; try{ hay=(memSearchText(m)+" "+(m.location||"")).toLocaleLowerCase("tr"); }catch(e){ hay=(memSearchText(m)+" "+(m.location||"")).toLowerCase(); }
+    let score=0; qWords.forEach(w=>{ if(hay.includes(w))score++; });
     score+=(m.importance||0)*0.5;
-    if(here.size && Array.isArray(m.people) && m.people.some(n=>here.has(String(n).toLowerCase()))) score+=1.5;
+    if(here.size && Array.isArray(m.people) && m.people.some(n=>{ let nn; try{nn=String(n).toLocaleLowerCase("tr");}catch(e){nn=String(n).toLowerCase();} return here.has(nn); })) score+=1.5;
     return {m,score};
   }).sort((a,b)=>b.score-a.score);
   return scored.slice(0,limit).map(x=>x.m);
@@ -14380,7 +14395,7 @@ function isDistantMem(m){ return !!(m && m.type==="CONSOLIDATED"); }
    Each tier is queried independently with its own count, so the payload carries both granularities
    under separate headings. */
 async function retrieveMemories(userText,chat,ownerId){
-  const recCount=Math.max(0, state.memRecentCount!=null?state.memRecentCount:3);
+  const recCount=Math.max(0, state.memRecentCount!=null?state.memRecentCount:4);
   const disCount=Math.max(0, state.memDistantCount!=null?state.memDistantCount:2);
   // Scope to the responding character's OWN memories BEFORE ranking. Previously this ranked across
   // the whole cast's pool and picked a global top-N, so a character with few memories got crowded
@@ -14391,10 +14406,18 @@ async function retrieveMemories(userText,chat,ownerId){
   const recentPool=all.filter(m=>!isDistantMem(m));   // verbatim
   const distantPool=all.filter(m=>isDistantMem(m));   // condensed
 
-  // Query string: the user's text + the last couple of lines (no extra LLM round-trip).
+  // Query string. Primary: an LLM-generated SEMANTIC query (genQuery, on the arc-tracker model) that
+  // pulls out people/places/topics/unresolved threads — so retrieval finds topically-relevant memories
+  // even when the exact words differ from the current line. Fallback (no key, empty, or error): the
+  // user's text + last 2 lines, the old lexical-only behaviour. This is what makes the "Memory query
+  // generator" prompt fire each turn and fixes new/important memories never surfacing on word-overlap.
   const recentLines=(chat?chat.messages:[]).filter(m=>m.role!=='system'&&!m.sysError).slice(-2)
     .map(m=>m.content).join(" ");
-  const query=((userText||"")+" "+recentLines).trim();
+  const inlineQuery=((userText||"")+" "+recentLines).trim();
+  let query=inlineQuery;
+  if(state.key){
+    try{ const q=await genQuery(userText||"",chat); if(q&&q.trim()) query=q.trim()+" "+inlineQuery; }catch(e){/* fall back to inline */}
+  }
 
   // Rank ONE pool down to `max`, reusing the keyword prefilter and (only when needed) the LLM ranker.
   const rankPool=async (pool,max,label)=>{
@@ -14919,7 +14942,7 @@ function syncSettingsUI(){
   document.getElementById('setCondenseThreshold').value=state.condenseThreshold;
   document.getElementById('setCondenseKeep').value=state.condenseKeep;
   document.getElementById('setCondenseBatch').value=state.condenseBatch;
-  {const e=document.getElementById('setMemRecentCount'); if(e)e.value=(state.memRecentCount!=null?state.memRecentCount:3);}
+  {const e=document.getElementById('setMemRecentCount'); if(e)e.value=(state.memRecentCount!=null?state.memRecentCount:4);}
   {const e=document.getElementById('setMemDistantCount'); if(e)e.value=(state.memDistantCount!=null?state.memDistantCount:2);}
   {const e=document.getElementById('setGossipOn'); if(e)e.checked=state.gossipOn!==false;}
   {const e=document.getElementById('setGossipThreshold'); if(e)e.value=(state.gossipThreshold!=null?state.gossipThreshold:0.6);}
@@ -15044,7 +15067,7 @@ function saveSettings(notify){
   state.queryGen=document.getElementById('setQueryGen').value.trim()||DEFAULT_QUERYGEN;
   state.ranker=document.getElementById('setRanker').value.trim()||DEFAULT_RANKER;
   state.condenseOn=document.getElementById('setCondenseOn').checked;
-  state.condenseThreshold=Math.max(10,+document.getElementById('setCondenseThreshold').value||40);
+  state.condenseThreshold=Math.max(6,+document.getElementById('setCondenseThreshold').value||12);
   state.condenseKeep=Math.min(1,Math.max(0,+document.getElementById('setCondenseKeep').value));
   state.condenseBatch=Math.max(3,+document.getElementById('setCondenseBatch').value||15);
   {const e=document.getElementById('setMemRecentCount'); if(e)state.memRecentCount=Math.max(0,Math.min(10,+e.value||0));}
