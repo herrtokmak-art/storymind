@@ -528,7 +528,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.10 (Fix: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.11 (Fix: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -4938,6 +4938,12 @@ function typewriterReveal(mid,fullText,onDone){
   let _lastAutoTop=list?list.scrollTop:0;   // the scrollTop our own auto-scroll last wrote
   const onScroll=()=>{
     if(!list) return;
+    // Ignore OUR OWN programmatic scroll writes. The front-trim in appendOneBubble resets scrollTop
+    // (content above the window is removed, so scrollTop legitimately drops) via setScrollTop, which
+    // fires this 'scroll' event. Without this guard the drop reads as a user upward drag and latches
+    // follow OFF — the root cause of the "after a while, every reply jumps to the top" bug, which
+    // only appears once the message count exceeds RENDER_WINDOW and front-trimming begins.
+    if(_isProgrammaticScroll()){ _lastAutoTop=list.scrollTop; return; }
     // A drag upward of more than a few px past our last auto-position = user intent. 24px absorbs
     // sub-pixel/elastic jitter without needing the wide stick band.
     if(list.scrollTop < _lastAutoTop - 24){ follow=false; _followAfterSend=false; }
@@ -11429,7 +11435,20 @@ function castHistory(chat,forP){
     return true;
   }).map(m=>{
     if(m.role==='assistant' && !m.narratorEvent && !m.presenceNote && !m.dayMarker){
-      return {role:"assistant",name:sanitizeName(m.speaker||"char"),content:`${m.speaker?m.speaker+": ":""}${m.content}`};
+      // SPEAKER ISOLATION (anti-bleed): a weak model that sees EVERY prior character line as its
+      // own `assistant` output — each tagged "Name: …" in the content — learns the pattern "an
+      // assistant turn is a name followed by dialogue" and starts emitting OTHER characters' names
+      // (e.g. Mümtaz writing "Polat: …"). Fix: only THIS character's own lines stay role:assistant,
+      // and WITHOUT the name prefix (it's literally their own voice — the doubled "Name: Name:" came
+      // from prefixing self-lines). Every OTHER present character's line is reframed as role:user
+      // input the model must respond TO, not continue AS — the "Name: " prefix is kept there so the
+      // model still knows who spoke. The API `name` field alone doesn't prevent this on DeepSeek.
+      const sp=m.speaker||"char";
+      const isSelf = forP && ( (m.speakerId && m.speakerId===forP.id) || (sp===forP.name) );
+      if(isSelf){
+        return {role:"assistant",name:sanitizeName(sp),content:m.content};
+      }
+      return {role:"user",name:sanitizeName(sp),content:`${sp}: ${m.content}`};
     }
     return mapMsgToApi(m);
   });
