@@ -528,7 +528,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.7 (Fixes: image generation works again — a guard added last update was wrongly blocking the first illustration, leaving a permanent loading spinner with no image · GM / event / presence beats no longer yank the chat to the bottom when you have scrolled up to read)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.10 (Fix: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -4715,6 +4715,9 @@ function loadState(){
       // vanishing. Render uses m.video; refreshBubble will fetch it back into a fresh blob.
       if(m.video&&String(m.video).startsWith("blob:")){m.video=m.videoSrc||null;}
       if(!m.video && m.videoSrc){ m.video=m.videoSrc; }
+      // Same for images: a base64 img isn't persisted, but a durable remote imgSrc (http(s)) is —
+      // restore it so the scene image reappears in chat after reload instead of vanishing.
+      if(!m.img && m.imgSrc){ m.img=m.imgSrc; m.imgState="done"; }
       if(!m.img && m.imgState==="loading") m.imgState="idle";
       if(!m.video && m.vidState==="loading") m.vidState="idle";
     });
@@ -4735,7 +4738,14 @@ function _chatSig(c){
 function _slimChat(c){
   const sc={...c,messages:(c.messages||[]).map(m=>{
     const o={...m};
-    if(o.img){o.hadImg=true;delete o.img;}
+    // Strip the heavy inline img from persistence, but KEEP a durable remote imgSrc (http(s) URL
+    // from the provider) so refreshBubble can restore the image after reload — same pattern as
+    // videoSrc for video. base64 imgs have no durable source, so they fall back to hadImg.
+    if(o.img){
+      o.hadImg=true;
+      if(typeof o.img==="string" && /^https?:/.test(o.img)) o.imgSrc=o.img;
+      delete o.img;
+    }
     if(o.video){o.hadVideo=true;o.video=null;}
     // Drop transient per-message flags (e.g. _reveal) so a reload never shows a
     // permanently-blank bubble from an interrupted typewriter animation.
@@ -4809,11 +4819,16 @@ function persistPersonas(){mediaDB.kvSet("personas",state.personas);store.setRaw
 function persistUniverses(){mediaDB.kvSet("universes",state.universes);store.setRaw(K.curUniverse,state.curUniverse||"");}
 function persistMemory(){mediaDB.kvSet("memory",state.memory);}
 function persistImages(){
-  // Persist to IndexedDB (large quota). Keep a generous recent window — the in-memory
-  // cap already trims base64 from older entries, so we store what's still full-res plus
-  // metadata for the rest. localStorage is no longer used for images (quota-safe).
-  const recent=state.images.slice(-60);
-  mediaDB.putAll("images",recent);
+  // Persist to IndexedDB (large quota). Durable remote-URL images (http(s)) are tiny (just the
+  // link) and must ALL be kept so the gallery survives reload. Only heavy base64 data-URLs are
+  // capped — keep the newest 60 of those, since they're ~1MB each.
+  const isHeavy=u=>typeof u==="string"&&u.startsWith("data:");
+  const light=state.images.filter(x=>x&&!isHeavy(x.url));
+  const heavyRecent=state.images.filter(x=>x&&isHeavy(x.url)).slice(-60);
+  // preserve original order while applying the heavy cap
+  const keepHeavy=new Set(heavyRecent);
+  const out=state.images.filter(x=>x && (!isHeavy(x.url) || keepHeavy.has(x)));
+  mediaDB.putAll("images",out);
   // Best-effort: clear any legacy localStorage images key from older versions.
   try{ localStorage.removeItem(K.images); }catch(e){}
 }
@@ -7742,21 +7757,36 @@ function openStoryState(){
   // Undercurrents: the offstage motives characters are nursing (layer 4). Read-only insight.
   let undercurrents="";
   {
-    const live=(Array.isArray(chat.intents)?chat.intents:[]).filter(i=>i.status!=="spent");
-    if(live.length){
+    // DEBUG VIEW: show ALL intents — live (brewing/ready/armed) AND spent (fired or faded), so a
+    // motive that armed-and-fired or dissolved is still visible for verifying the engine ran. Spent
+    // ones render dimmed at the bottom.
+    // NOTE (deferred, on user request): this raw debug dump may later be replaced with a vague,
+    //   in-fiction OBSERVATION-style cue instead of the explicit holder→target/kind/strength data —
+    //   e.g. "you notice something off in the way Lilith looks at you" / "a coolness between X and Y
+    //   you can't quite place". That would surface the *feeling* of an undercurrent without exposing
+    //   the engine internals. Trigger threshold (which intents/strengths produce a cue, how vague,
+    //   chat vs. panel) to be specced when requested. Until then: full raw visibility for debugging.
+    const all=(Array.isArray(chat.intents)?chat.intents:[]).slice();
+    if(all.length){
       const kindIcon={grievance:"💢",ambition:"👑",desire:"❤️‍🔥",loyalty:"🛡️",scheme:"🗡️",
         rivalry:"⚔️",resentment:"🌑",courtship:"💗",reconciliation:"🕊️",protection:"🛡️",alliance:"🤝",friendship:"😊"};
-      const statusLbl={brewing:"brewing",ready:"about to act",armed:"waiting for the moment"};
-      undercurrents=live.sort((a,b)=>b.strength-a.strength).map(i=>{
+      const statusLbl={brewing:"brewing",ready:"about to act",armed:"waiting for the moment",spent:"resolved / faded"};
+      // live first (by strength), then spent (by strength), so active currents sit on top.
+      const rank=i=>i.status==="spent"?1:0;
+      all.sort((a,b)=> (rank(a)-rank(b)) || ((b.strength||0)-(a.strength||0)));
+      undercurrents=all.map(i=>{
         const ic=kindIcon[i.kind]||"•";
+        const isC2C=i.targetId&&i.targetId!=="__user__";
+        const spent=i.status==="spent";
         const allies=(i.allies||[]).map(id=>id==="__user__"?state.user:((state.personas.find(p=>p.id===id)||{}).name||"?")).filter(Boolean);
         const pct=Math.round((i.strength||0)*100);
         // colour by valence (warm = accent-green, hostile = red); armed plans get the fuller bar.
         const warm=(i.valence==="warm");
-        const barColor=warm?"var(--good)":(i.status==="armed"||i.status==="ready")?"#c0556b":"var(--accent)";
+        const barColor=spent?"var(--border)":warm?"var(--good)":(i.status==="armed"||i.status==="ready")?"#c0556b":"var(--accent)";
         const methodNote=(i.plan&&i.plan.method&&i.plan.method!=="direct")?` · ${esc(i.plan.method.replace(/_/g," "))}`:"";
-        return `<div style="padding:6px 0;border-bottom:1px solid var(--border)">
-          <div><b>${ic} ${esc(i.holderName||"?")}</b> → ${esc(i.targetName||"?")} <span class="desc">(${esc(i.kind)}, ${esc(statusLbl[i.status]||i.status)}${methodNote})</span></div>
+        const c2cTag=isC2C?` <span class="pill" style="font-size:9px">char↔char</span>`:` <span class="pill" style="font-size:9px">vs ${esc(state.user)}</span>`;
+        return `<div style="padding:6px 0;border-bottom:1px solid var(--border);${spent?"opacity:.5":""}">
+          <div><b>${ic} ${esc(i.holderName||"?")}</b> → ${esc(i.targetName||"?")}${c2cTag} <span class="desc">(${esc(i.kind)}, ${esc(statusLbl[i.status]||i.status)}${methodNote})</span></div>
           <div class="desc">${esc(i.aim||i.trigger||"")}${allies.length?` · with ${esc(allies.join(", "))}`:""}</div>
           <span class="relBar"><span class="relBarFill" style="width:${pct}%;background:${barColor}"></span></span>
         </div>`;
@@ -11897,21 +11927,25 @@ async function illustrate(mid,replyText,force){
       else if(state.imgProvider==="modelslab")  url=await modelslabImage(finalPrompt,baseNeg,null);
       else                                      url=await imageCompletion(finalPrompt,state.imgModel,RATIOS[state.ratio]);
     }
-    msg.img=url;msg.imgState="done";msg.imgPrompt=finalPrompt;
+    msg.img=url;msg.imgSrc=url;msg.imgState="done";msg.imgPrompt=finalPrompt;
     state.images.push({id:"img_"+Date.now(),url,prompt:finalPrompt,character:cast.map(c=>c.name).join(", "),date:Date.now()});
-    // Bound in-memory media growth: the gallery + persistence only ever surface the most
-    // recent images, but state.images previously held every full-res base64 for the whole
-    // session (~1MB+ per dozen images). Keep the newest IMG_MEM_CAP in memory; older entries
-    // keep their metadata but drop the heavy base64 url so the heap stays flat.
-    const IMG_MEM_CAP=24;
-    if(state.images.length>IMG_MEM_CAP){
-      for(let i=0;i<state.images.length-IMG_MEM_CAP;i++){ if(state.images[i]&&state.images[i].url){state.images[i].url="";state.images[i].evicted=true;} }
+    // Bound in-memory media growth ONLY for heavy base64 data-URLs (~1MB each). Remote provider
+    // URLs (http(s) — ModelsLab R2, AtlasCloud, dashscope) are a few hundred bytes and durable, so
+    // never evict those: keeping them lets the gallery + chat survive reload. Only base64 is dropped.
+    const IMG_MEM_CAP=24, isHeavy=u=>typeof u==="string"&&u.startsWith("data:");
+    const heavy=state.images.filter(x=>x&&isHeavy(x.url));
+    if(heavy.length>IMG_MEM_CAP){
+      let toFree=heavy.length-IMG_MEM_CAP;
+      for(let i=0;i<state.images.length&&toFree>0;i++){ const x=state.images[i]; if(x&&isHeavy(x.url)){x.url="";x.evicted=true;toFree--;} }
     }
-    // Also free base64 from on-message scenes that have scrolled well outside the render
-    // window — they're not visible and not persisted; the hadImg flag lets them regenerate.
+    // Free base64 from on-message scenes scrolled outside the render window. Remote-URL scenes keep
+    // a durable imgSrc so refreshBubble can restore them; base64 ones drop to hadImg (regenerate).
     if(chat){
       const cut=chat.messages.length-RENDER_WINDOW*2;
-      for(let i=0;i<cut;i++){ const om=chat.messages[i]; if(om&&om.img){om.hadImg=true;om.img=null;} if(om&&om.video){om.hadVideo=true;om.video=null;} }
+      for(let i=0;i<cut;i++){ const om=chat.messages[i];
+        if(om&&om.img&&isHeavy(om.img)){om.hadImg=true;om.img=null;}
+        if(om&&om.video){om.hadVideo=true;om.video=null;}
+      }
     }
     persistImages();persistChats();refreshBubble(mid);updateStorage();
   }catch(err){
@@ -12149,17 +12183,44 @@ function viewGalleryImage(id){
 function downloadCurrent(){if(_curImg){const a=document.createElement('a');a.href=_curImg.url;a.download="storymind_scene.png";a.click();toast("Saved");}}
 
 /* ---- gallery ---- */
+let _galFilter=null;   // null = all; otherwise a character name to filter images by
+function setGalFilter(name){ _galFilter=(name===_galFilter)?null:name; renderGallery(); }
+// Split an image entry's comma-joined character field into individual names.
+function _imgChars(r){ return String(r&&r.character||"").split(",").map(s=>s.trim()).filter(Boolean); }
 function renderGallery(){
   const el=document.getElementById('galleryGrid');el.innerHTML="";
   const hasImg=state.images.length, hasVid=state.videos.length;
   if(!hasImg&&!hasVid){el.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="big">🖼️</div><div>Scene images and videos appear here as you roleplay.</div></div>`;return;}
-  state.images.slice().reverse().forEach(r=>{
+  // Character folders: every distinct name that appears in any image's character field. An image
+  // with two people lands in BOTH folders (the filter matches if the name is in the list).
+  const counts=new Map();
+  state.images.forEach(r=>_imgChars(r).forEach(n=>counts.set(n,(counts.get(n)||0)+1)));
+  if(counts.size){
+    const bar=document.createElement('div');
+    bar.style.cssText="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px";
+    const mkChip=(label,name,n)=>{
+      const active=(name===_galFilter)||(name===null&&_galFilter===null);
+      const c=document.createElement('button');
+      c.className="btn small "+(active?"":"sec");
+      c.textContent=n!=null?`${label} (${n})`:label;
+      c.onclick=()=>setGalFilter(name);
+      return c;
+    };
+    bar.appendChild(mkChip("All",null));
+    [...counts.entries()].sort((a,b)=>b[1]-a[1]).forEach(([name,n])=>bar.appendChild(mkChip(name,name,n)));
+    el.appendChild(bar);
+  }
+  const imgs=state.images.slice().reverse().filter(r=>!_galFilter||_imgChars(r).includes(_galFilter));
+  if(!imgs.length && _galFilter){
+    const none=document.createElement('div');none.className="desc";none.style.gridColumn="1/-1";none.textContent=`No images of ${_galFilter} yet.`;el.appendChild(none);
+  }
+  imgs.forEach(r=>{
     if(!r.url){ // evicted from memory to keep the session lean — show a lightweight placeholder
       const ph=document.createElement('div');ph.style.cssText="aspect-ratio:1;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:12px;opacity:.5;font-size:24px";ph.textContent="🖼️";el.appendChild(ph);return;
     }
     const img=document.createElement('img');img.src=r.url;img.onclick=()=>viewGalleryImage(r.id);el.appendChild(img);
   });
-  if(hasVid){
+  if(hasVid && !_galFilter){
     const h=document.createElement('div');h.style.gridColumn="1/-1";h.style.marginTop="6px";h.innerHTML=`<h3 style="margin:0">Videos</h3><div class="desc">Videos play this session; re-animate after reload if needed.</div>`;el.appendChild(h);
     state.videos.slice().reverse().forEach(v=>{
       const wrap=document.createElement('div');wrap.style.gridColumn="1/-1";
@@ -13082,7 +13143,12 @@ async function maybeGamemaster(chat,force){
   if(!force){
     if(!state.gmOn)return;
     const turns=chat.messages.filter(m=>m.role!=='system'&&!m.sysError).length;
-    const every=Math.max(3,state.gmEvery||8);
+    let every=Math.max(3,state.gmEvery||8);
+    // If the player is ALONE (nobody present) with no active event, the scene has nothing to push it
+    // forward on its own — this is exactly when the Gamemaster should step in to bring someone or
+    // something in. Shorten the cadence so the player isn't left narrating into an empty room for the
+    // full normal interval. Still gated (min 2 turns) so it doesn't fire every single line.
+    if(presentCast(chat).length===0) every=Math.min(every,2);
     // only check on the configured cadence, and never twice within the same window
     if(turns<every)return;
     if(turns-(chat.gmLastCheck||0)<every)return;
@@ -13649,9 +13715,17 @@ async function runSceneWriter(chat){
     if(resolved){
       // Count who would remain present after resolution (resolution may send the participant off).
       const presentNow=presentCast(chat);
-      const wouldEmpty = presentNow.length<=1; // resolving typically removes the event participant
-      if(wouldEmpty && !force){
-        // Defer the ending: keep at least one character in the scene to interact with.
+      // The event participant — the person whose departure would empty the scene.
+      const partId=ev.participant&&ev.participant.charId;
+      const participantStillHere = partId && presentNow.some(c=>c.id===partId);
+      // Defer the ending ONLY when resolving would actually empty an OCCUPIED scene — i.e. the
+      // participant is still here and is the last one, so ending now would strand the player alone
+      // mid-conversation. But if the scene is ALREADY empty (the participant left on a prior turn
+      // and nobody new is being brought in), deferring is a deadlock: the event can never resolve,
+      // never brings anyone in, and — because it stays "active" — blocks the Gamemaster from
+      // spawning the next arrival. In that case we MUST let it resolve so the GM can move the scene.
+      const wouldStrand = participantStillHere && presentNow.length<=1;
+      if(wouldStrand && !force){
         resolved=false;
       }
     }
