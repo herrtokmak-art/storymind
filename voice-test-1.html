@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>StoryMind — Voice Pipeline Test (Stage 1)</title>
+<style>
+  :root{ --bg:#0e1116; --panel:#171b22; --line:#262c36; --txt:#e7ecf3; --dim:#8a94a6; --accent:#6ea8fe; --good:#4ade80; --bad:#f87171; --warn:#fbbf24; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;padding:14px;max-width:760px;margin:0 auto}
+  h1{font-size:17px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+  label{display:block;font-size:12px;color:var(--dim);margin:8px 0 3px}
+  input,textarea,select{width:100%;background:#0b0e13;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:9px;font:13px inherit}
+  textarea{min-height:64px;resize:vertical}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:120px}
+  button{background:var(--accent);color:#06121f;border:0;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px;cursor:pointer}
+  button.sec{background:#222834;color:var(--txt)}
+  button:disabled{opacity:.5}
+  .controls{display:flex;gap:10px;align-items:center;margin:6px 0}
+  .status{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;margin:10px 0}
+  .dot{width:11px;height:11px;border-radius:50%;background:var(--dim);flex:none}
+  .dot.live{background:var(--good);box-shadow:0 0 8px var(--good)}
+  .dot.think{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+  .dot.speak{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .dot.err{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+  .meters{display:flex;gap:14px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+  .meters b{color:var(--txt)}
+  #log{background:#080a0e;border:1px solid var(--line);border-radius:8px;padding:8px;height:46vh;overflow-y:auto;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+  .l-stt{color:#7dd3fc}.l-llm{color:#c4b5fd}.l-tts{color:#86efac}.l-evt{color:var(--dim)}.l-err{color:#fca5a5}.l-ok{color:#86efac}.l-user{color:#fde68a}
+  .transcript{min-height:24px;font-size:15px;margin:8px 0;color:var(--warn)}
+  .reply{min-height:24px;font-size:14px;color:var(--accent)}
+  details{margin-top:6px}summary{cursor:pointer;color:var(--dim);font-size:12px}
+  .hint{font-size:11px;color:var(--dim);margin-top:4px}
+</style>
+</head>
+<body>
+<h1>StoryMind — Voice Pipeline Test</h1>
+<div class="sub">Stage 1 · isolated · proves Deepgram STT → OpenRouter (stream) → chunker → Inworld TTS → barge-in. Test in the car, on the S24+. Nothing here touches your main app.</div>
+
+<div class="card">
+  <label>Deepgram API key (STT)</label>
+  <input id="dgKey" type="password" placeholder="Deepgram key" autocomplete="off">
+  <label>Inworld API key (TTS)</label>
+  <input id="iwKey" type="password" placeholder="Inworld key (the value you put after 'Basic ')" autocomplete="off">
+  <div class="hint">Paste the <b>Base64 (Basic)</b> credential from the Inworld portal — just the long string, without the word "Basic". Sent as an HTTPS request header (no WebSocket/JWT needed). Note: this credential is visible in the page's network tab, which is fine for a private test on your own phone — rotate it afterward.</div>
+  <label>OpenRouter API key (LLM)</label>
+  <input id="orKey" type="password" placeholder="OpenRouter key" autocomplete="off">
+
+  <div class="row">
+    <div>
+      <label>LLM model (OpenRouter)</label>
+      <input id="orModel" value="deepseek/deepseek-v4-pro">
+    </div>
+    <div>
+      <label>Inworld voice id</label>
+      <input id="iwVoice" value="Dennis">
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>STT language (BCP-47)</label>
+      <input id="dgLang" value="tr">
+      <div class="hint">tr = Turkish · en = English · or "multi"</div>
+    </div>
+    <div>
+      <label>Inworld TTS model</label>
+      <input id="iwModel" value="inworld-tts-2">
+    </div>
+  </div>
+
+  <label>Character instructions (the "call payload" — hardcoded for this test)</label>
+  <textarea id="sysPrompt">You are Alev, an old friend of Emre, talking to him on the phone. Speak naturally, warmly, in short spoken sentences — this is a voice call, not text. No narration, no asterisks, no stage directions. Reply in the SAME language Emre speaks. You may use Inworld emotion tags in square brackets at the START of a sentence to colour your delivery, e.g. [happy], [whispers], [laughs], [sighs]. Keep replies to 1–3 sentences so the conversation flows.</textarea>
+
+  <details>
+    <summary>Advanced (turn-taking · car tuning)</summary>
+    <div class="row">
+      <div><label>endpointing (ms silence → finalize)</label><input id="dgEndpoint" value="400"></div>
+      <div><label>utterance_end_ms</label><input id="dgUttEnd" value="1200"></div>
+    </div>
+    <div class="hint">In a noisy car, raise these if it cuts you off mid-sentence; lower them if it feels slow to respond.</div>
+  </details>
+</div>
+
+<div class="card">
+  <div class="controls">
+    <button id="startBtn">▶ Start call</button>
+    <button id="stopBtn" class="sec" disabled>■ End call</button>
+  </div>
+  <div class="status"><span id="dot" class="dot"></span><span id="statusText">Idle</span></div>
+  <div class="meters">
+    <div>call: <b id="mDur">0:00</b></div>
+    <div>turns: <b id="mTurns">0</b></div>
+    <div>last TTFB: <b id="mTtfb">–</b></div>
+    <div>barge-ins: <b id="mBarge">0</b></div>
+  </div>
+  <div class="transcript" id="liveTranscript"></div>
+  <div class="reply" id="liveReply"></div>
+</div>
+
+<div class="card">
+  <div class="row" style="align-items:center">
+    <div style="flex:2"><b style="font-size:13px">Event log</b></div>
+    <div style="flex:0"><button class="sec" id="clearLog" style="padding:7px 12px;font-size:12px">Clear</button></div>
+  </div>
+  <div id="log"></div>
+</div>
+
+<script>
+/* =========================================================================
+   StoryMind Voice Pipeline — Stage 1 (standalone, isolated, instrumented)
+   PIPELINE:
+     mic (getUserMedia, echoCancellation+noiseSuppression)
+       → AudioWorklet/ScriptProcessor → 16k linear16 PCM
+       → Deepgram Listen WS (subprotocol auth, endpointing, vad_events, utterance_end)
+       → on end-of-turn transcript → OpenRouter chat/completions STREAM (SSE)
+       → [bracket]-safe sentence chunker (fast first chunk, then per-period)
+       → each chunk → Inworld TTS WS (autoMode) → audioChunk PCM → WebAudio playback queue
+       ↑ Deepgram SpeechStarted while TTS playing → BARGE-IN cascade
+          (stop audio, abort OpenRouter fetch, flush TTS, clear queue, resume listening)
+   This file CANNOT be unit-tested offline; it is built to be MAXIMALLY observable.
+   Every boundary logs. Read the log in the car to see which stage breaks.
+   ========================================================================= */
+
+const $ = id => document.getElementById(id);
+const logEl = $('log');
+function log(msg, cls){ const t=new Date().toLocaleTimeString(); const d=document.createElement('div'); if(cls)d.className=cls; d.textContent=`[${t}] ${msg}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
+function setStatus(text, dotClass){ $('statusText').textContent=text; $('dot').className='dot '+(dotClass||''); }
+$('clearLog').onclick=()=>logEl.innerHTML='';
+
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const DG_BASE = "wss://api.deepgram.com/v1/listen";
+/* Inworld TTS uses HTTP streaming (IW_TTS_HTTP, defined below) — no WebSocket. */
+
+// ---- runtime state for one call ----
+let call = null;
+
+function freshCall(){
+  return {
+    active:false,
+    // audio in
+    micStream:null, audioCtx:null, srcNode:null, procNode:null, workletNode:null,
+    // deepgram
+    dgWs:null, dgKeepAlive:null,
+    // openrouter
+    orAbort:null,
+    // inworld tts (HTTP streaming — stateless; per-reply synth queue)
+    iwReady:false, ttsQueue:[], ttsBusy:false, ttsTurn:0, ttsAbort:null,
+    // playback
+    playCtx:null, playQueue:[], playing:false, nextStartTime:0, activeSources:[],
+    // turn bookkeeping
+    speaking:false,          // TTS currently producing/playing audio for a reply
+    generating:false,        // an OpenRouter stream is in flight
+    turnSeq:0,
+    startedAt:0, durTimer:null, turns:0, bargeIns:0
+  };
+}
+
+/* ----------------------------------------------------------------------- */
+/* PCM helpers                                                              */
+/* ----------------------------------------------------------------------- */
+function floatTo16BitPCM(float32){
+  const out = new Int16Array(float32.length);
+  for(let i=0;i<float32.length;i++){ let s=Math.max(-1,Math.min(1,float32[i])); out[i]= s<0 ? s*0x8000 : s*0x7FFF; }
+  return out;
+}
+// Downsample Float32 from ctxRate to 16000
+function downsampleTo16k(float32, inRate){
+  if(inRate===16000) return float32;
+  const ratio = inRate/16000;
+  const newLen = Math.round(float32.length/ratio);
+  const result = new Float32Array(newLen);
+  let oi=0, ii=0;
+  while(oi<newLen){
+    const nextI = Math.round((oi+1)*ratio);
+    let sum=0,count=0;
+    for(let i=ii;i<nextI && i<float32.length;i++){ sum+=float32[i]; count++; }
+    result[oi]= count? sum/count : 0; oi++; ii=nextI;
+  }
+  return result;
+}
+function b64ToArrayBuffer(b64){ const bin=atob(b64); const len=bin.length; const bytes=new Uint8Array(len); for(let i=0;i<len;i++)bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
+
+/* ----------------------------------------------------------------------- */
+/* MIC CAPTURE → 16k PCM frames → onPcm(Int16Array)                        */
+/* ----------------------------------------------------------------------- */
+async function startMic(onPcm){
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 }
+  });
+  call.micStream = stream;
+  const ctx = new (window.AudioContext||window.webkitAudioContext)();
+  call.audioCtx = ctx;
+  const src = ctx.createMediaStreamSource(stream); call.srcNode=src;
+  log(`mic ok · ctx rate ${ctx.sampleRate}Hz · echoCancellation on`, 'l-evt');
+
+  // ScriptProcessor is deprecated but universally supported and simplest for Stage 1.
+  const proc = ctx.createScriptProcessor(4096, 1, 1); call.procNode=proc;
+  proc.onaudioprocess = (e)=>{
+    if(!call.active) return;
+    const input = e.inputBuffer.getChannelData(0);
+    const ds = downsampleTo16k(input, ctx.sampleRate);
+    const pcm = floatTo16BitPCM(ds);
+    onPcm(pcm);
+  };
+  src.connect(proc);
+  proc.connect(ctx.destination); // required for onaudioprocess to fire in some browsers
+}
+
+function stopMic(){
+  try{ call.procNode && call.procNode.disconnect(); }catch(e){}
+  try{ call.srcNode && call.srcNode.disconnect(); }catch(e){}
+  try{ call.micStream && call.micStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+  try{ call.audioCtx && call.audioCtx.close(); }catch(e){}
+}
+
+/* ----------------------------------------------------------------------- */
+/* DEEPGRAM STT  (browser subprotocol auth)                                */
+/* ----------------------------------------------------------------------- */
+function startDeepgram(){
+  const key = $('dgKey').value.trim();
+  if(!key){ log('No Deepgram key', 'l-err'); return; }
+  const lang = $('dgLang').value.trim()||'tr';
+  const endpoint = parseInt($('dgEndpoint').value)||400;
+  const uttEnd = parseInt($('dgUttEnd').value)||1200;
+  // nova-3 is multilingual; fall back model param is fine. Use linear16 @16k mono.
+  const params = new URLSearchParams({
+    model: 'nova-2', language: lang, encoding:'linear16', sample_rate:'16000', channels:'1',
+    interim_results:'true', vad_events:'true', endpointing:String(endpoint), utterance_end_ms:String(uttEnd),
+    smart_format:'true', punctuate:'true'
+  });
+  const url = DG_BASE+'?'+params.toString();
+  log('DG connecting · '+url, 'l-stt');
+  // BROWSER AUTH: Sec-WebSocket-Protocol = ["token", APIKEY]
+  let ws;
+  try{ ws = new WebSocket(url, ['token', key]); }
+  catch(e){ log('DG socket ctor failed: '+e.message, 'l-err'); return; }
+  call.dgWs = ws;
+
+  ws.onopen = ()=>{
+    log('DG open', 'l-ok');
+    // KeepAlive so the socket doesn't close during silence
+    call.dgKeepAlive = setInterval(()=>{ try{ ws.readyState===1 && ws.send(JSON.stringify({type:'KeepAlive'})); }catch(e){} }, 5000);
+    setStatus('Listening…', 'live');
+  };
+  ws.onmessage = (ev)=>{
+    let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+    // VAD: user started speaking → candidate barge-in
+    if(m.type==='SpeechStarted'){
+      log('DG SpeechStarted', 'l-evt');
+      if(call.speaking || call.generating){ bargeIn('user spoke'); }
+      return;
+    }
+    if(m.type==='UtteranceEnd'){
+      log('DG UtteranceEnd', 'l-evt');
+      return; // we rely on speech_final / is_final below to grab the transcript
+    }
+    if(m.type==='Results' || m.channel){
+      const alt = m.channel && m.channel.alternatives && m.channel.alternatives[0];
+      const txt = alt && alt.transcript ? alt.transcript : '';
+      if(!txt){ return; }
+      if(m.is_final){
+        // accumulate finals until speech_final (end of turn)
+        call._finalBuf = ((call._finalBuf||'')+' '+txt).trim();
+        $('liveTranscript').textContent = call._finalBuf;
+      }else{
+        // interim
+        $('liveTranscript').textContent = ((call._finalBuf||'')+' '+txt).trim();
+      }
+      if(m.speech_final){
+        const full = (call._finalBuf||txt).trim();
+        call._finalBuf='';
+        if(full){ log('USER: '+full, 'l-user'); onUserTurn(full); }
+      }
+    }
+  };
+  ws.onerror = (e)=>{ log('DG error (see console)', 'l-err'); console.error('DG error', e); };
+  ws.onclose = (e)=>{ log('DG closed · code '+e.code+(e.reason?' · '+e.reason:''), 'l-evt'); };
+}
+
+/* ----------------------------------------------------------------------- */
+/* USER TURN → OpenRouter STREAM → chunker → TTS                           */
+/* ----------------------------------------------------------------------- */
+const history = []; // {role, content} kept across the call (short-term)
+
+async function onUserTurn(userText){
+  if(call.generating){ log('already generating — ignoring overlapping turn', 'l-evt'); return; }
+  history.push({role:'user', content:userText});
+  call.turns++; $('mTurns').textContent=call.turns;
+  $('liveReply').textContent='';
+  setStatus('Thinking…', 'think');
+  call.generating = true;
+  const myTurn = ++call.turnSeq;
+
+  const orKey = $('orKey').value.trim();
+  const model = $('orModel').value.trim();
+  const sys = $('sysPrompt').value.trim();
+  const messages = [{role:'system', content:sys}, ...history.slice(-12)];
+
+  const ctrl = new AbortController(); call.orAbort = ctrl;
+  const t0 = performance.now(); let firstTok=0;
+
+  // start a fresh TTS context for this reply
+  ttsBeginReply(myTurn);
+
+  let acc = '';                 // full reply text
+  const chunker = makeChunker(seg => { if(myTurn===call.turnSeq) ttsSend(seg); });
+
+  try{
+    const res = await fetch(OPENROUTER_URL, {
+      method:'POST',
+      headers:{'Authorization':'Bearer '+orKey,'Content-Type':'application/json','HTTP-Referer':'https://storymind.app','X-Title':'StoryMind-VoiceTest'},
+      body: JSON.stringify({ model, messages, stream:true, temperature:0.8, max_tokens:300, reasoning:{enabled:false,exclude:true} }),
+      signal: ctrl.signal
+    });
+    if(!res.ok){ log('OR HTTP '+res.status, 'l-err'); const tx=await res.text().catch(()=>''); if(tx)log('OR body: '+tx.slice(0,300),'l-err'); cleanupGen(); return; }
+    log('OR stream open', 'l-llm');
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf='';
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buf += dec.decode(value, {stream:true});
+      // parse SSE lines
+      let idx;
+      while((idx=buf.indexOf('\n'))>=0){
+        const line = buf.slice(0,idx).trim(); buf=buf.slice(idx+1);
+        if(!line || !line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if(data==='[DONE]'){ continue; }
+        let j; try{ j=JSON.parse(data); }catch(e){ continue; }
+        const delta = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
+        if(delta){
+          if(!firstTok){ firstTok=performance.now(); const ttfb=Math.round(firstTok-t0); $('mTtfb').textContent=ttfb+'ms'; log('OR first token '+ttfb+'ms', 'l-llm'); }
+          acc += delta;
+          $('liveReply').textContent = acc;
+          chunker.push(delta);
+        }
+      }
+    }
+    chunker.flush();
+    if(myTurn===call.turnSeq){
+      history.push({role:'assistant', content:acc});
+      log('REPLY: '+acc, 'l-llm');
+      ttsEndReply();           // tell TTS no more text is coming for this reply
+    }
+  }catch(e){
+    if(e.name==='AbortError'){ log('OR aborted (barge-in)', 'l-evt'); }
+    else{ log('OR stream error: '+e.message, 'l-err'); console.error(e); }
+  }finally{
+    cleanupGen();
+  }
+}
+function cleanupGen(){ call.generating=false; call.orAbort=null; if(!call.speaking && call.active) setStatus('Listening…','live'); }
+
+/* ----------------------------------------------------------------------- */
+/* CHUNKER — fast first chunk, then per-sentence; never split inside [..]   */
+/* ----------------------------------------------------------------------- */
+function makeChunker(emit){
+  let buf='';
+  let firstDone=false;
+  let bracketDepth=0;
+  const FIRST_MIN=12;          // emit first chunk as soon as we have a clause this long + a break
+  function inBracket(){ return bracketDepth>0; }
+  function tryEmit(force){
+    if(inBracket() && !force) return;
+    let s=buf.trim();
+    if(!s) { if(force) buf=''; return; }
+    if(force){ emit(s); buf=''; return; }
+    // find a sentence-ish boundary
+    const m = s.match(/^[\s\S]*?[.!?…](\s|$)/);
+    if(!firstDone){
+      // fast first chunk: first clause boundary (.,!?…;:,) once we have FIRST_MIN chars
+      const fm = s.match(/^[\s\S]{0,200}?[.!?…;:,](\s|$)/);
+      if(fm && fm[0].trim().length>=FIRST_MIN){ emit(fm[0].trim()); buf=s.slice(fm[0].length); firstDone=true; return; }
+      return;
+    }
+    if(m){ emit(m[0].trim()); buf=s.slice(m[0].length); }
+  }
+  return {
+    push(text){
+      for(const ch of text){
+        if(ch==='[') bracketDepth++;
+        else if(ch===']' && bracketDepth>0) bracketDepth--;
+        buf+=ch;
+      }
+      // drain every complete unit currently in the buffer (a single delta can carry
+      // more than one sentence; emit them all rather than leaving them for flush)
+      let before;
+      do{ before=buf; tryEmit(false); } while(buf!==before && buf.trim());
+    },
+    flush(){ let before; do{ before=buf; tryEmit(false); } while(buf!==before && buf.trim()); tryEmit(true); }
+  };
+}
+
+/* ----------------------------------------------------------------------- */
+/* INWORLD TTS  (HTTP streaming POST — Basic auth, NO backend/JWT needed)    */
+/* Per Inworld docs: POST /tts/v1/voice:stream with `Authorization: Basic    */
+/* <key>` streams audio chunks in the response body. This is the documented  */
+/* browser path (their own JS sample uses fetch + Basic), so it sidesteps    */
+/* the Realtime-WebSocket JWT requirement entirely. One POST per sentence.   */
+/* LINEAR16 @24k → each streamed chunk carries a WAV header we strip.        */
+/* Ordering: each sentence is queued; we synthesize them one at a time so    */
+/* audio for sentence N fully enqueues before sentence N+1 starts.           */
+/* ----------------------------------------------------------------------- */
+const IW_TTS_HTTP = "https://api.inworld.ai/tts/v1/voice:stream";
+
+function startInworldTTS(){
+  // Nothing to connect — HTTP is stateless. Just validate the key is present.
+  const key = $('iwKey').value.trim();
+  if(!key){ log('No Inworld key (TTS will fail)', 'l-err'); return; }
+  call.iwReady = true;
+  log('IW TTS ready (HTTP streaming, Basic auth)', 'l-ok');
+}
+
+function ttsBeginReply(turn){
+  call.speaking=true; setStatus('Speaking…','speak');
+  // reset this reply's synth queue
+  call.ttsQueue = [];
+  call.ttsBusy = false;
+  call.ttsTurn = turn;
+}
+
+// queue a sentence for synthesis (keeps order; one POST in flight at a time)
+function ttsSend(segment){
+  const seg = segment.trim();
+  if(!seg) return;
+  log('TTS← "'+seg+'"', 'l-tts');
+  call.ttsQueue = call.ttsQueue || [];
+  call.ttsQueue.push({ text:seg, turn:call.ttsTurn });
+  pumpTtsQueue();
+}
+function ttsEndReply(){ /* no-op: HTTP synth drains the queue on its own */ }
+
+async function pumpTtsQueue(){
+  if(call.ttsBusy) return;
+  const item = (call.ttsQueue && call.ttsQueue.length) ? call.ttsQueue.shift() : null;
+  if(!item) return;
+  // stale-turn guard: a barge-in advances turnSeq; drop audio for an abandoned reply
+  if(item.turn !== call.turnSeq){ pumpTtsQueue(); return; }
+  call.ttsBusy = true;
+  try{
+    await synthOneHttp(item.text, item.turn);
+  }catch(e){
+    if(e.name==='AbortError'){ log('IW synth aborted (barge-in)', 'l-evt'); }
+    else{ log('IW synth error: '+e.message, 'l-err'); console.error(e); }
+  }finally{
+    call.ttsBusy = false;
+    // continue draining if more queued and still the same turn
+    if(call.ttsQueue && call.ttsQueue.length) pumpTtsQueue();
+  }
+}
+
+async function synthOneHttp(text, turn){
+  const key   = $('iwKey').value.trim();
+  const voice = $('iwVoice').value.trim() || 'Dennis';
+  const model = $('iwModel').value.trim() || 'inworld-tts-2';
+  const body = {
+    text,
+    voiceId: voice,
+    modelId: model,
+    audioConfig: { audioEncoding:'LINEAR16', sampleRateHertz:24000 },
+    deliveryMode: 'CREATIVE'    // inworld-tts-2: max emotional range for [bracket] tags
+  };
+  // share the barge-in AbortController so an interrupt kills in-flight synth too
+  const ctrl = call.orAbort || new AbortController();
+  call.ttsAbort = ctrl;
+  const res = await fetch(IW_TTS_HTTP, {
+    method:'POST',
+    headers:{ 'Authorization':'Basic '+key, 'Content-Type':'application/json' },
+    body: JSON.stringify(body),
+    signal: ctrl.signal
+  });
+  if(!res.ok){
+    const tx = await res.text().catch(()=> '');
+    log('IW HTTP '+res.status+(tx? ' · '+tx.slice(0,200):''), 'l-err');
+    return;
+  }
+  // The streamed body is newline-delimited JSON objects: { result:{ audioContent, usage } }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf='';
+  let gotAudio=false;
+  while(true){
+    const {done, value} = await reader.read();
+    if(done) break;
+    if(turn !== call.turnSeq){ try{ reader.cancel(); }catch(e){} break; } // barge-in mid-stream
+    buf += dec.decode(value, {stream:true});
+    // Inworld streams concatenated JSON objects; split on newlines, tolerate partials.
+    let nl;
+    while((nl=buf.indexOf('\n'))>=0){
+      const line = buf.slice(0,nl).trim(); buf=buf.slice(nl+1);
+      if(!line) continue;
+      handleIwLine(line, ()=>{gotAudio=true;});
+    }
+  }
+  // any trailing object without a newline
+  if(buf.trim()) handleIwLine(buf.trim(), ()=>{gotAudio=true;});
+  if(!gotAudio) log('IW: stream ended with no audio for "'+text.slice(0,30)+'…"','l-evt');
+}
+
+function handleIwLine(line, onAudio){
+  let j; try{ j=JSON.parse(line); }catch(e){ return; } // skip partial/non-JSON fragments
+  const r = j.result || j;
+  if(j.error){ log('IW stream error '+(j.error.code||'')+': '+(j.error.message||''),'l-err'); return; }
+  if(r && r.audioContent){
+    enqueuePcm(b64ToArrayBuffer(r.audioContent));   // LINEAR16 w/ WAV header → enqueuePcm strips it
+    onAudio && onAudio();
+  }
+}
+
+/* ----------------------------------------------------------------------- */
+/* PLAYBACK — ordered WebAudio queue (PCM16 @24k mono)                      */
+/* ----------------------------------------------------------------------- */
+function ensurePlayCtx(){
+  if(!call.playCtx){ call.playCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:24000}); call.nextStartTime=0; }
+  return call.playCtx;
+}
+function enqueuePcm(arrBuf){
+  // PCM may carry a 44-byte WAV header (LINEAR16 first chunk); we asked for raw PCM but guard anyway.
+  let bytes = new Uint8Array(arrBuf);
+  if(bytes.length>44 && bytes[0]===0x52 && bytes[1]===0x49 && bytes[2]===0x46 && bytes[3]===0x46){ bytes = bytes.slice(44); } // "RIFF"
+  const ctx = ensurePlayCtx();
+  const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength/2));
+  const f32 = new Float32Array(i16.length);
+  for(let i=0;i<i16.length;i++) f32[i]=i16[i]/32768;
+  const buffer = ctx.createBuffer(1, f32.length, 24000);
+  buffer.copyToChannel(f32, 0);
+  const srcNode = ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(ctx.destination);
+  const now = ctx.currentTime;
+  const startAt = Math.max(now, call.nextStartTime);
+  srcNode.start(startAt);
+  call.nextStartTime = startAt + buffer.duration;
+  call.activeSources.push(srcNode);
+  srcNode.onended = ()=>{
+    call.activeSources = call.activeSources.filter(s=>s!==srcNode);
+    if(call.activeSources.length===0 && !call.generating){
+      call.speaking=false;
+      if(call.active) setStatus('Listening…','live');
+    }
+  };
+}
+function stopAllPlayback(){
+  call.activeSources.forEach(s=>{ try{ s.stop(); }catch(e){} });
+  call.activeSources=[];
+  if(call.playCtx){ call.nextStartTime=call.playCtx.currentTime; }
+  call.speaking=false;
+}
+
+/* ----------------------------------------------------------------------- */
+/* BARGE-IN cascade                                                         */
+/* ----------------------------------------------------------------------- */
+function bargeIn(reason){
+  call.bargeIns++; $('mBarge').textContent=call.bargeIns;
+  log('⟂ BARGE-IN ('+reason+') — stop audio · abort LLM · flush TTS', 'l-evt');
+  // 1. advance turn so any in-flight chunker/TTS for the old turn is ignored
+  call.turnSeq++;
+  // 2. stop playback immediately
+  stopAllPlayback();
+  // 3. abort OpenRouter stream (and any in-flight Inworld synth sharing the controller)
+  if(call.orAbort){ try{ call.orAbort.abort(); }catch(e){} }
+  if(call.ttsAbort && call.ttsAbort!==call.orAbort){ try{ call.ttsAbort.abort(); }catch(e){} }
+  // 4. drop any queued sentences for the abandoned reply (turnSeq already advanced above)
+  call.ttsQueue = []; call.ttsBusy = false;
+  call.generating=false; call.speaking=false;
+  setStatus('Listening…','live');
+}
+
+/* ----------------------------------------------------------------------- */
+/* CALL LIFECYCLE                                                           */
+/* ----------------------------------------------------------------------- */
+async function startCall(){
+  if(call && call.active) return;
+  call = freshCall();
+  history.length = 0;
+  $('startBtn').disabled=true; $('stopBtn').disabled=false;
+  setStatus('Connecting…','think');
+  log('=== CALL START ===','l-ok');
+
+  // 0) DIAGNOSTIC: secure-context check. getUserMedia (mic) requires HTTPS or
+  //    localhost/file. If we're on plain HTTP, the mic will ALWAYS be denied —
+  //    say so plainly rather than letting it look like a permission slip.
+  if(!window.isSecureContext){
+    log('⚠ NOT a secure context ('+location.protocol+'//'+location.host+'). Mic is blocked on insecure origins.', 'l-err');
+    log('   Fix: open this page over HTTPS — easiest is GitHub Pages (yourname.github.io/…), not a raw/http URL.', 'l-err');
+    setStatus('Needs HTTPS','err'); endCall(); return;
+  }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    log('⚠ This browser exposes no getUserMedia. Use Chrome on Android over HTTPS.', 'l-err');
+    setStatus('No mic API','err'); endCall(); return;
+  }
+
+  // 1) MIC FIRST — fail fast & clean before opening any socket, so a denial
+  //    doesn't leave a Deepgram socket hanging until its 12s timeout (code 1011).
+  try{
+    await startMic((pcm)=>{
+      if(call.dgWs && call.dgWs.readyState===1){ call.dgWs.send(pcm.buffer); }
+    });
+  }catch(e){
+    const n=e&&e.name||'';
+    if(n==='NotAllowedError'||/Permission denied/i.test(e.message||'')){
+      log('Mic DENIED. Tap the lock/tune icon left of the address bar → Permissions → Microphone → Allow, then reload.', 'l-err');
+    }else if(n==='NotFoundError'||n==='OverconstrainedError'){
+      log('No microphone found / constraints unmet: '+e.message, 'l-err');
+    }else if(n==='NotReadableError'){
+      log('Mic is busy (another app holds it — e.g. a phone call or recorder). Close it and retry.', 'l-err');
+    }else{
+      log('Mic error ['+n+']: '+e.message, 'l-err');
+    }
+    setStatus('Mic blocked','err'); endCall(); return;
+  }
+  log('mic granted ✓','l-ok');
+
+  // 2) Inworld TTS (stateless key check) + 3) Deepgram STT socket — only AFTER mic is live.
+  startInworldTTS();
+  startDeepgram();
+
+  call.active=true;
+  call.startedAt=Date.now();
+  call.durTimer=setInterval(()=>{ const s=Math.floor((Date.now()-call.startedAt)/1000); $('mDur').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }, 500);
+}
+
+function endCall(){
+  if(!call) return;
+  log('=== CALL END ===','l-evt');
+  call.active=false;
+  if(call.dgKeepAlive) clearInterval(call.dgKeepAlive);
+  if(call.durTimer) clearInterval(call.durTimer);
+  try{ if(call.dgWs && call.dgWs.readyState===1){ call.dgWs.send(JSON.stringify({type:'CloseStream'})); call.dgWs.close(); } }catch(e){}
+  if(call.orAbort){ try{ call.orAbort.abort(); }catch(e){} }
+  if(call.ttsAbort){ try{ call.ttsAbort.abort(); }catch(e){} }
+  call.ttsQueue=[];
+  stopAllPlayback();
+  stopMic();
+  try{ call.playCtx && call.playCtx.close(); }catch(e){}
+  setStatus('Idle','');
+  $('startBtn').disabled=false; $('stopBtn').disabled=true;
+}
+
+$('startBtn').onclick = startCall;
+$('stopBtn').onclick = endCall;
+
+// surface uncaught errors into the log
+window.addEventListener('error', e=>{ log('JS error: '+e.message,'l-err'); });
+window.addEventListener('unhandledrejection', e=>{ log('Promise rejection: '+(e.reason&&e.reason.message||e.reason),'l-err'); });
+
+log('Ready. Fill keys, tap Start, allow mic. Best with earbuds; speakerphone in a car will test echo handling.', 'l-evt');
+</script>
+</body>
+</html>
