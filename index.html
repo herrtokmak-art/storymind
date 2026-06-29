@@ -528,7 +528,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.6 (Scroll fixes: rotating between portrait and landscape now keeps your place in the chat instead of losing it · the chat no longer leaps to the top when a character begins replying — trim compensation now anchors to a stable bubble instead of mis-measuring image heights)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.7 (Fixes: image generation works again — a guard added last update was wrongly blocking the first illustration, leaving a permanent loading spinner with no image · GM / event / presence beats no longer yank the chat to the bottom when you have scrolled up to read)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -5040,11 +5040,14 @@ function appendOneBubble(m){
     if(ref.isConnected){ setScrollTop(list, ref.offsetTop - beforeTop); }
   }
   _renderedCount=Math.min(curChat().messages.length,RENDER_WINDOW);
-  // While the presentation queue is actively rolling a turn (or the user just sent), keep the
-  // newest line in view. Without this, an appended bubble starts near-zero-height and grows as it
-  // types; if the follow intent was lost, the rolling text ends up below the fold and the user has
-  // to scroll down manually — the "jumps away from the latest message" bug.
-  if(wasAtBottom||_followAfterSend||_presentPlaying){ setScrollTop(list,list.scrollHeight); hideNewMsgPill(); }
+  // Follow to the bottom only if the user is actually following. Previously `_presentPlaying` alone
+  // forced a scroll-to-bottom for ANY message the presentation queue rolled — including background
+  // GM / event / presence beats the user didn't send — so a beat arriving while you'd scrolled up to
+  // read yanked the view down (the "GM/event message makes the chat jump" bug; character replies you
+  // sent were fine because _followAfterSend was set). Now a presented beat only pulls the view down
+  // if you were already at the bottom or you sent this turn; otherwise it surfaces the "↓ New" pill.
+  const _following = wasAtBottom || _followAfterSend;
+  if(_following){ setScrollTop(list,list.scrollHeight); hideNewMsgPill(); }
   else { showNewMsgPill(); }
 }
 
@@ -11179,7 +11182,7 @@ async function sendMessage(){
       toast("Empty reply — try raising Max tokens in Settings (reasoning models need headroom)");
       return;
     }
-    const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null,_reveal:true};
+    const msg={mid:newMid(),role:"assistant",speaker:solo.name,speakerId:solo.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     // BACKGROUND (does not wait on screen): persist, fire the image pipeline the instant text is
     // ready, run the voice check. The bubble itself is shown by the presentation queue.
@@ -11608,7 +11611,7 @@ async function playCharacterTurn(chat,p,addressed){
     // Empty reply (model returned nothing even after the token-bump retry) — don't push a blank
     // bubble or run image/voice on nothing. Skip this character's turn cleanly.
     if(!cleaned){ toast(""+p.name+": empty reply (try raising Max tokens in Settings)"); return false; }
-    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null,_reveal:true};
+    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:cleaned,img:null,imgState:"idle",vidState:"idle",video:null,_reveal:true};
     stampStatus(chat,msg);chat.messages.push(msg);
     // BACKGROUND: persist + fire image pipeline immediately (text is ready) + voice check. The
     // next character can generate while this one is still queued/rolling on screen.
@@ -13756,7 +13759,7 @@ async function playSingleReaction(chat,p,eventText){
     })};
     const reply=await chatCompletion([sysMsg,...taggedHistory,tailMsg],rpModel(),{dbg:"Roleplay reply (gamemaster reaction)"});
     typing.remove();
-    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null};
+    const msg={mid:newMid(),role:"assistant",speaker:p.name,speakerId:p.id,present:presentIds(chat).slice(),content:reply,img:null,imgState:"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();appendNewBubbles();
     if(autoImgActive()) illustrate(msg.mid,reply);
