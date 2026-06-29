@@ -93,9 +93,15 @@
   #chatList{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0;}
   /* Right image rail — hidden by default (portrait); shown as a column in landscape. */
   #imageRail{display:none;}
-  #imageRailInner{display:flex;flex-direction:column;gap:10px;height:100%;}
-  .railImg{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#000;}
-  .railImg img,.railImg video{width:100%;display:block;max-height:100%;object-fit:contain;background:#000;cursor:zoom-in;}
+  #imageRailInner{display:flex;flex-direction:column;gap:10px;height:100%;min-height:0;}
+  /* The image holder is a flex item that OWNS the available vertical space (flex:1, min-height)
+     so the picture has a real box to fill BEFORE a remote image reports its dimensions. Both
+     providers return remote URLs (Atlas → OSS, ModelsLab → Cloudflare R2); without an explicit
+     height the box was 0px until the image loaded, and a slow ModelsLab generation (20–35s) left
+     the rail blank the whole time. A fixed box means the image appears the moment it arrives. */
+  .railImg{position:relative;flex:1 1 auto;min-height:200px;display:flex;align-items:center;justify-content:center;
+    border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#000;}
+  .railImg img,.railImg video{width:100%;height:100%;display:block;object-fit:contain;background:#000;cursor:zoom-in;}
   .railEmpty{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:12px;padding:18px;border:1px dashed var(--border);border-radius:12px;}
   .railTag{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;padding:3px 8px;border-radius:10px;display:flex;align-items:center;gap:5px;}
   .railTag.pinned{background:var(--accent);}
@@ -522,7 +528,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.3 (Landscape decluttered + two fixes: the in-input Menu button now appears ONLY in landscape, and its dropdown opens correctly there — Pin button on images/videos pauses auto-generation while pinned)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.6 (Scroll fixes: rotating between portrait and landscape now keeps your place in the chat instead of losing it · the chat no longer leaps to the top when a character begins replying — trim compensation now anchors to a stable bubble instead of mis-measuring image heights)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -5019,10 +5025,20 @@ function appendOneBubble(m){
   if(list.querySelector('[data-mid="'+m.mid+'"]')) return;   // already on screen
   const wasAtBottom=isNearBottom(list);
   const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid);
+  // Front-trim to the render window. The OLD approach summed getBoundingClientRect().height of the
+  // removed nodes and subtracted it from scrollTop — but that height is wrong when a removed bubble
+  // holds an image that hasn't painted, or (in landscape) an inline scene that is display:none, so
+  // the compensation under/over-shoots and the view jumps (often all the way to the top). Instead,
+  // anchor to a node that SURVIVES the trim: remember a reference bubble + its offset from the
+  // viewport top BEFORE trimming, then restore that exact relationship AFTER — immune to height
+  // mis-measurement and image-load timing.
   let nodes=list.querySelectorAll('[data-mid]');
-  let removedH=0;
-  while(nodes.length>RENDER_WINDOW){ const first=nodes[0]; removedH+=first.getBoundingClientRect().height; list.removeChild(first); nodes=list.querySelectorAll('[data-mid]'); }
-  if(removedH>0){ setScrollTop(list,Math.max(0,list.scrollTop-removedH)); }
+  if(nodes.length>RENDER_WINDOW){
+    const ref=nodes[nodes.length-1];            // newest node always survives the front-trim
+    const beforeTop=ref.offsetTop - list.scrollTop;
+    while(nodes.length>RENDER_WINDOW){ list.removeChild(nodes[0]); nodes=list.querySelectorAll('[data-mid]'); }
+    if(ref.isConnected){ setScrollTop(list, ref.offsetTop - beforeTop); }
+  }
   _renderedCount=Math.min(curChat().messages.length,RENDER_WINDOW);
   // While the presentation queue is actively rolling a turn (or the user just sent), keep the
   // newest line in view. Without this, an appended bubble starts near-zero-height and grows as it
@@ -10138,8 +10154,8 @@ function renderImageRail(){
     return;
   }
   const media = m.video
-    ? `<video src="${m.video}" controls playsinline loop></video>`
-    : `<img src="${m.img}" referrerpolicy="no-referrer" onclick="viewSceneImage('${m.mid}')">`;
+    ? `<video src="${m.video}" controls playsinline loop onloadeddata="this.closest('.railImg')&&(this.closest('.railImg').dataset.loaded='1')"></video>`
+    : `<img src="${m.img}" referrerpolicy="no-referrer" onload="this.closest('.railImg')&&(this.closest('.railImg').dataset.loaded='1')" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'railEmpty\\' style=\\'border:none\\'>Image couldn\\'t load here.<br>Tap the bubble on the left to view it.</div>')" onclick="viewSceneImage('${m.mid}')">`;
   const tag = pinned
     ? `<span class="railTag pinned"><svg class="ic" style="width:12px;height:12px"><use href="#i-pin"/></svg> Pinned</span>`
     : `<span class="railTag">Latest</span>`;
@@ -10685,19 +10701,17 @@ function appendNewBubbles(){ return perf("appendNewBubbles",()=>{
     if(m._reveal && !list.querySelector('[data-mid="'+m.mid+'"]')) continue;
     const b=bubble(m); list.appendChild(b); if(b._needsScene) refreshBubble(m.mid); appended++; }
   if(appended){
-    // Trim the front of the DOM to keep within the window (state is untouched). Removing nodes
-    // from the TOP shifts all following content up, which visibly jumps the viewport (the "send
-    // makes the chat leap upward" bug). Measure the removed height and subtract it from scrollTop
-    // so whatever the user is looking at stays visually fixed.
+    // Front-trim to the render window with ANCHOR-based compensation (see appendOneBubble for the
+    // full rationale): measuring removed-node heights is unreliable when images haven't painted or
+    // inline scenes are display:none in landscape, which produced the "send/reply leaps to the top"
+    // jump. Pin a surviving reference node's viewport offset across the trim instead.
     let nodes=list.querySelectorAll('[data-mid]');
-    let removedH=0;
-    while(nodes.length>RENDER_WINDOW){
-      const first=nodes[0];
-      removedH+=first.getBoundingClientRect().height;
-      list.removeChild(first);
-      nodes=list.querySelectorAll('[data-mid]');
+    if(nodes.length>RENDER_WINDOW){
+      const ref=nodes[nodes.length-1];
+      const beforeTop=ref.offsetTop - list.scrollTop;
+      while(nodes.length>RENDER_WINDOW){ list.removeChild(nodes[0]); nodes=list.querySelectorAll('[data-mid]'); }
+      if(ref.isConnected){ setScrollTop(list, ref.offsetTop - beforeTop); }
     }
-    if(removedH>0){ setScrollTop(list,Math.max(0,list.scrollTop-removedH)); }
     _renderedCount=Math.min(msgs.length,RENDER_WINDOW);
     // Only follow to the bottom if the user was already there (or just sent a message this turn);
     // otherwise keep their position and let them know new content arrived.
@@ -11759,8 +11773,14 @@ async function runPresenceTracker(chat){
 }
 
 /* ---- AUTO ILLUSTRATION PIPELINE (keyed by stable mid) ---- */
-async function illustrate(mid,replyText){
+async function illustrate(mid,replyText,force){
   const msg=findMsg(mid);if(!msg)return;
+  // Idempotency guard: multiple reply paths (solo / multi-char / gamemaster / opening greeting /
+  // post-turn) can each call illustrate() for the same message and race. The debug log showed two
+  // ModelsLab generations firing ~3s apart for ONE turn. If this message already has an image, or
+  // a generation is already in flight for it, do nothing — the first call owns the frame.
+  // `force` (manual Retry / Generate button) bypasses the guard to deliberately regenerate.
+  if(!force && (msg.img||msg.imgState==="loading")){ return; }
   msg.imgState="loading";refreshBubble(mid);
   try{
     const cast=curCast();
@@ -11896,10 +11916,12 @@ async function illustrate(mid,replyText){
     if(err.friendly) toast(""+err.friendly);
   }
 }
-function reIllustrate(mid){const m=findMsg(mid);if(!m)return;illustrate(mid,m.content);}
+function reIllustrate(mid){const m=findMsg(mid);if(!m)return;illustrate(mid,m.content,true);}
 function autoIllustrateLast(){
   const chat=curChat();const m=chat.messages[chat.messages.length-1];
-  if(m&&autoImgActive()&&m.role==='assistant'&&!m.img&&!m.dayMarker&&!m.sysError){illustrate(m.mid,m.content);}
+  // Never auto-illustrate a scene-writer / narrator beat (sceneBeat|narratorEvent) — those are
+  // transition prose, not the turn's main visual, and illustrating them races the reply image.
+  if(m&&autoImgActive()&&m.role==='assistant'&&!m.img&&!m.dayMarker&&!m.sysError&&!m.sceneBeat&&!m.narratorEvent){illustrate(m.mid,m.content);}
 }
 
 /* ---- VIDEO PIPELINE (provider-routed: Segmind WAN sync, or OpenRouter async) ---- */
@@ -13133,14 +13155,16 @@ async function playGamemasterBeat(chat,nudge){
     if(!text){chat._gmBusy=false;return;}
     chat.pendingGmNudge=null;
     // Post the event as a NARRATOR line everyone present can see.
+    // The Gamemaster beat is narrator/director prose — like the scene-writer beat, it no longer
+    // auto-illustrates itself (that produced a narrator image racing the character reply image).
+    // Standalone GM events still get illustrated THROUGH the character who reacts to them below
+    // (gamemasterReactions / playSingleReaction), so the image stays anchored to a character, and
+    // there is never more than one auto-image per turn.
     const msg={mid:newMid(),role:"assistant",speaker:"Narrator",gmBeat:true,narratorEvent:true,
       present:presentIds(chat).slice(),content:text,_reveal:true,
-      img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null};
+      img:null,imgState:"idle",vidState:"idle",video:null};
     stampStatus(chat,msg);chat.messages.push(msg);
     persistChats();
-    if(autoImgActive()) illustrate(msg.mid,text);
-    // Show the event in order via the presentation queue — it won't jump ahead of a line that's
-    // still rolling, and it won't yank the viewport if the user has scrolled up to read.
     enqueuePresent(msg.mid);
 
     // If the Scene Writer is enabled, classify this event and make it ACTIVE.
@@ -13516,11 +13540,15 @@ async function runSceneWriter(chat){
     }
     // Post the writer's beat as a narrator-event line (same rendering as the Gamemaster).
     if(beat){
+      // The scene-writer narration beat NEVER generates its own image. It's connective/transition
+      // prose, not the turn's main visual moment — and auto-illustrating it produced a SECOND image
+      // that raced the character reply's image (often a different rule, e.g. Atlas "Romantic couple"
+      // overwriting the ModelsLab reply image). One auto-image per turn = the character reply's.
+      // So this message is created with imgState:"idle" and is never passed to illustrate().
       const nm={mid:newMid(),role:"assistant",speaker:"Narrator",narratorEvent:true,sceneBeat:true,
         present:presentIds(chat).slice(),content:beat,_reveal:true,
-        img:null,imgState:autoImgActive()?"loading":"idle",vidState:"idle",video:null};
+        img:null,imgState:"idle",vidState:"idle",video:null};
       chat.messages.push(nm);persistChats();
-      if(autoImgActive()) illustrate(nm.mid,nm.content);
       enqueuePresent(nm.mid);
     }
     // Bring an approaching character into the room when the writer says so — or when
@@ -15059,9 +15087,42 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change',()=
 // When the device rotates (or the window resizes across the landscape breakpoint), refresh the
 // image rail so the latest/pinned image populates the right column immediately. CSS does the actual
 // show/hide; this just fills it. Cheap and idempotent.
-{let _orT;const _onOrient=()=>{clearTimeout(_orT);_orT=setTimeout(()=>{ if(document.getElementById('screen-chat')&&document.getElementById('screen-chat').classList.contains('active')) renderImageRail(); },120);};
- window.addEventListener('resize',_onOrient);
- if(window.matchMedia){try{window.matchMedia('(orientation:landscape)').addEventListener('change',_onOrient);}catch(e){window.addEventListener('orientationchange',_onOrient);}}}
+/* On rotation / resize across the landscape breakpoint the chat column reflows completely
+   (bubble widths change, the image rail appears/disappears, scrollHeight is recomputed), so the
+   raw scrollTop no longer points at the message you were reading. Capture an ANCHOR before the
+   reflow and restore to it after: if you were near the bottom, snap back to the bottom (the common
+   "reading the latest" case); otherwise re-pin the topmost message that was visible so your place
+   is kept. Also refresh the image rail (it only exists in landscape). */
+{
+  let _orT;
+  const _onOrient=()=>{
+    const list=document.getElementById('chatList');
+    const chatActive=document.getElementById('screen-chat')&&document.getElementById('screen-chat').classList.contains('active');
+    // Capture the anchor BEFORE the browser finishes reflowing.
+    let anchorEl=null, atBottom=true;
+    if(list && chatActive){
+      atBottom=isNearBottom(list);
+      if(!atBottom){
+        // Find the first bubble whose top is at/below the current scroll viewport top.
+        const top=list.scrollTop;
+        for(const b of list.children){
+          if(b.offsetTop>=top-4){ anchorEl=b; break; }
+        }
+      }
+    }
+    clearTimeout(_orT);
+    _orT=setTimeout(()=>{
+      if(!(document.getElementById('screen-chat')&&document.getElementById('screen-chat').classList.contains('active'))) return;
+      renderImageRail();
+      const l=document.getElementById('chatList'); if(!l) return;
+      // Restore reading position after the reflow settles.
+      if(atBottom){ setScrollTop(l,l.scrollHeight); }
+      else if(anchorEl && anchorEl.isConnected){ setScrollTop(l,anchorEl.offsetTop); }
+    },140);
+  };
+  window.addEventListener('resize',_onOrient);
+  if(window.matchMedia){try{window.matchMedia('(orientation:landscape)').addEventListener('change',_onOrient);}catch(e){window.addEventListener('orientationchange',_onOrient);}}
+}
 // Flush any pending (debounced) chat write before the page is backgrounded or closed.
 // pagehide/visibilitychange are the reliable signals on mobile Safari & Chrome-Android.
 window.addEventListener('pagehide',flushPersistChats);
