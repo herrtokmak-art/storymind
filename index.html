@@ -528,7 +528,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.11 (Fix: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.13 (Fix: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -748,9 +748,15 @@
         </div>
         <div class="card">
           <div class="subhead"><svg class="ic"><use href="#i-brain"/></svg> Memory</div>
-          <details class="acc"><summary><svg class="ic"><use href="#i-tools"/></svg> Memory builder prompt (every 10 messages)</summary>
+          <div><label>Storable-memory threshold (0–1): <b><span id="memMinImpVal"></span></b></label>
+            <input type="range" id="setMemMinImp" min="0" max="1" step="0.05" oninput="document.getElementById('memMinImpVal').textContent=this.value">
+            <div class="desc">A finished memory arc is only stored if its importance reaches this. Higher = fewer, more significant memories (raise it and trivial chatter is dropped). Keep it well below 0.55 — the offstage intent engine reads memories at that importance to decide who forms grudges/loyalties, so a high floor can starve it. Charged bystander glimpses (for gossip) are exempt.</div></div>
+          <details class="acc"><summary><svg class="ic"><use href="#i-tools"/></svg> Memory arc tracker prompt (each turn)</summary>
+            <textarea class="fld" id="setMemEval" style="min-height:160px"></textarea>
+            <div class="desc">Decides when a memorable arc begins, continues, pauses, or ends (boundary detection only — importance is judged by the builder). Runs on the character-router model, in the background. Use {{open_event}}, {{exchange}}.</div></details>
+          <details class="acc"><summary><svg class="ic"><use href="#i-tools"/></svg> Memory builder prompt (on arc close)</summary>
             <textarea class="fld" id="setMemBuild" style="min-height:160px"></textarea>
-            <div class="desc">Produces a structured JSON memory. Use {{char}} and {{user}}.</div></details>
+            <div class="desc">Builds a structured memory from a COMPLETE arc (content, people, emotion, feelings, details) and scores its importance. Use {{char}} and {{user}}.</div></details>
           <details class="acc"><summary><svg class="ic"><use href="#i-eye"/></svg> Bystander gist prompt (perception tiers)</summary>
             <textarea class="fld" id="setGistBuild" style="min-height:160px"></textarea>
             <div class="desc">When a character is present but NOT in the conversation, they form a fuzzy outside impression (the social shape) instead of a verbatim memory — they don't hear the words. Use {{char}}, {{user}}.</div></details>
@@ -1148,6 +1154,35 @@
   </div>
 </div>
 
+<!-- ===== MEMORY EDITOR / ADD (modern) ===== -->
+<div class="modal" id="memEditModal">
+  <button class="x" onclick="closeModal('memEditModal')">×</button>
+  <div class="card editCard">
+    <h3 id="memEditTitle">Add memory</h3>
+    <div><label>Whose memory</label><select class="fld" id="memEditOwner"></select></div>
+    <div><label>Type</label><select class="fld" id="memEditType">
+      <option>EXPERIENCE</option><option>OBSERVATION</option><option>RELATIONSHIP</option>
+      <option>KNOWLEDGE</option><option>DECISION</option><option>CONFLICT</option>
+      <option>INTIMACY</option><option>DIARY</option><option>GOSSIP</option><option>CONSOLIDATED</option>
+    </select></div>
+    <div><label>Memory (what happened)</label><textarea class="fld" id="memEditContent" style="min-height:110px"></textarea></div>
+    <div><label>People involved (comma-separated)</label><input class="fld" id="memEditPeople" placeholder="e.g. Polat, Esma"></div>
+    <div class="row">
+      <div style="flex:1"><label>Location</label><input class="fld" id="memEditLocation"></div>
+      <div style="flex:1"><label>Emotion</label><input class="fld" id="memEditEmotion" placeholder="neutral"></div>
+    </div>
+    <div><label>How they feel about it now</label><input class="fld" id="memEditFeelings"></div>
+    <div><label>Details (one per line — referenceable facts)</label><textarea class="fld" id="memEditDetails" style="min-height:70px" placeholder="obsidian dagger&#10;promised to return at dawn"></textarea></div>
+    <div><label>Tags (comma-separated)</label><input class="fld" id="memEditTags"></div>
+    <div><label>Importance: <b><span id="memEditImpVal">0.6</span></b></label>
+      <input type="range" id="memEditImp" min="0" max="1" step="0.05" value="0.6" oninput="document.getElementById('memEditImpVal').textContent=this.value"></div>
+    <div class="row">
+      <button class="btn sec" onclick="closeModal('memEditModal')">Cancel</button>
+      <button class="btn" onclick="saveMemEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== EDIT LOCATION (modern) ===== -->
 <div class="modal" id="locEditModal">
   <button class="x" onclick="closeModal('locEditModal')">×</button>
@@ -1430,7 +1465,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",provDeny:"sm_provdeny",geminiUnsafe:"sm_geminiunsafe",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",moviePrompt:"sm_movieprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",movieSegs:"sm_moviesegs",
-  memModel:"sm_memmodel",memBuild:"sm_membuild",gistBuild:"sm_gistbuild",poiGossip:"sm_poigossip",queryGen:"sm_querygen",ranker:"sm_ranker",
+  memModel:"sm_memmodel",memBuild:"sm_membuild",memEval:"sm_memeval",memMinImp:"sm_memminimp",gistBuild:"sm_gistbuild",poiGossip:"sm_poigossip",queryGen:"sm_querygen",ranker:"sm_ranker",
   gmOn:"sm_gmon",gmEvery:"sm_gmevery",gmSensitivity:"sm_gmsens",gmModel:"sm_gmmodel",gmJudge:"sm_gmjudge",gmAuthor:"sm_gmauthor",daySummaryPrompt:"sm_daysummary",relGenPrompt:"sm_relgenprompt",baseInstruction:"sm_baseinstr",
   autoRpOn:"sm_autorpon",playerNarratePrompt:"sm_playernarrate",playerNarrateModel:"sm_playernarratemodel",userPersonality:"sm_userpersonality",userStyle:"sm_userstyle",
   routerPlayer:"sm_routerplayer",routerChar:"sm_routerchar",mcChainCap:"sm_mcchaincap",mcModel:"sm_mcmodel",rpRotation:"sm_rprotation",rpRotIdx:"sm_rprotidx",formatRules:"sm_formatrules",presencePrompt:"sm_presenceprompt",presenceOff:"sm_presenceoff",
@@ -2444,35 +2479,81 @@ Pick the SINGLE rule whose "when" best matches the scene. Weigh framing (close-u
 Respond with ONLY the integer index of the best rule (e.g. 0). No words, no JSON, no punctuation.`;
 
 /* ===== MEMORY SYSTEM PROMPTS (adapted from SkyrimAI) ===== */
-const DEFAULT_MEMBUILD=`You analyze a roleplay conversation and create a coherent, durable MEMORY from the AI character's first-person perspective.
+// ===== MEMORY ARC TRACKER (event-bounded memory, layer 1) =====
+// Runs after each turn (on the character-turn router model, state.mcModel), in the postTurn
+// BACKGROUND so it never blocks the reply. ITS ONLY JOB is boundary detection — when does a
+// conversational arc begin, continue, pause, or end. It does NOT judge importance (the builder does
+// that on the complete arc; the memMinImportance slider drops sub-floor memories). Keeping it purely
+// about boundaries is what makes the small router model reliable here.
+const DEFAULT_MEMEVAL=`You are a silent ARC TRACKER for a roleplay. You do NOT write story or dialogue, and you do NOT judge whether anything is important. Your ONLY job: watch the conversation and decide whether one coherent thread (an "arc") is still going, has paused, has ended, or has been replaced by a new one. A later step decides importance — never your concern.
 
-Write a memory of the recent events between {{char}} and {{user}}.
+You see the arc currently being tracked (if any) and the latest exchange.
 
-## Instructions
-1. First person, present-tense recollection (no "last week", no "I remember when").
-2. Be CONCISE but SPECIFIC: exactly what happened, who was involved, where.
-3. Prioritize factual details over flowery prose — names, actions, outcomes, decisions, promises.
-4. Include brief emotional context only when significant.
-5. Synthesize the events into 3-5 dense sentences max.
-6. Use concrete, searchable terms (specific names, places, objects, actions).
+CURRENTLY TRACKED ARC (may be empty): {{open_event}}
+THE LATEST EXCHANGE:
+{{exchange}}
 
-## Response Format
-Respond ONLY with a JSON object, no other text:
+## Judge two things
+
+1. **progress** — the state of the tracked arc:
+   - "ongoing": the same thread is still unfolding; more is coming.
+   - "finished": it has reached a natural close — the matter settled, the beat landed and is over, the participants are moving on.
+   - "paused": interrupted but not over — someone stepped away, the talk briefly turned elsewhere, and it is likely to resume shortly.
+
+2. **topic** — is the latest exchange the SAME thread as the tracked arc, or a DIFFERENT one?
+   - "same": still the same matter.
+   - "different": a NEW, distinct thread has begun — the subject, the stakes, or the focus has clearly moved to something else. (Do not judge whether it matters; only whether it is a different thread.)
+
+## Guidance
+- When nothing is tracked yet, an arc simply BEGINS: progress "ongoing", topic "same".
+- A natural ebb where everyone winds down and disperses → "finished".
+- A clear pivot to a new subject while the old one was still open → progress "ongoing", topic "different" (the engine closes the old arc and opens a new one).
+- A brief detour or someone leaving for a moment → "paused".
+- Do NOT over-split: minor digressions inside the same thread are still "same". "different" is for a genuine change of what the scene is about.
+
+## Output ONLY strict JSON:
 {
-  "content": "Concise 3-5 sentence first-person memory. Specific names, places, actions. Dense, not flowery.",
-  "location": "Where it happened (short phrase)",
+  "progress": "ongoing" | "finished" | "paused",
+  "topic": "same" | "different",
+  "summary": "one short line naming the current thread (what it is about)"
+}`;
+
+const DEFAULT_MEMBUILD=`You analyze a complete roleplay event (an "arc") and create one durable, first-person MEMORY for the character {{char}} — recording what they will carry forward and be able to reference later, and how it felt.
+
+Write {{char}}'s memory of this event with {{user}} (and any others present).
+
+## What to record
+Capture the CONCRETE, referenceable substance — not narrative fluff. A good memory lets {{char}} later recall the real facts AND their emotional truth.
+1. First person, present-tense recollection (no "last week", no "I remember when").
+2. What actually happened: who was there, where, what was said or done that matters, what was decided or revealed, what changed between people.
+3. The felt emotion — {{char}}'s genuine reaction and what the event left them with.
+4. Concrete details worth keeping: names, places, objects, specific actions, things learned. Put these in "details" as short referenceable items.
+5. Stay strictly to what {{char}} personally witnessed. Never record events they were absent for.
+6. Dense and specific, not flowery. A few sentences for "content".
+
+## LANGUAGE
+- Write all prose values (content, feelings, the items in details) in perfect, natural, everyday Turkish.
+- Don't translate from English — take the meaning and write what a Turkish speaker would actually say. Avoid stiff, translated-sounding phrasing. The JSON KEYS stay in English.
+
+## Respond ONLY with a JSON object, no other text:
+{
+  "content": "Birkaç cümlelik, birinci tekil şahıs, somut anı. İsimler, yerler, olanlar — süslü değil, yoğun.",
+  "location": "nerede olduğu (kısa ifade)",
+  "people": ["olaya dahil olan kişiler"],
   "emotion": "joyful|content|neutral|concerned|fearful|angry|sad|surprised|affectionate|tense",
+  "feelings": "tek cümle: {{char}} şu an bu olay hakkında ne hissediyor / olay onda ne bıraktı",
+  "details": ["sonradan referans alınabilecek somut ayrıntılar: isim, yer, nesne, yapılan/söylenen şey"],
   "importance_score": 0.0-1.0,
-  "tags": ["name","place","action","object","theme"],
-  "type": "EXPERIENCE|RELATIONSHIP|KNOWLEDGE|LOCATION|DECISION|CONFLICT|INTIMACY"
+  "tags": ["isim","yer","eylem","tema"],
+  "type": "EXPERIENCE|RELATIONSHIP|KNOWLEDGE|DECISION|CONFLICT|INTIMACY"
 }
 
-## Importance guide
+## Importance guide (score the WHOLE arc, in hindsight)
 0.7-1.0: turning points, strong emotion, revelations, danger, major decisions, relationship shifts.
 0.4-0.6: meaningful exchanges, new info, minor conflicts, plans made.
 0.1-0.3: small talk, routine actions, ambient detail.
 
-Include 5-10 lowercase tags (names, locations, actions, objects, emotional themes).`;
+Include 4-8 lowercase tags (names, locations, actions, emotional themes).`;
 
 // ===== BYSTANDER GIST (Living Universe, layer 1: perception tiers) =====
 // Used when {{char}} was PRESENT but NOT part of the conversation — a bystander across the room.
@@ -4154,6 +4235,8 @@ function loadState(){
     rewritePrompt:store.raw(K.rewritePrompt,DEFAULT_REWRITE),
     memModel:store.raw(K.memModel,"deepseek/deepseek-v4-flash"),
     memBuild:store.raw(K.memBuild,DEFAULT_MEMBUILD),
+    memEval:store.raw(K.memEval,DEFAULT_MEMEVAL),
+    memMinImp:(()=>{const v=parseFloat(store.raw(K.memMinImp,"0.15"));return isNaN(v)?0.15:Math.max(0,Math.min(1,v));})(),
     gistBuild:store.raw(K.gistBuild,DEFAULT_GIST_BUILD),
     poiGossip:store.raw(K.poiGossip,DEFAULT_POI_GOSSIP),
     queryGen:store.raw(K.queryGen,DEFAULT_QUERYGEN),
@@ -4706,6 +4789,7 @@ function loadState(){
     if(!Array.isArray(c.tempChars))c.tempChars=[];
     if(c.activeEvent===undefined)c.activeEvent=null;
     if(!Array.isArray(c.intents))c.intents=[];
+    if(c.memEvent===undefined)c.memEvent=null;   // event-bounded memory arc tracker (null = none open)
     delete c._gmBusy;   // clear any in-flight flag left over from a previous session
     (c.messages||[]).forEach(m=>{
       if(!m.mid)m.mid=newMid();
@@ -5713,8 +5797,10 @@ const PROMPT_REGISTRY=[
    hint:"Turns a still scene into a JSON array of 6 consecutive 5s motion segments for the infinite-video Movie button."},
   {key:"routerPrompt", label:"Image/Video router", def:()=>DEFAULT_ROUTER, json:false,
    hint:"Picks which image/video model rule fits the scene."},
+  {key:"memEval", label:"Memory arc tracker", def:()=>DEFAULT_MEMEVAL, json:true,
+   hint:"Runs after each turn (background, on the character-router model) to decide when a memorable arc starts/continues/pauses/ends. Boundary detection only — importance is judged by the builder. Use {{open_event}}, {{exchange}}."},
   {key:"memBuild", label:"Memory builder", def:()=>DEFAULT_MEMBUILD, json:true,
-   hint:"Produces a structured JSON memory. Use {{char}} and {{user}}."},
+   hint:"Produces a structured JSON memory from a complete arc (content, people, emotion, feelings, details). Scores importance on the whole arc. Use {{char}} and {{user}}."},
   {key:"poiGossip", label:"Location gossip (on exit)", def:()=>DEFAULT_POI_GOSSIP, json:true,
    hint:"When the player LEAVES a public location and its gossip-chance rolls a hit, the place produces a vague 'people are saying…' rumor about the visit, planted (as an OBSERVATION) in every character ticked at that location — including the person it's about, so they can hear they're being talked about. Feeds the gossip/intent pipeline. Use {{user}}, {{place}}, {{place_desc}}, {{others}}, {{visit}}."},
   {key:"gistBuild", label:"Bystander gist (perception)", def:()=>DEFAULT_GIST_BUILD, json:true,
@@ -6342,6 +6428,11 @@ async function travelTo(locId,companionIds){
   const leftLoc = chat.locationId ? locById(chat.locationId) : null;
   const leftSubId = (leftLoc && chat.subId) ? chat.subId : null;   // the area the player was actually in
   if(leftLoc && leftLoc.id!==dest.id){ runLocationGossipLeak(chat, leftLoc, leftSubId); }
+  // MEMORY ARC: a real location change ends the current arc for everyone who was in it — including
+  // companions, who simply begin a fresh arc at the destination (the old-location conversation is
+  // genuinely over). Commit it now, before presence/location are reassigned, so the right witnesses
+  // are captured. The scene-boundary logic opens a new arc automatically after the travel beat.
+  if(state.mem && state.key && leftLoc && leftLoc.id!==dest.id){ try{ await flushMemoryArc(chat); }catch(e){} }
   chat.presentIds=present.map(p=>p.id);
   chat.location=dest.name; chat.locationId=dest.id;
   // Arriving drops everyone at the ENTRANCE of the destination (areas reset per location).
@@ -6485,6 +6576,12 @@ function moveToSub(subId,companionIds){
   const withTxt=names.length?` with ${names.join(", ")}`:"";
   chat.messages.push({mid:newMid(),role:"assistant",speaker:"Narrator",presenceNote:true,
     content:`— ${state.user} moves to the ${s.name}${withTxt} —`,img:null,imgState:"idle",vidState:"idle",video:null});
+  // MEMORY ARC: moving to a different sub-area ends the current arc (the scene physically shifted).
+  // Commit it in the background and let a fresh arc open at the new area. Fire-and-forget — never
+  // blocks the move. The presence note above marks the boundary for the new arc's witness scoping.
+  if(state.mem && state.key && chat.memEvent && chat.memEvent.open){
+    flushMemoryArc(chat).catch(()=>{});
+  }
   persistChats();appendNewBubbles();updateChatHeader();applyLocationBackground();
   toast(`Now in the ${s.name}`);
 }
@@ -7442,7 +7539,7 @@ async function evalRelationship(chat,fromP,toId,toName,exchangeMsgs,dayMems,day)
     : "";
   const memBlock=relevant.length
     ? `MEMORIES ${fromP.name} FORMED TODAY (their own first-person record — reason about how these shape the way they now see ${tName}):\n`+
-      relevant.map(m=>`- ${memText(m)}${m.emotion?` (felt: ${m.emotion})`:""}`).join("\n")
+      relevant.map(m=>`- ${memInjectText(m)}`).join("\n")
     : `MEMORIES ${fromP.name} FORMED TODAY: (none recorded — base any change only on the day's standing context, and keep it small.)`;
 
   // THE DAY'S FAST OPINIONS — momentary emotional reads accumulated during the day. LOW WEIGHT:
@@ -9639,6 +9736,27 @@ function deletePersona(){
 
 /* ---- system prompt ---- */
 function memText(m){return m.content||m.text||"";}
+// Full SEARCHABLE surface of a memory: the new richer format moves names (people) and concrete
+// specifics (details) out of `content` into their own fields. The prefilter and ranker must see those
+// or retrieval matches worse than before. Plain memText stays the gist-level accessor everywhere else
+// (intent/gossip/diary), so those contracts are unchanged.
+function memSearchText(m){
+  const parts=[memText(m)];
+  if(Array.isArray(m.people)&&m.people.length) parts.push(m.people.join(" "));
+  if(Array.isArray(m.details)&&m.details.length) parts.push(m.details.join(" "));
+  if(Array.isArray(m.tags)&&m.tags.length) parts.push(m.tags.join(" "));
+  return parts.join(" · ");
+}
+// How a memory reads when INJECTED into a character's prompt for in-scene recall: content plus the
+// felt note and a few concrete details, so the character can actually reference "the dagger" / "what
+// was promised on the terrace" instead of only a flattened summary. Kept compact.
+function memInjectText(m){
+  let s=memText(m);
+  if(m.feelings) s+=` (${String(m.feelings).trim()})`;
+  else if(m.emotion&&m.emotion!=="neutral") s+=` (felt: ${m.emotion})`;
+  if(Array.isArray(m.details)&&m.details.length) s+=` [${m.details.slice(0,3).join("; ")}]`;
+  return s;
+}
 // Current in-game day for the active chat (defaults to 1).
 function curGameDay(){const c=state.curChat&&state.chats[state.curChat];return (c&&c.gameDay)||1;}
 // Memories belonging to a specific owner (character id).
@@ -9668,7 +9786,7 @@ function memoryBlocks(injectedMemories,which){
   let recent=[], distant=[];
   if(Array.isArray(injectedMemories)){ recent=injectedMemories; }       // legacy callers
   else { recent=injectedMemories.recent||[]; distant=injectedMemories.distant||[]; }
-  const fmt=m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;};
+  const fmt=m=>{const d=m.gameDay?`Day ${m.gameDay}`:"";return `- ${memInjectText(m)}${d?` (${d})`:""}${m.location?` [${m.location}]`:""}`;};
   const out=[];
   if(which!=="distant" && recent.length)
     out.push(`# RECENT MEMORIES\nFresh, specific things you remember — stay consistent with these:\n`+recent.map(fmt).join("\n"));
@@ -11404,33 +11522,91 @@ function noteMarksArrival(m,p){
 //      mis-tagged line can't leak; ambient world content (narration, day markers) stays visible.
 function castHistory(chat,forP){
   let msgs=chat.messages||[];
-  // (1) Scene boundary: start at the last travel beat (the arrival into the current location).
-  // Keep day markers/narration visible even if older, but DROP prior-scene dialogue.
-  let sceneStart=0;
-  for(let i=msgs.length-1;i>=0;i--){ if(msgs[i]&&msgs[i].travelBeat){ sceneStart=i; break; } }
-  // (1b) PER-CHARACTER ARRIVAL CUT: if THIS character has a more-recent arrival than the scene start
-  // (they walked into a scene already in progress — e.g. one character left and another came in at the
-  // same place), their transcript begins at THEIR arrival. They cannot inherit dialogue that happened
-  // before they were in the room, independent of any per-message present[] tags. Uses structured
-  // enteredIds on new presence notes, and falls back to the note TEXT for old notes (pre-enteredIds),
-  // so chats started on an earlier build are also protected.
-  if(forP){
-    for(let i=msgs.length-1;i>sceneStart;i--){
-      const m=msgs[i];
-      if(m && m.presenceNote && noteMarksArrival(m,forP)){ sceneStart=i; break; }
+  const curDay=chat.gameDay||1;
+  // Resolve each message's effective game-day by walking dayMarkers (messages aren't stamped with a
+  // day; the day is implied by which dayMarker precedes them). dayMarker carries dayTo (the new day).
+  const dayOf=new Array(msgs.length);
+  { let d=curDay;
+    // walk backwards: everything after the last marker is curDay; each marker steps the day back.
+    for(let i=msgs.length-1;i>=0;i--){
+      dayOf[i]=d;
+      if(msgs[i]&&msgs[i].dayMarker){ d=(typeof msgs[i].dayFrom==="number")?msgs[i].dayFrom:Math.max(1,d-1); }
     }
   }
+  // SHORT-TERM WINDOW: only carry dialogue from the last 2 game-days. Older dialogue resets (the
+  // durable record is the memory system, not the transcript). Transition beats are exempt (they frame
+  // how the scene got here and must stay visible to anchor time/place).
+  const DAY_WINDOW=2;
+  const minDay=curDay-DAY_WINDOW;
+
+  // CONTINUITY, not a hard scene reset: a character entering the pub at night should still see their
+  // morning beach conversation with whoever is here now (bridged by "Emre left the beach · X arrived"),
+  // so the thread continues — but NOT the whole narrator backlog, and NOT dialogue with people who
+  // aren't present. Two scopes decide what THIS character sees:
+  const presentNow=new Set(presentIds(chat));   // who is in the scene now (the people a thread can continue with)
+  // The character's own arrival cut still applies WITHIN the current physical scene: a char who walked
+  // into an in-progress scene doesn't inherit what was said in the room before they entered THIS time.
+  let arrivalCut=0;
+  if(forP){
+    // most recent travelBeat = current physical scene start; the per-char arrival is at/after it.
+    let sceneStart=0;
+    for(let i=msgs.length-1;i>=0;i--){ if(msgs[i]&&msgs[i].travelBeat){ sceneStart=i; break; } }
+    for(let i=msgs.length-1;i>sceneStart;i--){ const m=msgs[i]; if(m&&m.presenceNote&&noteMarksArrival(m,forP)){ sceneStart=i; break; } }
+    arrivalCut=sceneStart;
+  }
+  // PRIOR-THREAD CONTINUITY: find the start of forP's MOST RECENT prior scene (the scene before the
+  // current one) IF, within that scene, forP shared dialogue with a character who is present now. That
+  // is the "beach this morning" the pub conversation should resume. We only reach back ONE prior scene
+  // (not every in-window scene), and only when a present character actually shares it — so unrelated
+  // earlier conversations don't bleed in. If no qualifying prior scene exists, priorThreadStart ==
+  // arrivalCut (no continuity tail; behaves like a clean scene start).
+  let priorThreadStart=arrivalCut;
+  if(forP && arrivalCut>0){
+    // The current physical scene began at the travelBeat at/just before arrivalCut. Find the PRIOR
+    // travelBeat (strictly before that one); the prior scene runs from just AFTER it up to the current
+    // scene's boundary. If there is no earlier travelBeat, the prior scene starts at the chat beginning.
+    let curSceneBeat=arrivalCut;
+    for(let i=arrivalCut;i>=0;i--){ if(msgs[i]&&msgs[i].travelBeat){ curSceneBeat=i; break; } }
+    let prevSceneStart=0;
+    for(let i=curSceneBeat-1;i>=0;i--){ if(msgs[i]&&msgs[i].travelBeat){ prevSceneStart=i+1; break; } }
+    // does that prior scene fall within the window AND did forP actually converse there? The player
+    // is the constant through-line (present in every scene with forP), so forP having witnessed
+    // dialogue in the prior scene IS the continuing thread — we don't require a third party. This
+    // carries "X at the beach this morning → X at the pub tonight" (same relationship continuing) and
+    // is still bounded to ONE prior scene within 2 days, so unrelated older scenes never bleed in.
+    if(prevSceneStart<curSceneBeat && dayOf[prevSceneStart]>=minDay){
+      let qualifies=false;
+      for(let i=prevSceneStart;i<curSceneBeat;i++){
+        const m=msgs[i];
+        if(m&&Array.isArray(m.present)&&witnessedBy(m,forP)&&m.role!=='system'&&!m.narratorEvent&&!m.dayMarker&&!m.presenceNote){ qualifies=true; break; }
+      }
+      if(qualifies) priorThreadStart=prevSceneStart;
+    }
+  }
+
   const mapped=msgs.filter((m,idx)=>{
     if(m.role==='system')return false;
     if(m.sysError&&!m.dayMarker&&!m.presenceNote)return false;
-    // Ambient/world content (GM narration, day boundaries, presence notes) is universally
-    // visible — it describes the world, not private dialogue — regardless of scene boundary.
-    if(m.narratorEvent||m.dayMarker||m.presenceNote) return true;
-    // Dialogue: must be within the current scene session AND witnessed by this character.
-    if(idx<sceneStart) return false;                       // belongs to a previous location/scene
+    // TRANSITION / BOUNDARY BEATS (day markers, presence notes, travel beats): these frame the scene.
+    // Show only the ones within the 2-day window — that yields "Emre left the beach · day ended · X
+    // arrived at the pub", NOT the entire chat's narrator history. (This is the fix for "a character
+    // sees every previous narrator output".)
+    if(m.dayMarker||m.presenceNote||(m.narratorEvent&&m.travelBeat)){
+      return dayOf[idx]>=minDay;
+    }
+    // OTHER narrator events (GM beats, environmental nudges): ambient to the CURRENT scene only — a
+    // character shouldn't carry the whole day's worth of unrelated GM narration into a fresh scene.
+    if(m.narratorEvent){ return idx>=arrivalCut; }
+    // DIALOGUE: within the 2-day window, witnessed by this character. For continuity we carry this
+    // character's MOST RECENT prior shared scene (so the beach→pub thread resumes), but not unrelated
+    // earlier scenes. `priorThreadStart` (computed once below) marks where that prior scene begins;
+    // anything from there to now that this character witnessed is their continuing thread.
+    if(dayOf[idx]<minDay) return false;
     if(forP){
-      if(Array.isArray(m.present)) return witnessedBy(m,forP);  // strict witness (id or legacy name)
-      return false;                                         // untagged dialogue → don't leak it
+      if(!Array.isArray(m.present)) return false;             // untagged → never leak
+      if(!witnessedBy(m,forP)) return false;                  // must have witnessed it
+      if(idx>=arrivalCut) return true;                        // current scene since their arrival → always
+      return idx>=priorThreadStart;                           // their most-recent prior shared scene → continuity
     }
     return true;
   }).map(m=>{
@@ -13035,6 +13211,12 @@ function armedStagingSummary(chat){
   return `WAITING MOMENTS (offstage forces are poised to act the instant the scene allows — you may, if it fits naturally, nudge the scene toward ONE of these conditions; do NOT name or reveal what's waiting, just let the situation shift):\n${lines.join("\n")}`;
 }
 async function endDayBackground(chat,day,uni,daySnapshot,fallbackName){
+  // ---- MEMORY ARC FLUSH (must be FIRST) ---- commit any still-open memory arc for the day that
+  // just ended BEFORE diaries and the intent former run, so both see the day's complete memory set.
+  // Stamped with `day` (the just-ended day) because gameDay already advanced in the foreground —
+  // otherwise the intent former's `gameDay===day` filter would miss this arc.
+  if(state.mem && state.key){ try{ await flushMemoryArc(chat, day); }catch(e){} }
+
   // ---- DIARIES ---- one private entry per participating character, from the day's MEMORIES.
   // Diaries and the relationship pass don't depend on each other, so we kick the relationship
   // pass off in parallel and let diaries run alongside it.
@@ -13922,97 +14104,166 @@ async function forceGamemaster(){
 }
 
 /* STEP 1 — build a structured memory every 10 messages */
-async function maybeBuildMemory(chat){
-  // Auto-character bio filling runs regardless of the memory toggle.
-  if(state.autoCharOn){ try{ await fillPendingBios(chat); }catch(e){} }
-  if(!state.mem)return;
+// ===== EVENT-BOUNDED MEMORY (arc tracking) =====
+// Replaces the old "every 10 witnessed messages" counter. After each turn an arc tracker (memEval,
+// on the character-router model) decides whether the current arc is ongoing/paused/finished and
+// whether the latest exchange is the same thread or a new one. A memory is committed for ALL
+// participants when the arc CLOSES — on finished, on a topic change to a new arc, on a location change
+// for characters left behind, on day-end, or at a safety-valve message cap. The builder scores
+// importance on the whole arc; anything below state.memMinImp is dropped. (Living Universe layer 1.)
+
+// Build one memory per participant of a closed arc and push the keepers. Shared by every commit path
+// (live close, travel, day-end). `dayStamp` lets the day-end flush stamp memories on the JUST-ENDED
+// day (gameDay already advanced) so the intent former's gameDay filter still sees them.
+async function commitMemoryArc(chat, startIdx, endIdx, dayStamp){
+  if(!state.mem||!state.key) return;
+  const day = (typeof dayStamp==="number") ? dayStamp : curGameDay();
   const cast=curCast().slice();
-  // include any temporary event characters who are currently present (they leave memories too)
   presentCast(chat).forEach(p=>{if(p&&p.temp&&!cast.some(c=>c.id===p.id))cast.push(p);});
-  if(!chat.memCounts)chat.memCounts={};   // per-character count of witnessed messages since last memory
-  // Only characters who are actually PRESENT in the scene can form memories of it — not the whole
-  // universe cast. An absent character must never build a memory of a conversation they weren't in.
+  // Span of messages belonging to this arc.
+  const span=chat.messages.slice(startIdx, (typeof endIdx==="number"?endIdx+1:chat.messages.length));
+  // Who participated / witnessed this arc: present cast + temps. Each is scoped by their own arrival.
   const presentSet=new Set(presentIds(chat));
   const memCast=cast.filter(p=>p&&(presentSet.has(p.id)||p.temp));
-  // Scene boundary: a character only witnessed dialogue in the CURRENT scene (since the last travel
-  // beat / location change). Prior-location dialogue must not count toward their memory window.
-  let sceneStart=0;
-  for(let i=chat.messages.length-1;i>=0;i--){ if(chat.messages[i]&&chat.messages[i].travelBeat){ sceneStart=i; break; } }
+  if(!memCast.length||!span.length) return;
   for(const p of memCast){
-    // Per-character arrival cut: a character that walked into an in-progress scene only forms
-    // memories from THEIR arrival onward (not dialogue that predates them being in the room).
-    let charStart=sceneStart;
-    for(let i=chat.messages.length-1;i>charStart;i--){
-      const m=chat.messages[i];
-      if(m && m.presenceNote && noteMarksArrival(m,p)){ charStart=i; break; }
-    }
-    // Count messages THIS character witnessed (present for) in the current scene, excluding notes.
-    const witnessed=chat.messages.filter((m,idx)=>{
+    // Per-character arrival cut WITHIN the arc: a late arrival only remembers from when they entered.
+    let aStart=0;
+    for(let i=span.length-1;i>0;i--){ const m=span[i]; if(m&&m.presenceNote&&noteMarksArrival(m,p)){ aStart=i; break; } }
+    const witnessed=span.filter((m,idx)=>{
       if(m.role==='system'||m.sysError)return false;
-      if(m.narratorEvent||m.dayMarker||m.presenceNote)return false;   // ambient, not dialogue
-      if(idx<charStart)return false;                                   // before this character arrived
-      if(Array.isArray(m.present))return witnessedBy(m,p);            // strict witness (id or legacy name)
-      return false;                                                    // untagged → don't attribute
+      if(m.narratorEvent||m.dayMarker||m.presenceNote)return false;
+      if(idx<aStart)return false;
+      if(Array.isArray(m.present))return witnessedBy(m,p);
+      return false;
     });
-    const total=witnessed.length;
-    const last=chat.memCounts[p.id]||0;
-    // build a memory every 10 witnessed messages (≈5 back-and-forth) for this character
-    if(total-last < 10) continue;
-    chat.memCounts[p.id]=total;
+    if(witnessed.length<2) continue;   // too little for this character to form a memory of
     try{
-      const window=witnessed.slice(-10);
-      // PERCEPTION TIER: did this character actually take part in the conversation, or were they
-      // just present (a bystander across the room)? A participant SPOKE in the window; a bystander
-      // was present but never spoke. Bystanders did NOT hear the words — they form a fuzzy outside
-      // impression (the social SHAPE) instead of a verbatim memory. (Living Universe, layer 1.)
-      const isBystander = (cast.length>0) && !window.some(m=>m.role!=='user' && m.speakerId===p.id);
-      const convo=window
-        .map(m=>`${m.role==='user'?state.user:(m.speaker||cast[0].name)}: ${m.content}`).join("\n");
-      let sys, userMsg;
+      const isBystander=(cast.length>0)&&!witnessed.some(m=>m.role!=='user'&&m.speakerId===p.id);
+      const convo=witnessed.map(m=>`${m.role==='user'?state.user:(m.speaker||cast[0].name)}: ${m.content}`).join("\n");
+      let sys,userMsg,max;
       if(isBystander){
-        // Who was actually conversing (for the bystander's outside view): the player + whoever spoke.
-        const speakers=[...new Set(window.filter(m=>m.role!=='user'&&m.speakerId&&m.speakerId!==p.id).map(m=>m.speaker))];
+        const speakers=[...new Set(witnessed.filter(m=>m.role!=='user'&&m.speakerId&&m.speakerId!==p.id).map(m=>m.speaker))];
         const withWhom=speakers.length?speakers.join(", "):"someone";
         sys=fillTpl(up("gistBuild"),{char:p.name,user:state.user});
         userMsg=`${p.name} is present in the same place but NOT part of the conversation — across the room, not within earshot of the actual words. From the outside, ${p.name} can only see that ${state.user} and ${withWhom} are talking. Here is what was said (${p.name} did NOT hear this — use it ONLY to judge the emotional SHAPE of the exchange, never the specifics):\n\n${convo}`;
+        max=fnTok("mem",260);
       }else{
         sys=fillTpl(up("memBuild"),{char:p.name,user:state.user})+
-          (cast.length>1?`\n\nIMPORTANT: Write this memory strictly from ${p.name}'s own perspective and personal experience. Only record what ${p.name} personally witnessed. Do not include events that happened while ${p.name} was absent.`:"");
-        userMsg=`Conversation ${p.name} witnessed (with ${state.user}):\n\n${convo}`;
+          (cast.length>1?`\n\nIMPORTANT: Write this memory strictly from ${p.name}'s own perspective and personal experience. Only record what ${p.name} personally witnessed.`:"");
+        userMsg=`Complete event ${p.name} witnessed (with ${state.user}):\n\n${convo}`;
+        max=fnTok("mem",560);
       }
       const out=await chatCompletion([
-        {role:"system",content:sys},
-        {role:"user",content:userMsg}
-      ],state.memModel,{temp:fnTemp("mem",0.3),max:fnTok("mem",isBystander?260:500),dbg:(isBystander?"Bystander gist · ":"Memory builder · ")+p.name});
+        {role:"system",content:sys},{role:"user",content:userMsg}
+      ],state.memModel,{temp:fnTemp("mem",0.3),max,dbg:(isBystander?"Bystander gist · ":"Memory (arc) · ")+p.name});
       const j=parseJSON(out);
       if(!j||!j.content)continue;
+      const importance=typeof j.importance_score==="number"?j.importance_score:(isBystander?0.3:0.5);
+      // STORABLE-MEMORY FLOOR: drop arcs the builder judged trivial. Bystander gists with a real
+      // gossip charge are exempt from the floor (the living world still needs the charged glimpse).
+      const charge=isBystander?(typeof j.charge==="number"?Math.max(0,Math.min(1,j.charge)):0):0;
+      if(importance < (state.memMinImp||0) && charge < 0.5) continue;
       const mem={
         id:"m_"+Date.now()+Math.random().toString(36).slice(2,6),
         content:String(j.content).trim(),
-        location:j.location||"",
+        location:j.location||chat.location||"",
+        people:Array.isArray(j.people)?j.people.map(x=>String(x).trim()).filter(Boolean):[],
         emotion:j.emotion||"neutral",
-        importance:typeof j.importance_score==="number"?j.importance_score:(isBystander?0.3:0.5),
+        feelings:j.feelings?String(j.feelings).trim():"",
+        details:Array.isArray(j.details)?j.details.map(x=>String(x).trim()).filter(Boolean):[],
+        importance,
         tags:Array.isArray(j.tags)?j.tags.map(t=>String(t).toLowerCase()):[],
         type:isBystander?"OBSERVATION":(j.type||"EXPERIENCE"),
-        ownerId:p.id, character:p.name, date:Date.now(), gameDay:curGameDay(), source:"auto",
+        ownerId:p.id, character:p.name, date:Date.now(), gameDay:day, source:"auto",
         universeId:(chat&&chat.universeId)||state.curUniverse||null, chatId:(chat&&chat.id)||state.curChat||null
       };
-      // Bystander gist carries the perceived social shape + a gossip-worthiness charge, for later
-      // layers (gossip propagation). Harmless metadata now; nothing reads it yet.
-      if(isBystander){
-        if(j.gist)mem.gist=String(j.gist).trim();
-        mem.charge=typeof j.charge==="number"?Math.max(0,Math.min(1,j.charge)):0;
-        mem.observerOnly=true;
-      }
+      if(isBystander){ if(j.gist)mem.gist=String(j.gist).trim(); mem.charge=charge; mem.observerOnly=true; }
       if(!memoriesOf(p.id).some(m=>memText(m).toLowerCase()===mem.content.toLowerCase())){
         state.memory.push(mem);
       }
     }catch(e){/* best-effort per character */}
   }
   persistMemory();persistChats();
-  // After building, condense each character's distant memories if they've piled up.
-  if(state.condenseOn){ for(const p of cast){ try{ await maybeCondenseMemories(p.id,p.name); }catch(e){} } }
-  if(document.getElementById('screen-memory').classList.contains('active')) renderMemory();
+  if(state.condenseOn){ for(const p of memCast){ try{ await maybeCondenseMemories(p.id,p.name); }catch(e){} } }
+  if(document.getElementById('screen-memory')&&document.getElementById('screen-memory').classList.contains('active')) renderMemory();
+}
+
+// Close whatever arc is currently open on this chat (if any), committing it, then clear the tracker.
+// Used by travel (characters left behind) and day-end. `dayStamp` optional (day-end).
+async function flushMemoryArc(chat, dayStamp){
+  const ev=chat&&chat.memEvent;
+  if(!ev||!ev.open) return;
+  const start=ev.startIdx||0;
+  chat.memEvent=null;                       // clear FIRST so re-entrancy can't double-commit
+  markChatDirty(chat);
+  await commitMemoryArc(chat, start, chat.messages.length-1, dayStamp);
+}
+
+const MEM_ARC_CAP=16;   // safety valve: an arc that never cleanly closes commits at this many messages
+
+async function maybeBuildMemory(chat){
+  // Auto-character bio filling runs regardless of the memory toggle.
+  if(state.autoCharOn){ try{ await fillPendingBios(chat); }catch(e){} }
+  if(!state.mem||!state.key)return;
+  if(!Array.isArray(chat.messages)||!chat.messages.length)return;
+
+  // Scene boundary: the current arc can't predate the last location change.
+  let sceneStart=0;
+  for(let i=chat.messages.length-1;i>=0;i--){ if(chat.messages[i]&&chat.messages[i].travelBeat){ sceneStart=i; break; } }
+  if(!chat.memEvent || !chat.memEvent.open || chat.memEvent.startIdx < sceneStart){
+    // No live arc (or it belongs to a previous scene) — open a fresh one at the scene start.
+    chat.memEvent={ startIdx:Math.max(sceneStart,0), open:true, paused:false, summary:"" };
+  }
+  const ev=chat.memEvent;
+
+  // The exchange the tracker judges: the last few real dialogue lines.
+  const recent=chat.messages.filter(m=>!(m.role==='system'||m.sysError||m.narratorEvent||m.dayMarker||m.presenceNote)).slice(-6);
+  if(recent.length<2)return;
+  const exchange=recent.map(m=>`${m.role==='user'?state.user:(m.speaker||"?")}: ${m.content}`).join("\n");
+
+  let progress="ongoing", topic="same", summary=ev.summary||"";
+  try{
+    const out=await chatCompletion([
+      {role:"system",content:fillTpl(up("memEval"),{open_event:ev.summary||"(nothing tracked yet)",exchange})},
+      {role:"user",content:"Judge the arc now. Return the JSON."}
+    ],state.mcModel||state.model,{temp:fnTemp("mc",0.1),max:fnTok("mc",120),dbg:"Memory arc tracker"});
+    const j=parseJSON(out)||{};
+    if(j.progress==="finished"||j.progress==="paused"||j.progress==="ongoing")progress=j.progress;
+    if(j.topic==="same"||j.topic==="different")topic=j.topic;
+    if(j.summary)summary=String(j.summary).trim();
+  }catch(e){ /* evaluator failed — treat as ongoing, don't lose the arc */ }
+
+  ev.summary=summary; ev.paused=(progress==="paused");
+
+  const arcEnd=chat.messages.length-1;
+  const spanLen=arcEnd-(ev.startIdx||0)+1;
+
+  if(topic==="different"){
+    // A NEW thread began while the old arc was open: close the old one (commit), open a new arc here.
+    const oldStart=ev.startIdx||0;
+    // the new arc starts at the last user line of the recent window if we can find it, else here
+    let newStart=arcEnd;
+    for(let i=chat.messages.length-1;i>oldStart;i--){ if(chat.messages[i]&&chat.messages[i].role==='user'){ newStart=i; break; } }
+    chat.memEvent={ startIdx:newStart, open:true, paused:false, summary };
+    markChatDirty(chat);
+    await commitMemoryArc(chat, oldStart, Math.max(oldStart,newStart-1));
+    return;
+  }
+  if(progress==="finished"){
+    chat.memEvent=null; markChatDirty(chat);
+    await commitMemoryArc(chat, ev.startIdx||0, arcEnd);
+    return;
+  }
+  if(progress!=="paused" && spanLen>=MEM_ARC_CAP){
+    // SAFETY VALVE: an arc that won't close on its own commits here, then a fresh one opens.
+    chat.memEvent={ startIdx:arcEnd, open:true, paused:false, summary:"" };
+    markChatDirty(chat);
+    await commitMemoryArc(chat, ev.startIdx||0, arcEnd);
+    return;
+  }
+  // ongoing or paused → keep accumulating; just persist the tracker state.
+  markChatDirty(chat);
 }
 
 /* ===== Memory condenser (Stage 4) =====
@@ -14104,10 +14355,18 @@ async function genQuery(userText,chat){
 function prefilter(query,limit,poolOverride){
   const qWords=new Set((query.toLowerCase().match(/[a-z0-9]+/g)||[]).filter(w=>w.length>2));
   const pool=poolOverride||visibleMemories();
+  // Names of characters present in the current scene — memories involving them get a light boost so
+  // a character recalls their history with whoever just walked in. Soft (a boost, not a filter), so
+  // general-topic memories still surface. Uses the richer `people` field the arc builder now stores.
+  const here=new Set();
+  try{ const c=curChat(); if(c) presentCast(c).forEach(p=>{ if(p&&p.name) here.add(p.name.toLowerCase()); }); }catch(e){}
   const scored=pool.map(m=>{
-    const hay=(memText(m)+" "+(m.tags||[]).join(" ")+" "+(m.location||"")).toLowerCase();
+    // SEARCH over the full memory surface (content + people + details + tags), not just content —
+    // the richer format moved searchable specifics out of content into their own fields.
+    const hay=(memSearchText(m)+" "+(m.location||"")).toLowerCase();
     let score=0; qWords.forEach(w=>{if(hay.includes(w))score++;});
     score+=(m.importance||0)*0.5;
+    if(here.size && Array.isArray(m.people) && m.people.some(n=>here.has(String(n).toLowerCase()))) score+=1.5;
     return {m,score};
   }).sort((a,b)=>b.score-a.score);
   return scored.slice(0,limit).map(x=>x.m);
@@ -14147,7 +14406,7 @@ async function retrieveMemories(userText,chat,ownerId){
       return candidates.slice(0,max);
     }
     const listed=candidates.map((m,i)=>
-      `[${i}] ${memText(m)} | tags: ${(m.tags||[]).join(", ")} | importance: ${m.importance} | day: ${m.gameDay||1}`
+      `[${i}] ${memText(m)}${Array.isArray(m.people)&&m.people.length?` | with: ${m.people.join(", ")}`:""}${Array.isArray(m.details)&&m.details.length?` | details: ${m.details.slice(0,3).join("; ")}`:""} | tags: ${(m.tags||[]).join(", ")} | importance: ${m.importance} | day: ${m.gameDay||1}`
     ).join("\n");
     const sys=fillTpl(up("ranker"),{maxCount:String(max)});
     try{
@@ -14180,7 +14439,7 @@ function renderMemory(){
   const _uni=curUniverseObj();
   const inUni=m=>!_uni || !m.universeId || m.universeId===_uni.id;
   const pool=state.memory.filter(inUni);
-  if(!pool.length){el.innerHTML=`<div class="empty"><div class="big">🧠</div><div>No story memories${_uni?" in "+esc(_uni.name):""} yet.<br>Each character forms their own memories every 10 messages.</div><button class="btn small" onclick="addMemoryManual()">＋ Add</button></div>`;return;}
+  if(!pool.length){el.innerHTML=`<div class="empty"><div class="big">🧠</div><div>No story memories${_uni?" in "+esc(_uni.name):""} yet.<br>Characters form memories when a meaningful event concludes.</div><button class="btn small" onclick="openMemEditor()">＋ Add</button></div>`;return;}
   // owner filter chips
   const owners=[...new Set(pool.map(m=>m.ownerId).filter(Boolean))];
   const ownerName=id=>{const p=state.personas.find(x=>x.id===id);return p?p.name:"(unknown)";};
@@ -14199,6 +14458,8 @@ function renderMemory(){
   const orphan=pool.filter(m=>!m.ownerId);
   if(orphan.length)bar.appendChild(mkChip("__none__","⚠️ Unassigned ("+orphan.length+")"));
   el.appendChild(bar);
+  // Add button at the top of the list
+  {const add=document.createElement('button');add.className="btn small";add.style.marginBottom="10px";add.textContent="＋ Add memory";add.onclick=()=>openMemEditor();el.appendChild(add);}
 
   let list=pool.slice();
   if(memFilterOwner==="__none__")list=list.filter(m=>!m.ownerId);
@@ -14209,14 +14470,21 @@ function renderMemory(){
     const imp=Math.round((m.importance||0)*100);
     const tags=(m.tags||[]).slice(0,8).map(t=>`<span class="pill">${esc(t)}</span>`).join(" ");
     const owner=m.ownerId?`${ownerAvatar(m.ownerId)} ${ownerName(m.ownerId)}`:(m.character||"⚠️ unassigned");
+    const people=(Array.isArray(m.people)&&m.people.length)?`<div class="desc">👥 ${esc(m.people.join(", "))}</div>`:"";
+    const feelings=m.feelings?`<div class="desc">💭 ${esc(m.feelings)}</div>`:"";
+    const details=(Array.isArray(m.details)&&m.details.length)?`<div class="desc">📌 ${esc(m.details.join(" · "))}</div>`:"";
     c.innerHTML=`<div style="font-size:12px;color:var(--accent);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span class="pill" style="border-color:var(--accent);color:var(--accent)">${esc(owner)}</span>
         <span>${m.source==='auto'?'🤖 remembered':m.source==='diary'?'📔 diary':m.source==='day-summary'?'🌙 day':m.source==='gossip'?'🗣️ heard ('+esc(m.gossipFrom||'?')+')':m.source==='condenser'?'🗜️ condensed'+(m.condensedFrom?' ×'+m.condensedFrom:''):'✍️ added'} · ${esc(m.type||"EXPERIENCE")} · ${esc(m.emotion||"neutral")}${m.location?" · "+esc(m.location):""} · Day ${m.gameDay||1}</span>
       </div>
       <div>${esc(memText(m))}</div>
+      ${people}${feelings}${details}
       ${m.importance!==undefined?`<div class="desc">importance ${imp}%</div>`:""}
       ${tags?`<div class="chips" style="gap:4px">${tags}</div>`:""}
-      <button class="btn danger sec small" onclick="delMemory('${m.id}')">Delete</button>`;
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn sec small" onclick='openMemEditor("${m.id}")'>Edit</button>
+        <button class="btn danger sec small" onclick="delMemory('${m.id}')">Delete</button>
+      </div>`;
     el.appendChild(c);
   });
 }
@@ -14334,7 +14602,66 @@ async function genDiaryCover(ownerId,btn){
   }catch(e){ toast(""+(e&&e.friendly||"Couldn't generate cover")); }
   finally{ if(btn){btn.disabled=false;btn.textContent=old;} }
 }
-function addMemoryManual(){const t=prompt("Remember that…");if(t&&t.trim()){const owner=presentCast()[0]||curCast()[0];if(!owner){toast("Bring a character nearby first");return;}const _ch=curChat();state.memory.push({id:"m_"+Date.now(),content:t.trim(),location:"",emotion:"neutral",importance:0.6,tags:[],type:"EXPERIENCE",ownerId:owner.id,character:owner.name,date:Date.now(),gameDay:curGameDay(),source:"manual",universeId:(_ch&&_ch.universeId)||state.curUniverse||null,chatId:(_ch&&_ch.id)||state.curChat||null});persistMemory();renderMemory();show('memory');toast("Added to "+owner.name+"'s memory");}}
+let _memEditId=null;   // null = adding new, else editing existing
+function openMemEditor(id){
+  _memEditId=id||null;
+  const m=id?state.memory.find(x=>x.id===id):null;
+  document.getElementById('memEditTitle').textContent=m?"Edit memory":"Add memory";
+  // Owner picker: every character in the current universe (so you can author for anyone).
+  const sel=document.getElementById('memEditOwner'); sel.innerHTML="";
+  const uni=curUniverseObj();
+  const chars=state.personas.filter(p=>!uni||!p.universeId||p.universeId===uni.id);
+  // default owner for a NEW memory: first present cast, else first in universe
+  const present=presentCast(); const defOwner=(m&&m.ownerId)||(present[0]&&present[0].id)||(chars[0]&&chars[0].id)||"";
+  chars.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=(p.avatar||"🎭")+" "+p.name; if(p.id===defOwner)o.selected=true; sel.appendChild(o); });
+  const g=id=>document.getElementById(id);
+  g('memEditType').value=(m&&m.type)||"EXPERIENCE";
+  g('memEditContent').value=m?memText(m):"";
+  g('memEditPeople').value=(m&&Array.isArray(m.people))?m.people.join(", "):"";
+  g('memEditLocation').value=(m&&m.location)||"";
+  g('memEditEmotion').value=(m&&m.emotion)||"neutral";
+  g('memEditFeelings').value=(m&&m.feelings)||"";
+  g('memEditDetails').value=(m&&Array.isArray(m.details))?m.details.join("\n"):"";
+  g('memEditTags').value=(m&&Array.isArray(m.tags))?m.tags.join(", "):"";
+  const imp=(m&&typeof m.importance==="number")?m.importance:0.6;
+  g('memEditImp').value=imp; g('memEditImpVal').textContent=imp;
+  openModal('memEditModal');
+}
+function saveMemEdit(){
+  const g=id=>document.getElementById(id);
+  const content=g('memEditContent').value.trim();
+  if(!content){ toast("Write the memory first"); return; }
+  const ownerId=g('memEditOwner').value;
+  const owner=state.personas.find(p=>p.id===ownerId);
+  if(!owner){ toast("Pick whose memory this is"); return; }
+  const people=g('memEditPeople').value.split(",").map(s=>s.trim()).filter(Boolean);
+  const details=g('memEditDetails').value.split("\n").map(s=>s.trim()).filter(Boolean);
+  const tags=g('memEditTags').value.split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const fields={
+    content, ownerId, character:owner.name,
+    type:g('memEditType').value||"EXPERIENCE",
+    people, location:g('memEditLocation').value.trim(),
+    emotion:g('memEditEmotion').value.trim()||"neutral",
+    feelings:g('memEditFeelings').value.trim(),
+    details, tags, importance:parseFloat(g('memEditImp').value)||0.6
+  };
+  if(_memEditId){
+    const m=state.memory.find(x=>x.id===_memEditId);
+    if(m)Object.assign(m,fields);
+  }else{
+    const _ch=curChat();
+    state.memory.push(Object.assign({
+      id:"m_"+Date.now()+Math.random().toString(36).slice(2,5),
+      date:Date.now(), gameDay:curGameDay(), source:"manual",
+      universeId:(_ch&&_ch.universeId)||state.curUniverse||null,
+      chatId:(_ch&&_ch.id)||state.curChat||null
+    },fields));
+  }
+  persistMemory();closeModal('memEditModal');renderMemory();
+  toast(_memEditId?"Memory updated":"Added to "+owner.name+"'s memory");
+}
+// Back-compat shim: anything still calling addMemoryManual opens the new editor.
+function addMemoryManual(){ openMemEditor(); }
 
 /* ---- settings ---- */
 /* ===== Editable model-routing rules (add/remove as many as you want) ===== */
@@ -14489,7 +14816,7 @@ function renderToggleSegs(){
 const GLOBAL_PROMPT_TEXTAREAS={
   setBaseInstruction:"baseInstruction", setFormatRules:"formatRules",
   setRewritePrompt:"rewritePrompt", setVidPrompt:"vidPrompt", setMoviePrompt:"moviePrompt", setRouterPrompt:"routerPrompt",
-  setMemBuild:"memBuild", setGistBuild:"gistBuild", setGossipPrompt:"gossipPrompt", setPoiGossip:"poiGossip", setConfrontJudge:"confrontJudge", setOvertureJudge:"overtureJudge", setIntentForm:"intentForm", setIntentTick:"intentTick", setContemplate:"contemplate", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
+  setMemEval:"memEval", setMemBuild:"memBuild", setGistBuild:"gistBuild", setGossipPrompt:"gossipPrompt", setPoiGossip:"poiGossip", setConfrontJudge:"confrontJudge", setOvertureJudge:"overtureJudge", setIntentForm:"intentForm", setIntentTick:"intentTick", setContemplate:"contemplate", setQueryGen:"queryGen", setRanker:"ranker", setCondensePrompt:"condensePrompt",
   setBioPrompt:"bioPrompt", setUnivPrompt:"univPrompt", setDirectorAuthor:"directorAuthor", setPromptTuner:"promptTuner", setRelPrompt:"relPrompt", setRelShortPrompt:"relShortPrompt", setRelGenPrompt:"relGenPrompt", setPlayerNarratePrompt:"playerNarratePrompt", setTrackPrompt:"trackPrompt",
   setVoiceCheckPrompt:"voiceCheckPrompt", setTravelPrompt:"travelPrompt", setCalPrompt:"calPrompt",
   setGmJudge:"gmJudge", setGmAuthor:"gmAuthor", setDaySummary:"daySummaryPrompt",
@@ -14583,6 +14910,8 @@ function syncSettingsUI(){
   document.getElementById('setPresencePrompt').value=state.presencePrompt;
   {const gs=document.getElementById('gmSensSeg');gs.innerHTML="";["cautious","balanced","active"].forEach(v=>seg(gs,v,state.gmSensitivity,x=>{state.gmSensitivity=x;}));}
   document.getElementById('setMemBuild').value=state.memBuild;
+  {const e=document.getElementById('setMemEval'); if(e)e.value=state.memEval;}
+  {const e=document.getElementById('setMemMinImp'); if(e){e.value=state.memMinImp; const v=document.getElementById('memMinImpVal'); if(v)v.textContent=state.memMinImp;}}
   {const e=document.getElementById('setGistBuild'); if(e)e.value=state.gistBuild||DEFAULT_GIST_BUILD;}
   document.getElementById('setQueryGen').value=state.queryGen;
   document.getElementById('setRanker').value=state.ranker;
@@ -14709,6 +15038,8 @@ function saveSettings(notify){
   state.presenceOff=!document.getElementById('setPresenceOn').checked;
   state.presencePrompt=document.getElementById('setPresencePrompt').value.trim()||DEFAULT_PRESENCE_TRACKER;
   state.memBuild=document.getElementById('setMemBuild').value.trim()||DEFAULT_MEMBUILD;
+  {const e=document.getElementById('setMemEval'); if(e)state.memEval=e.value.trim()||DEFAULT_MEMEVAL;}
+  {const e=document.getElementById('setMemMinImp'); if(e){const v=parseFloat(e.value); state.memMinImp=isNaN(v)?0.15:Math.max(0,Math.min(1,v));}}
   {const e=document.getElementById('setGistBuild'); if(e)state.gistBuild=e.value.trim()||DEFAULT_GIST_BUILD;}
   state.queryGen=document.getElementById('setQueryGen').value.trim()||DEFAULT_QUERYGEN;
   state.ranker=document.getElementById('setRanker').value.trim()||DEFAULT_RANKER;
@@ -14789,7 +15120,7 @@ function saveSettings(notify){
   store.setRaw(K.moviePrompt,state.moviePrompt);
   store.setRaw(K.movieSegs,String(state.movieSegs||6));
   store.set(K.autoImg,state.autoImg);store.setRaw(K.rewritePrompt,state.rewritePrompt);
-  store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.gistBuild,state.gistBuild);store.setRaw(K.poiGossip,state.poiGossip);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
+  store.setRaw(K.memModel,state.memModel);store.setRaw(K.memBuild,state.memBuild);store.setRaw(K.memEval,state.memEval);store.setRaw(K.memMinImp,String(state.memMinImp));store.setRaw(K.gistBuild,state.gistBuild);store.setRaw(K.poiGossip,state.poiGossip);store.setRaw(K.queryGen,state.queryGen);store.setRaw(K.ranker,state.ranker);
   store.set(K.condenseOn,state.condenseOn);store.setRaw(K.condenseThreshold,state.condenseThreshold);store.setRaw(K.condenseKeep,state.condenseKeep);store.setRaw(K.condenseBatch,state.condenseBatch);store.setRaw(K.condensePrompt,state.condensePrompt);store.setRaw(K.memRecentCount,state.memRecentCount);store.setRaw(K.memDistantCount,state.memDistantCount);store.set(K.gossipOn,state.gossipOn);store.setRaw(K.gossipThreshold,state.gossipThreshold);store.setRaw(K.gossipMaxPerDay,state.gossipMaxPerDay);store.setRaw(K.gossipModel,state.gossipModel||"");store.setRaw(K.gossipPrompt,state.gossipPrompt);store.set(K.confrontOn,state.confrontOn);store.setRaw(K.confrontJudge,state.confrontJudge);store.setRaw(K.overtureJudge,state.overtureJudge);store.set(K.intentOn,state.intentOn);store.setRaw(K.intentMax,state.intentMax);store.setRaw(K.intentForm,state.intentForm);store.setRaw(K.intentTick,state.intentTick);store.setRaw(K.contemplate,state.contemplate);
   store.setRaw(K.bioModel,state.bioModel);store.setRaw(K.bioPrompt,state.bioPrompt);store.setRaw(K.univPrompt,state.univPrompt);store.setRaw(K.directorAuthor,state.directorAuthor);store.setRaw(K.authorModel,state.authorModel||"");store.setRaw(K.promptTuner,state.promptTuner);store.set(K.autoCharOn,state.autoCharOn);store.setRaw(K.autoCharDelay,state.autoCharDelay);
   store.set(K.stripNarr,state.stripNarr);store.setRaw(K.stripKeepFull,state.stripKeepFull);store.setRaw(K.histTurns,state.histTurns);
