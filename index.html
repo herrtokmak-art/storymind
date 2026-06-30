@@ -376,6 +376,7 @@
 <symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8" y1="11" x2="16" y2="7"/><line x1="8" y1="13" x2="16" y2="17"/></symbol>
 <symbol id="i-dna" viewBox="0 0 24 24"><path d="M7 3c0 5 10 7 10 12a5 5 0 0 1-5 5"/><path d="M17 3c0 5-10 7-10 12a5 5 0 0 0 5 5"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="17" x2="16" y2="17"/></symbol>
 <symbol id="i-message" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
 <symbol id="i-bug" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="11" rx="4"/><line x1="12" y1="4" x2="12" y2="8"/><line x1="3" y1="11" x2="8" y2="11"/><line x1="16" y1="11" x2="21" y2="11"/><line x1="3" y1="17" x2="8" y2="16"/><line x1="16" y1="16" x2="21" y2="17"/></symbol>
 <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-3-6z"/></symbol>
 <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></symbol>
@@ -432,6 +433,7 @@
   </header>
   <div id="chatMenu" class="chatMenu hide">
     <button onclick="openCalendar();closeChatMenu()"><svg class="ic"><use href="#i-calendar"/></svg> Calendar</button>
+    <button onclick="openCallPicker();closeChatMenu()"><svg class="ic"><use href="#i-phone"/></svg> Call a character</button>
     <button onclick="openTravel();closeChatMenu()"><svg class="ic"><use href="#i-map"/></svg> Travel</button>
     <button onclick="openSubMove();closeChatMenu()"><svg class="ic"><use href="#i-pin"/></svg> Move to area</button>
     <button onclick="forceGamemaster();closeChatMenu()"><svg class="ic"><use href="#i-film"/></svg> Nudge the story (Gamemaster)</button>
@@ -528,7 +530,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.15 (Fix: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.16-voice (Voice calls: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -680,6 +682,43 @@
           <div><label>Model</label><input type="text" id="setAuthorModel" list="modelList" placeholder="anthropic/claude-sonnet-4"></div>
           <div class="desc" style="margin-top:6px"><b>Universe generator length &amp; creativity.</b> Building a full world with many characters is a large JSON response. If a generated universe fails to appear, raise <b>Max tokens</b> here — a 9-character world needs plenty of room. (Repetition penalties are forced off for this job so the JSON structure can't be derailed.)</div>
           <div class="ovr"><div data-ovr="unigen" data-kind="temp"></div><div data-ovr="unigen" data-kind="tok"></div></div>
+        </div>
+
+        <div class="card">
+          <h3><svg class="ic"><use href="#i-message"/></svg> Voice calls</h3>
+          <div class="desc">Real-time spoken conversations with a character. Speech-to-text by Deepgram, the reply by your call model below (via OpenRouter, reusing your main key), and the voice by Inworld through your TTS relay. See DEPLOY-WORKER.md for the relay.</div>
+          <div><label>Deepgram API key (speech-to-text)</label><input type="password" id="setDgKey" placeholder="Deepgram key" autocomplete="off"></div>
+          <div><label>TTS relay URL (your Cloudflare Worker)</label><input type="text" id="setTtsRelay" placeholder="https://inworld-tts.your-name.workers.dev" autocomplete="off"></div>
+          <div><label>Call model (OpenRouter)</label><input type="text" id="setCallModel" list="modelList" value="deepseek/deepseek-v4-pro"></div>
+          <div class="desc" style="margin-top:6px">A fast model matters for a call — first-word latency is what you feel. Provider routing is set to lowest-latency automatically.</div>
+          <div class="ovr"><div data-ovr="call" data-kind="temp"></div><div data-ovr="call" data-kind="tok"></div></div>
+          <details style="margin-top:8px"><summary>Voice &amp; turn-taking</summary>
+            <div class="row">
+              <div><label>Default voice id (Inworld)</label><input type="text" id="setCallVoice" value="Ashley"></div>
+              <div><label>STT model (Deepgram)</label><input type="text" id="setCallDgModel" value="nova-3"></div>
+            </div>
+            <div class="row">
+              <div><label>STT language</label><input type="text" id="setCallSttLang" value="tr"></div>
+              <div><label>TTS model (Inworld)</label><input type="text" id="setCallTtsModel" value="inworld-tts-2"></div>
+            </div>
+            <div class="row">
+              <div><label>TTS language (BCP-47)</label><input type="text" id="setCallTtsLang" value="tr-TR"></div>
+              <div><label>Delivery mode</label><input type="text" id="setCallDelivery" value="BALANCED"></div>
+            </div>
+            <div class="row">
+              <div><label>Speaking rate (0.5–1.5)</label><input type="number" id="setCallRate" min="0.5" max="1.5" step="0.05" value="1.1"></div>
+              <div><label>Endpointing (ms)</label><input type="number" id="setCallEndpoint" min="100" step="50" value="400"></div>
+            </div>
+            <div class="row">
+              <div><label>Utterance end (ms) — raise if it cuts you off</label><input type="number" id="setCallUttEnd" min="500" step="100" value="1800"></div>
+              <div><label>Barge-in min chars</label><input type="number" id="setCallBargeMin" min="1" step="1" value="3"></div>
+            </div>
+            <div class="row">
+              <div><label>Barge-in guard (ms)</label><input type="number" id="setCallBargeGuard" min="0" step="100" value="700"></div>
+              <div></div>
+            </div>
+            <div class="desc">Raise <b>Utterance end</b> if the character jumps in before you finish a long sentence. Raise <b>Speaking rate</b> / use <b>STABLE</b> delivery if speech feels too slow or pausey.</div>
+          </details>
         </div>
 
         <div class="card">
@@ -1183,6 +1222,33 @@
   </div>
 </div>
 
+<!-- ===== VOICE CALL — callee picker ===== -->
+<div class="modal" id="callPickerModal">
+  <button class="x" onclick="closeModal('callPickerModal')">×</button>
+  <div class="card editCard">
+    <h3><svg class="ic"><use href="#i-phone"/></svg> Call a character</h3>
+    <div class="desc" id="callPickerHint">Pick who to talk to. You'll have a real-time spoken conversation — speak, and they answer aloud.</div>
+    <div id="callPickerList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:50vh;overflow:auto"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn sec" onclick="closeModal('callPickerModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VOICE CALL — in-call overlay ===== -->
+<div class="modal" id="callOverlay">
+  <div class="card editCard" style="text-align:center;max-width:360px">
+    <div id="vcAvatar" style="font-size:64px;line-height:1;margin:8px 0">🎭</div>
+    <h3 id="vcName" style="margin:4px 0">…</h3>
+    <div id="vcStatus" style="opacity:.8;margin:6px 0 2px">Connecting…</div>
+    <div id="vcDur" style="font-variant-numeric:tabular-nums;font-size:13px;opacity:.6">0:00</div>
+    <div class="desc" style="margin:10px 0 4px">In-person conversation · speak naturally · this uses metered services (Deepgram · OpenRouter · Inworld)</div>
+    <div class="row" style="justify-content:center;margin-top:10px">
+      <button class="btn" style="background:#c0392b;border-color:#c0392b" onclick="hangUpCall()"><svg class="ic"><use href="#i-phone"/></svg> Hang up</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== EDIT LOCATION (modern) ===== -->
 <div class="modal" id="locEditModal">
   <button class="x" onclick="closeModal('locEditModal')">×</button>
@@ -1397,6 +1463,7 @@
       <textarea class="fld" id="peGoals" placeholder="What this character WANTS — their standing drives, short- and long-term. e.g. 'Claw back relevance in Alper's eyes; not be replaced by younger women; secure a public win that proves she still matters.' These give the character (and the director engines) something to push toward proactively." style="min-height:64px"></textarea>
       <div class="desc">Baseline motivations the character pursues on their own — read by the Gamemaster, the offstage-intent engine, and the character's own turns, so they drive the story instead of only reacting.</div></div>
     <div><label>Speaking style</label><textarea class="fld" id="peStyle" placeholder="Clipped, dry wit, occasional old-world phrasing" style="min-height:48px"></textarea></div>
+    <div><label><svg class="ic"><use href="#i-message"/></svg> Voice (Inworld voice id, for voice calls)</label><input class="fld" id="peVoiceId" placeholder="e.g. Ashley · leave blank to use the default call voice"></div>
     <div><label>Appearance (used for image prompts)</label>
       <div class="desc" style="margin:2px 0 6px">Structured so back/profile shots can drop the face cleanly. Leave blank to inherit nothing — fill what you know. WRITE IN ENGLISH.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1490,7 +1557,11 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   // Relationships + freeform trackers
   relOn:"sm_relon",relPrompt:"sm_relprompt",relShortPrompt:"sm_relshortprompt",stInterval:"sm_stinterval",trackOn:"sm_trackon",trackPrompt:"sm_trackprompt",voiceCheckOn:"sm_voicecheckon",voiceCheckPrompt:"sm_voicecheckprompt",
   // Locations / travel / calendar
-  locModel:"sm_locmodel",travelPrompt:"sm_travelprompt",travelTime:"sm_traveltime",calOn:"sm_calon",calPrompt:"sm_calprompt"};
+  locModel:"sm_locmodel",travelPrompt:"sm_travelprompt",travelTime:"sm_traveltime",calOn:"sm_calon",calPrompt:"sm_calprompt",
+  // Voice calls (Stage 2)
+  dgKey:"sm_dgkey",ttsRelay:"sm_ttsrelay",callModel:"sm_callmodel",callVoice:"sm_callvoice",callDgModel:"sm_calldgmodel",
+  callSttLang:"sm_callsttlang",callTtsModel:"sm_callttsmodel",callTtsLang:"sm_callttslang",callDelivery:"sm_calldelivery",callRate:"sm_callrate",
+  callEndpoint:"sm_callendpoint",callUttEnd:"sm_calluttend",callBargeMin:"sm_callbargemin",callBargeGuard:"sm_callbargeguard"};
 // ModelsLab API base. Image and video endpoints live under different paths.
 const ML="https://modelslab.com/api/v6/";
 const ATLAS="https://api.atlascloud.ai/api/v1/";   // AtlasCloud image/video (async submit→poll)
@@ -4323,6 +4394,21 @@ function loadState(){
     travelTime:+store.raw(K.travelTime,1),
     calOn:store.get(K.calOn,true),
     calPrompt:store.raw(K.calPrompt,DEFAULT_CAL),
+    // Voice calls (Stage 2). OpenRouter key is REUSED from state.key; only the Deepgram key + relay are new.
+    dgKey:store.raw(K.dgKey,""),
+    ttsRelay:store.raw(K.ttsRelay,""),
+    callModel:store.raw(K.callModel,"deepseek/deepseek-v4-pro"),
+    callVoice:store.raw(K.callVoice,"Ashley"),
+    callDgModel:store.raw(K.callDgModel,"nova-3"),
+    callSttLang:store.raw(K.callSttLang,"tr"),
+    callTtsModel:store.raw(K.callTtsModel,"inworld-tts-2"),
+    callTtsLang:store.raw(K.callTtsLang,"tr-TR"),
+    callDelivery:store.raw(K.callDelivery,"BALANCED"),
+    callRate:+store.raw(K.callRate,1.1),
+    callEndpoint:+store.raw(K.callEndpoint,400),
+    callUttEnd:+store.raw(K.callUttEnd,1800),
+    callBargeMin:+store.raw(K.callBargeMin,3),
+    callBargeGuard:+store.raw(K.callBargeGuard,700),
     theme:store.raw(K.theme,"dark"),
     font:+store.raw(K.font,14),
     streamReveal:store.get(K.streamReveal,true),
@@ -8813,6 +8899,7 @@ function editPersona(id){
   fillLookEditor(p.look);
   {const e=document.getElementById('peTraits'); if(e)e.value=p.traits||"";}
   {const e=document.getElementById('peGoals'); if(e)e.value=p.goals||"";}
+  {const e=document.getElementById('peVoiceId'); if(e)e.value=p.voiceId||"";}
   {const sg=document.getElementById('peSocialGraph'); if(sg)sg.value=p.socialGraph||"";
    const auto=document.getElementById('peSocialAuto');
    if(auto){ const a=(p.socialGraphAuto||"").trim();
@@ -9676,6 +9763,8 @@ function savePersona(){
     goals:(document.getElementById('peGoals')?document.getElementById('peGoals').value.trim():((editingPersona&&editingPersona.goals)||"")),
     style:document.getElementById('peStyle').value.trim(),
     look:readLookEditor(),
+    // Per-character Inworld voice for voice calls (Stage 2). Optional; absent = default call voice.
+    voiceId:(document.getElementById('peVoiceId')?document.getElementById('peVoiceId').value.trim():((editingPersona&&editingPersona.voiceId)||"")),
     interject:document.getElementById('peInterject').value.trim(),
     // Social graph: author-owned text (editable) + LLM-discovered lines (append-only, never
     // overwritten by the save — preserved from the existing persona).
@@ -14363,148 +14452,25 @@ function memTokens(s){
   catch(e){ words=s.match(/[a-z0-9çğıöşü]+/g)||[]; }   // fallback if Unicode property escapes unsupported
   return words.filter(w=>w.length>2);
 }
-/* ===== MULTI-SIGNAL MEMORY RELEVANCE SCORER =====
-   The prefilter scores each candidate memory on several independent signals, each normalized to a
-   small bounded contribution and multiplied by a tunable weight, then summed (SkyrimNet/mantella
-   style). This is the CODE-side selector that narrows the pool the LLM ranker then judges. It does
-   NOT replace the ranker — it makes the candidate set it sees smarter, not narrower.
-
-   Signals (each degrades to a neutral 0 contribution when its field is absent on old memories):
-   - lexical : query words found anywhere in the memory's searchable surface (the original signal)
-   - tag     : query words that hit the memory's curated `tags` (a topic handle is worth more than a
-               stray content word)
-   - people  : the memory involves someone physically present in the scene right now
-   - location: the memory happened in the scene's current location / sub-area
-   - emotion : the memory's stored emotion matches the emotional tone of the current moment
-   - recency : newer memories (by gameDay) score higher, with a gentle floor so old ones still surface
-   - import  : the builder's importance score for the whole arc
-   - gist    : bystander "gist" observations (observerOnly) are vaguer than lived experience, so they
-               are slightly down-weighted unless strongly charged
-
-   All weights live in ONE object so they can be retuned in one place (and later wired to a settings
-   slider) without touching the scoring math — this is the single "weight set" for retrieval. */
-const MEM_SCORE_WEIGHTS={
-  lexical:1.0,   // per query word matched in the memory surface
-  tag:0.8,       // per query word matched specifically against a tag
-  people:1.5,    // memory involves someone present in the scene
-  location:1.2,  // memory's place matches the current scene's place
-  emotion:0.7,   // memory's emotion matches the current emotional tone
-  recency:1.0,   // scaled by a 0..1 recency factor (newest day = 1)
-  importance:0.6,// scaled by the memory's 0..1 importance
-  gistPenalty:0.6// subtracted from a low-charge bystander gist (lived memories preferred)
-};
-// Coarse emotion families so "angry" in a memory resonates with an angry-toned moment even when the
-// exact word differs. Maps both the builder's main enum and the bystander-gist enum into a few buckets.
-const MEM_EMOTION_FAMILY={
-  joyful:"positive", content:"positive", affectionate:"positive", amused:"positive",
-  angry:"hostile", tense:"hostile", disapproving:"hostile",
-  fearful:"anxious", concerned:"anxious", suspicious:"anxious",
-  sad:"low", hurt:"low",
-  surprised:"surprise",
-  curious:"interest",
-  neutral:"neutral", indifferent:"neutral"
-};
-// A tiny lexicon to GUESS the current moment's emotional family from the query/recent text, for the
-// emotion-resonance signal. Deliberately small and conservative (Turkish + a little English) — it only
-// nudges; the LLM ranker carries the nuance. Returns a family string or "" (no opinion).
-function _momentEmotionFamily(text){
-  const t=(" "+String(text||"").toLowerCase()+" ");
-  const has=arr=>arr.some(w=>t.includes(w));
-  if(has(["öfke","kızgın","sinir","bağır","kavga","nefret","angry","furious","yell","fight"])) return "hostile";
-  if(has(["kork","endişe","tehlike","panik","ürk","afraid","fear","danger","worried","scared"])) return "anxious";
-  if(has(["üzgün","ağla","hüzün","kayıp","yalnız","sad","cry","grief","lonely"])) return "low";
-  if(has(["sevgi","aşk","öpüc","sarıl","mutlu","gül","tatlı","love","kiss","happy","tender","smile"])) return "positive";
-  if(has(["şaşır","inanma","beklenmedik","şok","surprise","shock","unexpected"])) return "surprise";
-  return "";
-}
 /* keyword pre-filter so the ranker sees a bounded candidate set */
 function prefilter(query,limit,poolOverride){
   const qWords=new Set(memTokens(query));
-  const W=MEM_SCORE_WEIGHTS;
   const pool=poolOverride||visibleMemories();
-  // ---- Gather the current SCENE CONTEXT once (cheap; read straight off the chat). Every piece is
-  // optional — each signal that depends on it simply contributes 0 when the context is missing. ----
-  const here=new Set();        // lowercased names of characters present in the scene right now
-  let curPlace="";             // the scene's current "Location — Sub-area" (or "" if unknown)
-  let curDay=0;                // current in-game day, for the recency signal
-  try{
-    const c=curChat();
-    if(c){
-      presentCast(c).forEach(p=>{ if(p&&p.name){ try{ here.add(p.name.toLocaleLowerCase("tr")); }catch(e){ here.add(p.name.toLowerCase()); } } });
-      curDay=(c.gameDay||0);
-      if(c.locationId){
-        const _l=locById(c.locationId);
-        if(_l){
-          const _sid=curSubId(c); const _s=_sid?subById(_l,_sid):null;
-          curPlace=_s?`${_l.name} — ${_s.name}`:_l.name;
-        }
-      }
-    }
-  }catch(e){}
-  let curPlaceLc=""; try{ curPlaceLc=curPlace.toLocaleLowerCase("tr"); }catch(e){ curPlaceLc=curPlace.toLowerCase(); }
-  // Span of days present in the pool, so recency is normalized to THIS character's own history
-  // (a campaign on day 40 and one on day 3 both get a sensible 0..1 spread).
-  let minDay=Infinity,maxDay=0;
-  pool.forEach(m=>{ const d=m.gameDay||0; if(d){ if(d<minDay)minDay=d; if(d>maxDay)maxDay=d; } });
-  if(!isFinite(minDay))minDay=0;
-  const dayRef=Math.max(maxDay,curDay)||0;            // "now" for recency
-  const daySpan=Math.max(1,dayRef-minDay);            // avoid divide-by-zero
-  const momentEmo=_momentEmotionFamily(query);        // guessed emotional tone of the current moment
-
+  // Names of characters present in the current scene — memories involving them get a light boost so
+  // a character recalls their history with whoever just walked in. Soft (a boost, not a filter), so
+  // general-topic memories still surface. Uses the richer `people` field the arc builder now stores.
+  const here=new Set();
+  try{ const c=curChat(); if(c) presentCast(c).forEach(p=>{ if(p&&p.name){ try{ here.add(p.name.toLocaleLowerCase("tr")); }catch(e){ here.add(p.name.toLowerCase()); } } }); }catch(e){}
   const scored=pool.map(m=>{
-    // --- lexical: query words found anywhere in the memory surface (content+people+details+tags+loc).
-    // Substring match, Turkish-locale lowercase, because Turkish is agglutinative ("restoran" must
-    // match "restoranda") and whole-word equality would miss suffixed forms. ---
+    // SEARCH over the full memory surface (content + people + details + tags), not just content —
+    // the richer format moved searchable specifics out of content into their own fields. The query is
+    // tokenized Unicode-aware (so Turkish words stay whole), but matched as a SUBSTRING against the
+    // haystack — Turkish is agglutinative ("restoran" must match "restoranda"), so whole-word equality
+    // would miss suffixed forms. Turkish-locale lowercase on both sides for correct İ/I handling.
     let hay; try{ hay=(memSearchText(m)+" "+(m.location||"")).toLocaleLowerCase("tr"); }catch(e){ hay=(memSearchText(m)+" "+(m.location||"")).toLowerCase(); }
-    let lexical=0; qWords.forEach(w=>{ if(hay.includes(w))lexical++; });
-
-    // --- tag overlap: query words that hit a curated tag are worth an EXTRA increment on top of
-    // lexical (tags are deliberate topic handles). ---
-    let tagHit=0;
-    if(Array.isArray(m.tags)&&m.tags.length){
-      let tagHay=""; try{ tagHay=" "+m.tags.join(" ").toLocaleLowerCase("tr")+" "; }catch(e){ tagHay=" "+m.tags.join(" ").toLowerCase()+" "; }
-      qWords.forEach(w=>{ if(tagHay.includes(w))tagHit++; });
-    }
-
-    // --- people present: memory involves someone in the scene right now. ---
-    let peopleHit=0;
-    if(here.size && Array.isArray(m.people) && m.people.some(n=>{ let nn; try{nn=String(n).toLocaleLowerCase("tr");}catch(e){nn=String(n).toLowerCase();} return here.has(nn); })) peopleHit=1;
-
-    // --- location: memory's place matches the current scene's place (tolerant substring either way,
-    // so "Galata'daki Gizli Bar — Main Bar" matches "Galata'daki Gizli Bar"). ---
-    let locHit=0;
-    if(curPlaceLc && m.location){
-      let mLoc=""; try{ mLoc=String(m.location).toLocaleLowerCase("tr"); }catch(e){ mLoc=String(m.location).toLowerCase(); }
-      if(mLoc && (curPlaceLc.includes(mLoc)||mLoc.includes(curPlaceLc))) locHit=1;
-    }
-
-    // --- emotion resonance: the memory's stored emotion shares a family with the current moment. ---
-    let emoHit=0;
-    if(momentEmo && m.emotion){
-      const fam=MEM_EMOTION_FAMILY[String(m.emotion).toLowerCase()];
-      if(fam && fam===momentEmo) emoHit=1;
-    }
-
-    // --- recency: newer memories score higher; linear 0..1 over the pool's day span, with a 0.15
-    // floor so even the oldest memory keeps a small presence and can still surface on a strong topic. ---
-    let recency=0;
-    if(m.gameDay){ recency=0.15+0.85*Math.max(0,Math.min(1,(m.gameDay-minDay)/daySpan)); }
-
-    // --- importance (0..1) and gist down-weight (vague bystander glimpses lose to lived experience
-    // unless they carry a real gossip charge). ---
-    const importance=Math.max(0,Math.min(1, typeof m.importance==="number"?m.importance:0.5));
-    let gistPenalty=0;
-    if(m.observerOnly){ const ch=typeof m.charge==="number"?m.charge:0; if(ch<0.5) gistPenalty=1; }
-
-    const score =
-        W.lexical*lexical
-      + W.tag*tagHit
-      + W.people*peopleHit
-      + W.location*locHit
-      + W.emotion*emoHit
-      + W.recency*recency
-      + W.importance*importance
-      - W.gistPenalty*gistPenalty;
+    let score=0; qWords.forEach(w=>{ if(hay.includes(w))score++; });
+    score+=(m.importance||0)*0.5;
+    if(here.size && Array.isArray(m.people) && m.people.some(n=>{ let nn; try{nn=String(n).toLocaleLowerCase("tr");}catch(e){nn=String(n).toLowerCase();} return here.has(nn); })) score+=1.5;
     return {m,score};
   }).sort((a,b)=>b.score-a.score);
   return scored.slice(0,limit).map(x=>x.m);
@@ -15015,6 +14981,21 @@ function syncSettingsUI(){
    {const bio=document.getElementById('setUserBio'); if(bio)bio.value=gd.userBio||'';}}
   document.getElementById('setKey').value=state.key;
   document.getElementById('setSegKey').value=state.segkey;
+  // Voice calls (Stage 2) — guarded writes back into the settings fields.
+  {const e=document.getElementById('setDgKey'); if(e)e.value=state.dgKey||"";}
+  {const e=document.getElementById('setTtsRelay'); if(e)e.value=state.ttsRelay||"";}
+  {const e=document.getElementById('setCallModel'); if(e)e.value=state.callModel||"deepseek/deepseek-v4-pro";}
+  {const e=document.getElementById('setCallVoice'); if(e)e.value=state.callVoice||"Ashley";}
+  {const e=document.getElementById('setCallDgModel'); if(e)e.value=state.callDgModel||"nova-3";}
+  {const e=document.getElementById('setCallSttLang'); if(e)e.value=state.callSttLang||"tr";}
+  {const e=document.getElementById('setCallTtsModel'); if(e)e.value=state.callTtsModel||"inworld-tts-2";}
+  {const e=document.getElementById('setCallTtsLang'); if(e)e.value=state.callTtsLang||"tr-TR";}
+  {const e=document.getElementById('setCallDelivery'); if(e)e.value=state.callDelivery||"BALANCED";}
+  {const e=document.getElementById('setCallRate'); if(e)e.value=state.callRate||1.1;}
+  {const e=document.getElementById('setCallEndpoint'); if(e)e.value=state.callEndpoint||400;}
+  {const e=document.getElementById('setCallUttEnd'); if(e)e.value=state.callUttEnd||1800;}
+  {const e=document.getElementById('setCallBargeMin'); if(e)e.value=state.callBargeMin||3;}
+  {const e=document.getElementById('setCallBargeGuard'); if(e)e.value=state.callBargeGuard||700;}
   {const ak=document.getElementById('setAtlasKey'); if(ak)ak.value=state.atlasKey||'';}
   {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud")aim.value=state.imgModel||'';}
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")avm.value=state.vidModel||'';}
@@ -15147,6 +15128,26 @@ function saveSettings(notify){
   applyUniverseProfile(state.curUniverse);
   state.key=document.getElementById('setKey').value.trim();
   state.segkey=document.getElementById('setSegKey').value.trim();
+  // Voice calls (Stage 2) — guarded reads + persistence.
+  {const e=document.getElementById('setDgKey'); if(e)state.dgKey=e.value.trim();}
+  {const e=document.getElementById('setTtsRelay'); if(e)state.ttsRelay=e.value.trim().replace(/\/+$/,"");}
+  {const e=document.getElementById('setCallModel'); if(e)state.callModel=e.value.trim()||"deepseek/deepseek-v4-pro";}
+  {const e=document.getElementById('setCallVoice'); if(e)state.callVoice=e.value.trim()||"Ashley";}
+  {const e=document.getElementById('setCallDgModel'); if(e)state.callDgModel=e.value.trim()||"nova-3";}
+  {const e=document.getElementById('setCallSttLang'); if(e)state.callSttLang=e.value.trim()||"tr";}
+  {const e=document.getElementById('setCallTtsModel'); if(e)state.callTtsModel=e.value.trim()||"inworld-tts-2";}
+  {const e=document.getElementById('setCallTtsLang'); if(e)state.callTtsLang=e.value.trim()||"tr-TR";}
+  {const e=document.getElementById('setCallDelivery'); if(e)state.callDelivery=e.value.trim().toUpperCase()||"BALANCED";}
+  {const e=document.getElementById('setCallRate'); if(e)state.callRate=Math.max(0.5,Math.min(1.5,+e.value||1.1));}
+  {const e=document.getElementById('setCallEndpoint'); if(e)state.callEndpoint=Math.max(100,+e.value||400);}
+  {const e=document.getElementById('setCallUttEnd'); if(e)state.callUttEnd=Math.max(500,+e.value||1800);}
+  {const e=document.getElementById('setCallBargeMin'); if(e)state.callBargeMin=Math.max(1,+e.value||3);}
+  {const e=document.getElementById('setCallBargeGuard'); if(e)state.callBargeGuard=Math.max(0,+e.value||700);}
+  store.setRaw(K.dgKey,state.dgKey||"");store.setRaw(K.ttsRelay,state.ttsRelay||"");store.setRaw(K.callModel,state.callModel||"");
+  store.setRaw(K.callVoice,state.callVoice||"");store.setRaw(K.callDgModel,state.callDgModel||"");store.setRaw(K.callSttLang,state.callSttLang||"");
+  store.setRaw(K.callTtsModel,state.callTtsModel||"");store.setRaw(K.callTtsLang,state.callTtsLang||"");store.setRaw(K.callDelivery,state.callDelivery||"");
+  store.setRaw(K.callRate,String(state.callRate));store.setRaw(K.callEndpoint,String(state.callEndpoint));store.setRaw(K.callUttEnd,String(state.callUttEnd));
+  store.setRaw(K.callBargeMin,String(state.callBargeMin));store.setRaw(K.callBargeGuard,String(state.callBargeGuard));
   {const ak=document.getElementById('setAtlasKey'); if(ak)state.atlasKey=ak.value.trim();}
   state.model=document.getElementById('setModel').value.trim()||"anthropic/claude-3.5-sonnet";
   {const e=document.getElementById('setRpRotation'); if(e){const v=e.value.trim(); if(v!==state.rpRotation){state.rpRotation=v; state.rpRotIdx=0; store.set(K.rpRotIdx,0);} store.setRaw(K.rpRotation,v);}}
@@ -15751,6 +15752,345 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
   };
   window.addEventListener('appinstalled',()=>{ toast("Installed"); });
 })();
+
+/* =====================================================================
+   ===== VOICE CALL =====  (Stage 2 — dormant until startVoiceCall())
+   Real-time spoken conversation with one character:
+     mic → Deepgram STT (WS) → OpenRouter stream (latency routing)
+     → sentence chunker → Inworld TTS via relay → ordered playback
+     → confirmed-words barge-in. Wake lock + STT auto-reconnect.
+   Reuses state.key (OpenRouter) + the state.call* settings. Touches the
+   rest of the app only at hang-up via commitCallMemory(). This whole
+   block is function declarations — NOTHING runs on load.
+   ===================================================================== */
+const VC_OR_URL = "https://openrouter.ai/api/v1/chat/completions";
+let vc = null;            // active call state, or null
+let _vcWakeLock = null;
+const vcHistory = [];     // {role,content} for the current call
+
+function vcLog(/*msg,*/){ /* dev hook; silent in app */ }
+function vcStatus(txt){ const e=document.getElementById('vcStatus'); if(e)e.textContent=txt; }
+
+function vcFresh(callee){
+  return {
+    callee, active:false, startedAt:0, durTimer:null,
+    dgWs:null, dgKeepAlive:null, _dgRetries:0, _finalBuf:"",
+    mediaStream:null, audioCtx:null, micNode:null, procNode:null,
+    playCtx:null, nextStartTime:0, activeSources:[],
+    speaking:false, audioPlaying:false, audioStartedAt:0, generating:false,
+    orAbort:null, ttsAbort:null, ttsQueue:[], ttsBusy:false, ttsTurn:0, turnSeq:0,
+    transcript:[]   // {role:'user'|'assistant',content} — committed at hang-up
+  };
+}
+
+/* ---- mic capture → 16k linear16 PCM ---- */
+async function vcStartMic(onPcm){
+  const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+  vc.mediaStream = stream;
+  const ctx = new (window.AudioContext||window.webkitAudioContext)();
+  vc.audioCtx = ctx;
+  const src = ctx.createMediaStreamSource(stream);
+  const proc = ctx.createScriptProcessor(4096,1,1);
+  vc.micNode = src; vc.procNode = proc;
+  const inRate = ctx.sampleRate, outRate = 16000;
+  proc.onaudioprocess = (e)=>{
+    if(!vc||!vc.active) return;
+    const input = e.inputBuffer.getChannelData(0);
+    // downsample to 16k
+    const ratio = inRate/outRate, outLen = Math.floor(input.length/ratio);
+    const out = new Int16Array(outLen);
+    for(let i=0;i<outLen;i++){ const s=input[Math.floor(i*ratio)]; out[i]=Math.max(-1,Math.min(1,s))*0x7fff; }
+    onPcm(out);
+  };
+  src.connect(proc); proc.connect(ctx.destination);
+}
+function vcStopMic(){
+  try{ vc.procNode&&vc.procNode.disconnect(); }catch(e){}
+  try{ vc.micNode&&vc.micNode.disconnect(); }catch(e){}
+  try{ vc.audioCtx&&vc.audioCtx.close(); }catch(e){}
+  try{ vc.mediaStream&&vc.mediaStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+}
+
+/* ---- Deepgram STT WebSocket ---- */
+function vcStartDeepgram(){
+  const key=(state.dgKey||"").trim(); if(!key){ toast("Add a Deepgram key in Settings → Voice calls"); return; }
+  const lang=(state.callSttLang||"tr").trim();
+  const params=new URLSearchParams({
+    model:(state.callDgModel||"nova-3"), language:lang, encoding:"linear16", sample_rate:"16000", channels:"1",
+    interim_results:"true", vad_events:"true", endpointing:String(state.callEndpoint||400),
+    utterance_end_ms:String(state.callUttEnd||1800), smart_format:"true", punctuate:"true"
+  });
+  let ws; try{ ws=new WebSocket("wss://api.deepgram.com/v1/listen?"+params.toString(), ["token",key]); }
+  catch(e){ toast("Deepgram connect failed"); return; }
+  vc.dgWs=ws;
+  ws.onopen=()=>{ vc._dgRetries=0; vc.dgKeepAlive=setInterval(()=>{ try{ ws.readyState===1&&ws.send(JSON.stringify({type:"KeepAlive"})); }catch(e){} },5000); vcStatus("Listening…"); };
+  ws.onmessage=(ev)=>{
+    let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+    if(m.type==='SpeechStarted') return;   // bare VAD is NOT a barge-in (echo/noise)
+    if(m.type==='UtteranceEnd'){ vcCommitUserTurn(); return; }
+    if(m.type==='Results'||m.channel){
+      const alt=m.channel&&m.channel.alternatives&&m.channel.alternatives[0];
+      const txt=alt&&alt.transcript?alt.transcript:""; if(!txt) return;
+      // confirmed-words barge-in: only while real audio is PLAYING, past the guard window
+      if(vc.audioPlaying && txt.replace(/\s/g,'').length>=(state.callBargeMin||3)){
+        if(performance.now()-(vc.audioStartedAt||0) >= (state.callBargeGuard||700)) vcBargeIn();
+      }
+      if(m.is_final){ vc._finalBuf=((vc._finalBuf||'')+' '+txt).trim(); vcStatus('… '+vc._finalBuf); }
+      else vcStatus('… '+((vc._finalBuf||'')+' '+txt).trim());
+      if(m.speech_final) vcCommitUserTurn();
+    }
+  };
+  ws.onerror=()=>{};
+  ws.onclose=()=>{
+    if(vc&&vc.dgKeepAlive){ clearInterval(vc.dgKeepAlive); vc.dgKeepAlive=null; }
+    if(vc&&vc.active){
+      vc._dgRetries=(vc._dgRetries||0)+1;
+      if(vc._dgRetries<=5){ const w=Math.min(3000,500*vc._dgRetries); setTimeout(()=>{ if(vc&&vc.active) vcStartDeepgram(); },w); }
+      else { vcStatus("Lost connection"); }
+    }
+  };
+}
+function vcCommitUserTurn(){
+  const full=(vc._finalBuf||'').trim(); if(!full) return;
+  vc._finalBuf=''; vcStatus("Listening…");
+  vc.transcript.push({role:'user',content:full});
+  vcOnUserTurn(full);
+}
+
+/* ---- user turn → OpenRouter stream → chunker → TTS ---- */
+async function vcOnUserTurn(userText){
+  if(vc.generating) return;     // overlapping turn — ignore (barge-in handles real interrupts)
+  vcHistory.push({role:'user',content:userText});
+  vcStatus("Thinking…");
+  vc.turnSeq++; const myTurn=vc.turnSeq; vc.generating=true;
+  const ctrl=new AbortController(); vc.orAbort=ctrl;
+  vcBeginReply(myTurn);
+  let acc='';
+  const chunker=vcMakeChunker(seg=>{ if(myTurn===vc.turnSeq) vcTtsSend(seg); });
+  const sys=vc._sysPrompt||"You are a friend talking with the user. Reply briefly in their language.";
+  const messages=[{role:'system',content:sys}, ...vcHistory.slice(-12)];
+  const reqBody={ model:(state.callModel||"deepseek/deepseek-v4-pro"), messages, stream:true,
+    temperature:fnTemp("call",0.8), max_tokens:fnTok("call",300), reasoning:{enabled:false,exclude:true},
+    provider:{sort:"latency"} };
+  try{
+    const res=await fetch(VC_OR_URL,{method:'POST',
+      headers:{'Authorization':'Bearer '+state.key,'Content-Type':'application/json','HTTP-Referer':'https://storymind.app','X-Title':'StoryMind'},
+      body:JSON.stringify(reqBody), signal:ctrl.signal});
+    if(!res.ok){ vc.generating=false; return; }
+    const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      if(myTurn!==vc.turnSeq){ try{reader.cancel();}catch(e){} break; }
+      buf+=dec.decode(value,{stream:true});
+      let nl; while((nl=buf.indexOf('\n'))>=0){
+        const line=buf.slice(0,nl).trim(); buf=buf.slice(nl+1);
+        if(!line.startsWith('data:')) continue;
+        const data=line.slice(5).trim(); if(data==='[DONE]') continue;
+        try{ const j=JSON.parse(data); const tok=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content; if(tok){ acc+=tok; chunker.push(tok); } }catch(e){}
+      }
+    }
+    chunker.flush();
+  }catch(e){ /* aborted or network */ }
+  finally{
+    vc.generating=false;
+    if(myTurn===vc.turnSeq && acc.trim()){ vcHistory.push({role:'assistant',content:acc.trim()}); vc.transcript.push({role:'assistant',content:acc.trim()}); }
+  }
+}
+
+/* ---- sentence chunker (whole sentences only; never splits inside [..]) ---- */
+function vcMakeChunker(emit){
+  let buf='', depth=0;
+  function boundaryEnd(s){ let d=0; for(let i=0;i<s.length;i++){const ch=s[i]; if(ch==='[')d++; else if(ch===']'){if(d>0)d--; continue;} if(d>0)continue; if(ch==='.'||ch==='!'||ch==='?'||ch==='…'){ if(i+1>=s.length||/\s/.test(s[i+1])) return i+1; }} return -1; }
+  function tryEmit(force){ if(depth>0&&!force) return; let s=buf.trim(); if(!s){if(force)buf='';return;} if(force){emit(s);buf='';return;} const end=boundaryEnd(s); if(end>0){emit(s.slice(0,end).trim()); buf=s.slice(end);} }
+  return {
+    push(t){ for(const ch of t){ if(ch==='[')depth++; else if(ch===']'&&depth>0)depth--; buf+=ch; } let b; do{b=buf;tryEmit(false);}while(buf!==b&&buf.trim()); },
+    flush(){ let b; do{b=buf;tryEmit(false);}while(buf!==b&&buf.trim()); tryEmit(true); }
+  };
+}
+
+/* ---- TTS via relay (per sentence; ordered) ---- */
+function vcBeginReply(turn){ vc.speaking=true; vcStatus("Speaking…"); vc.audioPlaying=false; vc.audioStartedAt=0; vc.ttsQueue=[]; vc.ttsBusy=false; vc.ttsTurn=turn; }
+function vcTtsSend(seg){ seg=seg.trim(); if(!seg) return; vc.ttsQueue.push({text:seg,turn:vc.ttsTurn}); vcPumpTts(); }
+async function vcPumpTts(){
+  if(vc.ttsBusy) return;
+  const item=vc.ttsQueue.length?vc.ttsQueue.shift():null; if(!item) return;
+  if(item.turn!==vc.turnSeq){ vcPumpTts(); return; }
+  vc.ttsBusy=true;
+  try{ await vcSynth(item.text,item.turn); }catch(e){}
+  finally{ vc.ttsBusy=false; if(vc.ttsQueue.length) vcPumpTts(); }
+}
+async function vcSynth(text,turn){
+  const relay=(state.ttsRelay||"").trim().replace(/\/+$/,''); if(!relay) return;
+  const callee=vc.callee||{};
+  const voice=(callee.voiceId&&callee.voiceId.trim())||state.callVoice||"Ashley";
+  const body={ text, voiceId:voice, modelId:(state.callTtsModel||"inworld-tts-2"),
+    audioConfig:{audioEncoding:'LINEAR16',sampleRateHertz:24000,speakingRate:Math.max(0.5,Math.min(1.5,state.callRate||1.1))},
+    deliveryMode:(state.callDelivery||'BALANCED') };
+  if(state.callTtsLang) body.language=state.callTtsLang;
+  const ctrl=vc.orAbort||new AbortController(); vc.ttsAbort=ctrl;
+  const res=await fetch(relay,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal});
+  if(!res.ok) return;
+  const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
+  while(true){
+    const {done,value}=await reader.read(); if(done) break;
+    if(turn!==vc.turnSeq){ try{reader.cancel();}catch(e){} break; }
+    buf+=dec.decode(value,{stream:true});
+    let nl; while((nl=buf.indexOf('\n'))>=0){ const line=buf.slice(0,nl).trim(); buf=buf.slice(nl+1); if(line) vcHandleAudio(line); }
+  }
+  if(buf.trim()) vcHandleAudio(buf.trim());
+}
+function vcHandleAudio(line){ let j; try{j=JSON.parse(line);}catch(e){return;} const r=j.result||j; if(r&&r.audioContent) vcEnqueuePcm(vcB64ToBuf(r.audioContent)); }
+
+/* ---- playback ---- */
+function vcEnsurePlayCtx(){ if(!vc.playCtx){ vc.playCtx=new (window.AudioContext||window.webkitAudioContext)(); vc.nextStartTime=vc.playCtx.currentTime; } return vc.playCtx; }
+function vcEnqueuePcm(arrbuf){
+  const ctx=vcEnsurePlayCtx();
+  let bytes=new Uint8Array(arrbuf), off=0;
+  if(bytes.length>44 && bytes[0]===0x52&&bytes[1]===0x49&&bytes[2]===0x46&&bytes[3]===0x46){ off=44; } // strip WAV header
+  const pcm=new Int16Array(arrbuf, off, (bytes.length-off)>>1);
+  const f32=new Float32Array(pcm.length); for(let i=0;i<pcm.length;i++) f32[i]=pcm[i]/0x8000;
+  const buffer=ctx.createBuffer(1,f32.length,24000); buffer.getChannelData(0).set(f32);
+  const node=ctx.createBufferSource(); node.buffer=buffer; node.connect(ctx.destination);
+  const startAt=Math.max(ctx.currentTime,vc.nextStartTime); node.start(startAt); vc.nextStartTime=startAt+buffer.duration;
+  vc.activeSources.push(node);
+  if(!vc.audioPlaying){ vc.audioStartedAt=performance.now(); } vc.audioPlaying=true;
+  node.onended=()=>{ vc.activeSources=vc.activeSources.filter(s=>s!==node); if(vc.activeSources.length===0){ vc.audioPlaying=false; if(!vc.generating){ vc.speaking=false; if(vc.active) vcStatus("Listening…"); } } };
+}
+function vcStopPlayback(){ vc.activeSources.forEach(s=>{try{s.stop();}catch(e){}}); vc.activeSources=[]; if(vc.playCtx) vc.nextStartTime=vc.playCtx.currentTime; vc.speaking=false; vc.audioPlaying=false; }
+function vcB64ToBuf(b64){ const bin=atob(b64); const len=bin.length; const bytes=new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
+
+/* ---- barge-in ---- */
+function vcBargeIn(){ vc.turnSeq++; vcStopPlayback(); if(vc.orAbort){try{vc.orAbort.abort();}catch(e){}} if(vc.ttsAbort&&vc.ttsAbort!==vc.orAbort){try{vc.ttsAbort.abort();}catch(e){}} vc.ttsQueue=[]; vc.ttsBusy=false; vc.generating=false; vc.speaking=false; vcStatus("Listening…"); }
+
+/* ---- wake lock ---- */
+async function vcWakeLock(){ try{ if('wakeLock' in navigator){ _vcWakeLock=await navigator.wakeLock.request('screen'); } }catch(e){} }
+function vcReleaseWakeLock(){ try{ if(_vcWakeLock){ _vcWakeLock.release(); _vcWakeLock=null; } }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&vc&&vc.active&&!_vcWakeLock) vcWakeLock(); });
+
+/* ---- lifecycle (called by the call UI in stage c) ---- */
+/* ---- call UI (stage c): picker → overlay → hang up ---- */
+function openCallPicker(){
+  const chat=curChat();
+  if(!chat){ toast("Open a story first"); return; }
+  if(!state.dgKey||!state.ttsRelay){ toast("Set up Voice calls in Settings first (Deepgram key + relay URL)"); show('settings'); return; }
+  const uid=(chat&&chat.universeId)||state.curUniverse;
+  const cast=personasInUniverse(uid).filter(isActiveChar);
+  const list=document.getElementById('callPickerList');
+  if(!cast.length){ list.innerHTML='<div class="desc">No characters to call in this universe yet.</div>'; }
+  else{
+    list.innerHTML=cast.map(p=>{
+      const av=esc(p.avatar||'🎭'), nm=esc(p.name);
+      const voiceTag=p.voiceId?'':' <span style="opacity:.5;font-size:11px">(default voice)</span>';
+      return `<button class="btn sec" style="justify-content:flex-start;gap:10px;text-align:left" onclick="startCallWith('${p.id}')"><span style="font-size:22px">${av}</span> <span>${nm}${voiceTag}</span></button>`;
+    }).join("");
+  }
+  openModal('callPickerModal');
+}
+function startCallWith(pid){
+  const p=(state.personas||[]).find(x=>x.id===pid);
+  if(!p){ toast("Character not found"); return; }
+  closeModal('callPickerModal');
+  // populate overlay
+  {const a=document.getElementById('vcAvatar'); if(a)a.textContent=p.avatar||'🎭';}
+  {const n=document.getElementById('vcName'); if(n)n.textContent=p.name;}
+  vcStatus("Connecting…");
+  {const d=document.getElementById('vcDur'); if(d)d.textContent='0:00';}
+  openModal('callOverlay');
+  startVoiceCall(p);
+}
+async function hangUpCall(){
+  closeModal('callOverlay');
+  try{ await endVoiceCall(); }catch(e){}
+  toast("Call ended");
+}
+
+async function startVoiceCall(callee){
+  if(vc&&vc.active) return;
+  if(!state.key){ toast("Add your OpenRouter key in Settings"); return; }
+  if(!state.dgKey){ toast("Add a Deepgram key in Settings → Voice calls"); return; }
+  if(!state.ttsRelay){ toast("Add your TTS relay URL in Settings → Voice calls"); return; }
+  if(!callee){ toast("No character selected"); return; }
+  vc=vcFresh(callee); vcHistory.length=0;
+  if(!window.isSecureContext){ toast("Voice needs HTTPS (open the installed app / Pages URL)"); vc=null; return; }
+  try{ await vcStartMic((pcm)=>{ if(vc.dgWs&&vc.dgWs.readyState===1) vc.dgWs.send(pcm.buffer); }); }
+  catch(e){ toast("Microphone blocked — allow mic access"); vc=null; return; }
+  vc._sysPrompt = buildCallInstructions(callee, curChat());
+  vcStartDeepgram();
+  vc.active=true; vc.startedAt=Date.now();
+  vc.durTimer=setInterval(()=>{ const s=Math.floor((Date.now()-vc.startedAt)/1000); const e=document.getElementById('vcDur'); if(e)e.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },500);
+  vcWakeLock();
+}
+async function endVoiceCall(){
+  if(!vc) return;
+  const callee=vc.callee, transcript=vc.transcript.slice();
+  vc.active=false;
+  if(vc.dgKeepAlive) clearInterval(vc.dgKeepAlive);
+  if(vc.durTimer) clearInterval(vc.durTimer);
+  try{ if(vc.dgWs&&vc.dgWs.readyState===1){ vc.dgWs.send(JSON.stringify({type:'CloseStream'})); vc.dgWs.close(); } }catch(e){}
+  if(vc.orAbort){try{vc.orAbort.abort();}catch(e){}}
+  if(vc.ttsAbort){try{vc.ttsAbort.abort();}catch(e){}}
+  vc.ttsQueue=[]; vcStopPlayback(); vcStopMic(); vcReleaseWakeLock();
+  try{ vc.playCtx&&vc.playCtx.close(); }catch(e){}
+  vc=null;
+  // commit memory + relationship (best-effort, async; needs ≥2 turns)
+  try{ if(transcript.length>=2) await commitCallMemory(callee, transcript); }catch(e){}
+}
+
+/* ---- payload: face-to-face call instructions for a callee ---- */
+function buildCallInstructions(callee, chat){
+  const uni=curUniverseObj(); const blocks=[];
+  blocks.push(`You are ${callee.name}, talking WITH ${state.user} in person — the two of you are together, having a real-time spoken conversation. This is NOT a phone call and NOT text; you are physically present with each other and talking out loud. Stay fully in character. Never break character, never mention being an AI, never narrate actions or use stage directions — just speak, the way a real person speaks aloud.`);
+  if(uni&&uni.setting&&uni.setting.trim()) blocks.push(`# WORLD\n${uni.setting.trim()}`);
+  blocks.push(`# YOU\n<character_you_play>\n${charBioBlock(callee,{self:true})}\n</character_you_play>`);
+  {const sheet=relSheetBlockFull(callee); if(sheet) blocks.push(`# ${callee.name}'s RELATIONSHIPS (who the people in your life are to you)\n${sheet}`);}
+  {let pb=`# WHO YOU ARE TALKING TO\n${state.user} is here with you.`; if(state.userBio&&state.userBio.trim()) pb+=`\nBackground: ${state.userBio.trim()}`; blocks.push(pb);}
+  try{
+    const mems=memoriesOf(callee.id).filter(m=>!m.observerOnly).sort((a,b)=>(b.gameDay||0)-(a.gameDay||0)||(b.date||0)-(a.date||0)).slice(0,6);
+    if(mems.length){ const lines=mems.map(m=>`- ${(typeof memInjectText==='function'?memInjectText(m):(m.content||''))}`).filter(Boolean); if(lines.length) blocks.push(`# WHAT YOU REMEMBER (background — shapes how you act; do NOT recite)\n${lines.join("\n")}`); }
+  }catch(e){}
+  blocks.push(`# HOW YOU SPEAK (this is a live spoken conversation)
+Speak naturally and warmly in short spoken sentences. Reply in the SAME language ${state.user} speaks (Turkish if they speak Turkish). Keep replies to 1–3 sentences so the conversation flows.
+
+VOICE DELIVERY (steering) — your speech is performed by a TTS voice actor you direct with bracketed cues:
+1. Begin a reply with ONE bracketed delivery instruction in ENGLISH describing HOW to say it, e.g. [say warmly with quiet amusement] or [say with surprised delight]. It directs the voice and is never spoken aloud.
+2. Only ONE delivery instruction, at the very START of the reply.
+3. You MAY drop inline non-verbals where they occur: [laugh] [sigh] [breathe] [clear throat] [cough] [yawn].
+4. To stress a key word, CAPITALIZE it. Use sparingly.
+5. Keep delivery BRISK — avoid pacing words that add gaps. Favor EMOTION/TONE over speed/pauses. Short sentences, minimal commas.`);
+  return blocks.join("\n\n");
+}
+
+/* ---- commit: call transcript → callee memory + relationship pass ---- */
+async function commitCallMemory(callee, transcript){
+  const chat=curChat();
+  if(!chat||!callee||!Array.isArray(transcript)||transcript.length<2) return;
+  if(!state.mem||!state.key) return;
+  let arcPlace="";
+  try{ const loc=locById(chat.locationId); const sub=(typeof curSubId==='function')?subById(chat,curSubId(chat)):null; if(loc) arcPlace=sub?`${loc.name} — ${sub.name}`:loc.name; }catch(e){}
+  const span=transcript.map(t=> t.role==='user'
+    ? { mid:newMid(), role:'user', content:t.content, present:[callee.id] }
+    : { mid:newMid(), role:'assistant', speaker:callee.name, speakerId:callee.id, content:t.content, present:[callee.id] });
+  const startIdx=chat.messages.length;
+  const realMessages=chat.messages;
+  const realPresent=chat.presentIds?chat.presentIds.slice():[];
+  const beforeIds=new Set(state.memory.map(m=>m.id));
+  try{
+    chat.messages=realMessages.concat(span);
+    if(!chat.presentIds) chat.presentIds=[];
+    if(!chat.presentIds.includes(callee.id)) chat.presentIds.push(callee.id);
+    const savedLoc=chat.location; if(arcPlace) chat.location=arcPlace;
+    await commitMemoryArc(chat, startIdx, chat.messages.length-1, curGameDay());
+    chat.location=savedLoc;
+  } finally {
+    chat.messages=realMessages; chat.presentIds=realPresent; markChatDirty(chat);
+  }
+  try{
+    const newMems=state.memory.filter(m=>!beforeIds.has(m.id)&&m.ownerId===callee.id);
+    if(newMems.length) await evalRelationship(chat, callee, "__user__", state.user, null, newMems, curGameDay());
+  }catch(e){}
+  persistMemory(); persistChats();
+}
+/* ===== END VOICE CALL ===== */
 
 init();
 </script>
