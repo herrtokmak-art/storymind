@@ -569,7 +569,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-30 · v18.33 (fal.ai added as a THIRD image provider — z-image with LoRA. Set a rule's provider to 'fal.ai' to use it; the rule's LoRA path/scale apply. Key + model + an NSFW safety-checker toggle live in Settings → Image Generation → fal.ai. The safety checker is OFF by default (that's what was blocking non-explicit images in fal's playground — it forces the filter on). Note: off ≠ fully uncensored — z-image is a mainstream model, so the toggle only controls fal's output filter, not the model itself. Prior v18.32: AtlasCloud LoRA support — image AND video rules now have a 'LoRA path' + 'scale' field. Paste a Hugging Face owner/name, a .safetensors URL, or a CivitAI download URL. Requires a LoRA-capable base model id (e.g. z-image/turbo-lora for image, a Wan …-lora id for video) and the LoRA's trigger word in that rule's prompt. Note: CivitAI direct URLs are unofficial on Atlas — if one fails, re-host the .safetensors on Hugging Face. Prior v18.31: DUBBING fixes + auto-speak. Fixed: xAI TTS was failing because the Turkish voice names weren't valid AtlasCloud voice ids — now uses the real voices (eve/ara/leo/rex/sal, all speak Turkish) with a custom field for cloned ids. Fixed: Settings now has a Save button (a sticky bar at the bottom) — before, settings only saved when you hit Test connection. NEW: choose your TTS engine (xAI or your Inworld relay) in Settings → Voice Calls → Dubbing. NEW: Auto-speak toggle — when on, each character's DIALOGUE is spoken automatically (never narration or thoughts), and the roleplay payload asks the model to write that dialogue with xAI's tone/emotion tags (pauses, whisper, laugh…). Prior v18.30: DUBBING added — characters can now speak. A 🔊 button on each reply reads it aloud in that character's voice (xAI TTS via your AtlasCloud key), with a 🔊 Read-aloud in diaries too. Each character gets a Dub voice in their editor (Turkish Emre/Kaan/Aylin or multilingual, or a custom/cloned voice id). A 🎬🗣️ button turns a reply WITH an image into a lip-synced talking video (TTS → Kling lip-sync, server-side — no extra tools). Global voice/language/speed live in Settings → Voice Calls → Dubbing. Notes: dubbing is generate-then-play (a few seconds), not the live-call pipeline; talking-video is two cloud jobs so it's slower + costs more and works best on front-facing portrait frames. Prior — Videos tab: you can now CHECK specific clips and loop/pin just those — each video has a 'Loop' checkbox plus a Select-all/Clear toggle; the Combine and Pin buttons act on your selection (and still mean ALL when nothing is checked), in the order shown. Prior RELEASE — UI overhaul complete: landing-page image, story-page universe background, universal {{user}} substitution, redesigned Diaries (swipe pages), rebuilt Gallery (character folders + swipe viewer + video combine/pin), rebuilt Memories (character folders), and Settings regrouped by system into 8 sections with all element wiring proven intact. Per-universe overrides audited: prompts already fully per-universe; non-prompt settings remain global by design. — Batch 4 UI: SETTINGS regrouped BY SYSTEM into 8 sections — API Keys (all keys incl. Deepgram/Inworld now together), Memory System, Roleplay, Image Generation, Video Generation, Voice Calls, World & Director, and Interface & Data. Each system now keeps its model picker, prompts, and on/off toggles in ONE place instead of scattered across LLMs/Prompts/Functions groups. This was a pure layout move — every setting's wiring is preserved (proven: all 411 element IDs identical before/after, none lost or duplicated). Batch 3 UI: MEMORIES page rebuilt into character folders — tap a character to see what they remember (still universe-scoped); a back button returns to the grid, legacy ownerless memories get an Unassigned folder, and deleting the last memory in a folder drops you back to the grid. Edit/Delete/Add/Condense all unchanged. Batch 2 UI: DIARIES redesigned — fuller papyrus page, date moved to top-right, removed the Day-tab/cover-button clutter, and added swipe (or arrow) to turn between days. GALLERY rebuilt — Images/Videos tabs, character folders (tap a character to see their scenes), a swipe viewer with prev/next, per-image and per-video delete, plus video 'Combine & loop all' (a sequential looping playlist of the separate clips) and 'Pin playlist to chat' which loops them in the story rail. Per-image Animate/Movie deferred to its own pass. Story screen now uses the universe image as its background, falling back through sub-area then location then universe as you move; the bare emoji placeholder is gone when a universe image exists. {{user}} is now a universal placeholder substituted to your name in all player-authored content fed to the model — bios, world setting, and location descriptions. Landing page uses your uploaded image as a full-bleed background (compressed + embedded as base64 to keep the single-file rule; ~127KB), with the title overlaid at top and the Proceed button at the bottom-middle. UI overhaul batch 1: onboarding collapsed to a single landing page with a bottom-centered Proceed button — the API-key step and character-roster step are removed (keys live in Settings now); Proceed drops straight into the characters page. Universe cards now overlay the name + short setting top-left and a character-count chip bottom-left. Pregnancy/event dice rolls are now LOGGED (console + chat.lastTrackerRoll) and a FAILED chance-roll surfaces a quiet "didn't take" beat instead of silently swallowing the miss; a guard stops re-rolling once already conceived. Tracker editor redesigned into compact segmented method cards + a clear chance card (all field IDs preserved). Recap thresholds (start/refresh/keep) are now tunable persisted settings, ready for UI controls in the upcoming overhaul. Voice calls: background rolling recap — stacked 'story so far' chapters (3rd-person narrative + fact bullets on decisions/plans/who-believes-what) keep a long call consistent without slowing replies; visible in call debug. Standard-RP wiring is next. Prior: much stronger STT correction — the auto-fixer now knows this world's place & character names and maps mis-heard words to them (fixes e.g. "bozkır"→"yalı"); plus light nova-3 keyterm boosting. Prior: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.34</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -579,6 +579,9 @@
           <div><label>OpenRouter API Key (chat + prompt rewriters + routers)</label><input type="password" id="setKey" placeholder="sk-or-v1-…"></div>
           <div><label>ModelsLab API Key (image + video)</label><input type="password" id="setSegKey" placeholder="your ModelsLab key"></div>
           <div><label>AtlasCloud API Key (image + video)</label><input type="password" id="setAtlasKey" placeholder="your AtlasCloud key"></div>
+          <div><label>fal.ai API Key (z-image LoRA image provider)</label><input type="password" id="setFalKey" placeholder="your fal.ai key" autocomplete="off"></div>
+          <div><label>CivitAI API Key (for LoRA download links)</label><input type="password" id="setCivitaiKey" placeholder="your CivitAI token" autocomplete="off"></div>
+          <div class="desc" style="margin:-2px 0 6px">CivitAI key lets the app attach your token to a CivitAI LoRA download link automatically (so login-gated LoRAs resolve). Paste a CivitAI download URL in a rule's LoRA path — the token is appended for you.</div>
           <button class="btn sec" id="testBtn" onclick="testConnection()">Test OpenRouter</button>
           <div class="desc"><svg class="ic"><use href="#i-warn"/></svg> ModelsLab's API may block direct browser calls (CORS). If images/videos fail here, they'll work from the packaged mobile app or through a small proxy.</div>
         </div>
@@ -789,8 +792,7 @@
       <div class="sgbody">
         <div class="card">
           <h3><svg class="ic"><use href="#i-image"/></svg> fal.ai (z-image LoRA)</h3>
-          <div class="desc" style="margin-bottom:8px">A second image provider with z-image + LoRA. Set a rule's provider to "fal.ai" to use it; the rule's LoRA path/scale apply here too.</div>
-          <div><label>fal.ai API key</label><input type="password" id="setFalKey" placeholder="fal key" autocomplete="off"></div>
+          <div class="desc" style="margin-bottom:8px">A second image provider with z-image + LoRA. Set a rule's provider to "fal.ai" to use it; the rule's LoRA path/scale apply here too. <b>Key is in the API Keys section.</b></div>
           <div><label>fal.ai model</label><input class="fld" id="setFalModel" placeholder="fal-ai/z-image/turbo/lora"></div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0">
             <label style="margin:0">NSFW safety checker <span class="desc" style="display:block;font-weight:400">When OFF, fal.ai won't auto-filter outputs. (The base model is still mainstream — off ≠ fully uncensored.)</span></label>
@@ -802,7 +804,7 @@
             <div class="seg" id="imgProvSeg">
               <button data-p="modelslab" class="on">ModelsLab</button>
               <button data-p="atlascloud">AtlasCloud</button>
-              <button data-p="openrouter">OpenRouter</button>
+              <button data-p="fal">fal.ai</button>
             </div>
             <div class="desc">Used by any rule set to “Default”. Each rule below can override this and use its own provider — so e.g. standard scenes can run on AtlasCloud while intimate scenes run on ModelsLab.</div></div>
           <div id="atlasImgWrap" style="display:none"><label>AtlasCloud image model (default)</label><input type="text" id="setAtlasImgModel" placeholder="seedream-3.0"><div class="desc">Used when a rule has no model id of its own.</div></div>
@@ -858,7 +860,6 @@
             <div class="seg" id="vidProvSeg">
               <button data-p="modelslab" class="on">ModelsLab</button>
               <button data-p="atlascloud">AtlasCloud</button>
-              <button data-p="openrouter">OpenRouter</button>
             </div>
             <div class="desc">Used by any rule set to “Default”. Each rule below can override this with its own provider.</div></div>
           <div id="atlasVidWrap" style="display:none"><label>AtlasCloud video model (default)</label><input type="text" id="setAtlasVidModel" placeholder="atlascloud/wan-2.2-turbo-spicy/image-to-video"><div class="desc">Used when a rule has no model id of its own. Image-to-video: the scene image is the first frame.</div></div>
@@ -1636,7 +1637,7 @@
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   ttsVoice:"sm_ttsvoice",ttsLang:"sm_ttslang",ttsSpeed:"sm_ttsspeed",lipsyncModel:"sm_lipsyncmodel",ttsEngine:"sm_ttsengine",autoSpeak:"sm_autospeak",
-  falKey:"sm_falkey",falModel:"sm_falmodel",falSafety:"sm_falsafety",
+  falKey:"sm_falkey",falModel:"sm_falmodel",falSafety:"sm_falsafety",civitaiKey:"sm_civitaikey",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",provDeny:"sm_provdeny",geminiUnsafe:"sm_geminiunsafe",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",moviePrompt:"sm_movieprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",movieSegs:"sm_moviesegs",
@@ -4382,6 +4383,7 @@ function loadState(){
     falKey:store.raw(K.falKey,""),
     falModel:store.raw(K.falModel,"fal-ai/z-image/turbo/lora"),
     falSafety:store.raw(K.falSafety,"")==="1",   // OFF by default (you can enable the NSFW filter)
+    civitaiKey:store.raw(K.civitaiKey,""),
     model:store.raw(K.model,"deepseek/deepseek-v4-flash"),
     rewriter:store.raw(K.rewriter,"deepseek/deepseek-v3.2"),
     imgProvider:store.raw(K.imgProvider,"atlascloud"),
@@ -5794,6 +5796,16 @@ function atlasMsg(s){
   return "AtlasCloud error (HTTP "+s+").";
 }
 // Text-to-image via AtlasCloud. Returns a remote image URL.
+// If a LoRA path is a CivitAI download URL and a CivitAI token is set, append the token as the
+// ?token= / &token= query param (CivitAI's documented auth for login-gated downloads). Non-CivitAI
+// paths (HF owner/name, other URLs) pass through untouched. Idempotent (won't double-append).
+function civitaiLoraUrl(path){
+  const p=String(path||"").trim(); if(!p) return p;
+  if(!/civitai\.com\/api\/download\/models\//i.test(p)) return p;   // only CivitAI download links
+  if(/[?&]token=/i.test(p)) return p;                                // already has a token
+  const tok=(state.civitaiKey||"").trim(); if(!tok) return p;        // no token to add
+  return p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(tok);
+}
 // Build the AtlasCloud `loras` array from a rule's loraPath/loraScale, per the Atlas LoRA guide:
 // loras:[{path:"<HF owner/name | .safetensors URL | CivitAI URL>", scale:<number>}].
 // Returns undefined when no LoRA is set (so the field is omitted entirely).
@@ -5802,7 +5814,7 @@ function atlasLoras(rule){
   if(!p) return undefined;
   let scale=parseFloat(rule.loraScale);
   if(!(scale>=0)) scale=1;
-  return [{path:p, scale}];
+  return [{path:civitaiLoraUrl(p), scale}];
 }
 async function atlasImage(prompt,negative,rule){
   const model=(rule&&rule.model_id)||state.imgModel||"seedream-3.0";
@@ -5831,7 +5843,7 @@ async function falImage(prompt,negative,rule){
   // LoRA: reuse the rule's loraPath/loraScale (fal wants [{path,scale}], path = URL or HF owner/name).
   const loras=[];
   const lp=rule&&typeof rule.loraPath==="string"&&rule.loraPath.trim();
-  if(lp){ let sc=parseFloat(rule.loraScale); if(!(sc>=0))sc=1; loras.push({path:lp,scale:sc}); }
+  if(lp){ let sc=parseFloat(rule.loraScale); if(!(sc>=0))sc=1; loras.push({path:civitaiLoraUrl(lp),scale:sc}); }
   const body={
     prompt,
     image_size:falImageSize(),
@@ -6799,6 +6811,7 @@ async function generateSubImage(loc,sub){
       return await genImageForRule(r,prompt,neg);
     }
     if(state.imgProvider==="atlascloud") return await atlasImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
+    if(state.imgProvider==="fal")        return await falImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
     if(state.imgProvider==="modelslab")  return await modelslabImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
     return await imageCompletion(prompt,state.locModel||state.imgModel,"1024x576");
   }catch(e){ return null; }
@@ -6815,6 +6828,7 @@ async function generateLocationImage(loc){
       return await genImageForRule(r,prompt,neg);
     }
     if(state.imgProvider==="atlascloud") return await atlasImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
+    if(state.imgProvider==="fal")        return await falImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
     if(state.imgProvider==="modelslab")  return await modelslabImage(prompt,neg,state.locModel?{model_id:state.locModel}:null);
     return await imageCompletion(prompt,state.locModel||state.imgModel,"1024x576");
   }catch(e){ return null; }
@@ -9441,6 +9455,7 @@ async function generateProfilePic(){
     {const rule=await pickRule(state.imgRules,prompt);
      url=rule?await genImageForRule(rule,prompt,neg)
             :(state.imgProvider==="atlascloud"?await atlasImage(prompt,neg,null)
+             :state.imgProvider==="fal"?await falImage(prompt,neg,null)
              :state.imgProvider==="modelslab"?await modelslabImage(prompt,neg,null)
              :await imageCompletion(prompt,state.imgModel,RATIOS[state.ratio]||"576x1024"));}
     peImageData=url;renderAvatarPreview();toast("Profile picture ready");
@@ -10137,6 +10152,7 @@ async function generatePicForLook(look){
     const rule=await pickRule(state.imgRules,prompt);
     if(rule) return await genImageForRule(rule,prompt,neg);
     if(state.imgProvider==="atlascloud") return await atlasImage(prompt,neg,null);
+    if(state.imgProvider==="fal")        return await falImage(prompt,neg,null);
     if(state.imgProvider==="modelslab")  return await modelslabImage(prompt,neg,null);
     return await imageCompletion(prompt,state.imgModel,RATIOS[state.ratio]||"576x1024");
   }catch(e){ return null; }
@@ -10891,8 +10907,8 @@ function renderImageRail(){
   const pinLabel = pinned ? "Unpin" : "Pin";
   rail.innerHTML=`<div class="railImg">${tag}${media}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-      <button class="pinBtn ${pinned?"on":""}" onclick="togglePin('${m.mid}')"><svg class="ic"><use href="#i-pin"/></svg> ${pinLabel}</button>
-      ${m.img&&!m.video?`<button class="btn sec small" onclick="animateScene('${m.mid}')">🎬 Animate</button>`:""}
+      <button class="pinBtn ${pinned?"on":""}" title="${pinLabel}" onclick="togglePin('${m.mid}')"><svg class="ic"><use href="#i-pin"/></svg></button>
+      ${m.img&&!m.video?`<button class="btn sec small" title="Animate" onclick="animateScene('${m.mid}')">🎬</button>`:""}
     </div>`;
 }
 function unpinPlaylist(){
@@ -11641,8 +11657,8 @@ function sceneHTML(m){
     return `<div class="scene"><div class="retry">⚠️ Couldn't illustrate.<button class="btn sec small" onclick="reIllustrate('${mid}')">Retry</button></div></div>`;
   if(m.img){
     let v="";
-    if(m.vidState==="error") v=`<button class="btn sec small" onclick="animateScene('${mid}')">⚠️ Retry video</button> <button class="btn sec small" onclick="movieScene('${mid}')">🎞️ Movie</button>`;
-    else v=`<button class="btn sec small" onclick="animateScene('${mid}')">🎬 Animate</button> <button class="btn sec small" onclick="movieScene('${mid}')">🎞️ Movie</button>`;
+    if(m.vidState==="error") v=`<button class="btn sec small" title="Retry video" onclick="animateScene('${mid}')">⚠️</button> <button class="btn sec small" title="Movie" onclick="movieScene('${mid}')">🎞️</button>`;
+    else v=`<button class="btn sec small" title="Animate" onclick="animateScene('${mid}')">🎬</button> <button class="btn sec small" title="Movie" onclick="movieScene('${mid}')">🎞️</button>`;
     return `<div class="scene"><img src="${m.img}" referrerpolicy="no-referrer" onclick="viewSceneImage('${mid}')">
             <div class="sceneTools" style="padding:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">${v}${pinBtn}</div></div>`;
   }
@@ -11702,9 +11718,9 @@ function refreshBubble(mid){
     img.src=m.img;img.onclick=()=>viewSceneImage(mid);
     const bar=document.createElement('div');bar.className="sceneTools";bar.style.cssText="padding:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center";
     const btn=document.createElement('button');btn.className="btn sec small";
-    btn.textContent=m.vidState==="error"?"⚠️ Retry video":"🎬 Animate";btn.onclick=()=>animateScene(mid);
+    btn.textContent=m.vidState==="error"?"⚠️":"🎬";btn.title=m.vidState==="error"?"Retry video":"Animate";btn.onclick=()=>animateScene(mid);
     const mbtn=document.createElement('button');mbtn.className="btn sec small";
-    mbtn.textContent="🎞️ Movie";mbtn.onclick=()=>movieScene(mid);
+    mbtn.textContent="🎞️";mbtn.title="Movie";mbtn.onclick=()=>movieScene(mid);
     const _c=(state.chats&&state.curChat)?state.chats[state.curChat]:null;
     const _pinned=!!(_c&&_c.pinnedMid===mid);
     const pbtn=document.createElement('button');pbtn.className="pinBtn"+(_pinned?" on":"");
@@ -15693,6 +15709,7 @@ function syncSettingsUI(){
   {const e=document.getElementById('setCallSttFix'); if(e)e.checked=!!state.callSttFix;}
   {const ak=document.getElementById('setAtlasKey'); if(ak)ak.value=state.atlasKey||'';}
   {const e=document.getElementById('setFalKey'); if(e)e.value=state.falKey||'';}
+  {const e=document.getElementById('setCivitaiKey'); if(e)e.value=state.civitaiKey||'';}
   {const e=document.getElementById('setFalModel'); if(e)e.value=state.falModel||'fal-ai/z-image/turbo/lora';}
   {const e=document.getElementById('setFalSafety'); if(e)e.checked=!!state.falSafety;}
   {const sel=document.getElementById('setTtsVoice');
@@ -15866,6 +15883,7 @@ function saveSettings(notify){
   store.setRaw(K.summThreshold,String(state.summThreshold||16));store.setRaw(K.summEvery,String(state.summEvery||6));store.setRaw(K.summKeep,String(state.summKeep||4));
   {const ak=document.getElementById('setAtlasKey'); if(ak)state.atlasKey=ak.value.trim();}
   {const e=document.getElementById('setFalKey'); if(e)state.falKey=e.value.trim();}
+  {const e=document.getElementById('setCivitaiKey'); if(e)state.civitaiKey=e.value.trim();}
   {const e=document.getElementById('setFalModel'); if(e)state.falModel=e.value.trim()||'fal-ai/z-image/turbo/lora';}
   {const e=document.getElementById('setFalSafety'); if(e)state.falSafety=e.checked;}
   {const cust=document.getElementById('setTtsVoiceCustom'); const sel=document.getElementById('setTtsVoice');
@@ -15984,7 +16002,7 @@ function saveSettings(notify){
   store.set(K.streamReveal,state.streamReveal);
   {const rc=document.getElementById('setRevealCps'); if(rc){const v=+rc.value; state.revealCps=(v>=8&&v<=80)?v:REVEAL_CPS_DEFAULT; store.set(K.revealCps,state.revealCps);}}
   store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.atlasKey,state.atlasKey||"");store.setRaw(K.model,state.model);
-  store.setRaw(K.ttsVoice,state.ttsVoice||"eve");store.setRaw(K.ttsLang,state.ttsLang||"tr");store.setRaw(K.ttsSpeed,String(state.ttsSpeed||1));store.setRaw(K.lipsyncModel,state.lipsyncModel||"kwaivgi/kling-lipsync/audio-to-video");store.setRaw(K.ttsEngine,state.ttsEngine||"xai");store.setRaw(K.autoSpeak,state.autoSpeak?"1":"");store.setRaw(K.falKey,state.falKey||"");store.setRaw(K.falModel,state.falModel||"fal-ai/z-image/turbo/lora");store.setRaw(K.falSafety,state.falSafety?"1":"");
+  store.setRaw(K.ttsVoice,state.ttsVoice||"eve");store.setRaw(K.ttsLang,state.ttsLang||"tr");store.setRaw(K.ttsSpeed,String(state.ttsSpeed||1));store.setRaw(K.lipsyncModel,state.lipsyncModel||"kwaivgi/kling-lipsync/audio-to-video");store.setRaw(K.ttsEngine,state.ttsEngine||"xai");store.setRaw(K.autoSpeak,state.autoSpeak?"1":"");store.setRaw(K.falKey,state.falKey||"");store.setRaw(K.falModel,state.falModel||"fal-ai/z-image/turbo/lora");store.setRaw(K.falSafety,state.falSafety?"1":"");store.setRaw(K.civitaiKey,state.civitaiKey||"");
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
   store.setRaw(K.vidProvider,state.vidProvider);store.setRaw(K.vidModel,state.vidModel);
