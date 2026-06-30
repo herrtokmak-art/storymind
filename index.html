@@ -568,7 +568,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-30 · v18.29 (Videos tab: you can now CHECK specific clips and loop/pin just those — each video has a 'Loop' checkbox plus a Select-all/Clear toggle; the Combine and Pin buttons act on your selection (and still mean ALL when nothing is checked), in the order shown. Prior RELEASE — UI overhaul complete: landing-page image, story-page universe background, universal {{user}} substitution, redesigned Diaries (swipe pages), rebuilt Gallery (character folders + swipe viewer + video combine/pin), rebuilt Memories (character folders), and Settings regrouped by system into 8 sections with all element wiring proven intact. Per-universe overrides audited: prompts already fully per-universe; non-prompt settings remain global by design. — Batch 4 UI: SETTINGS regrouped BY SYSTEM into 8 sections — API Keys (all keys incl. Deepgram/Inworld now together), Memory System, Roleplay, Image Generation, Video Generation, Voice Calls, World & Director, and Interface & Data. Each system now keeps its model picker, prompts, and on/off toggles in ONE place instead of scattered across LLMs/Prompts/Functions groups. This was a pure layout move — every setting's wiring is preserved (proven: all 411 element IDs identical before/after, none lost or duplicated). Batch 3 UI: MEMORIES page rebuilt into character folders — tap a character to see what they remember (still universe-scoped); a back button returns to the grid, legacy ownerless memories get an Unassigned folder, and deleting the last memory in a folder drops you back to the grid. Edit/Delete/Add/Condense all unchanged. Batch 2 UI: DIARIES redesigned — fuller papyrus page, date moved to top-right, removed the Day-tab/cover-button clutter, and added swipe (or arrow) to turn between days. GALLERY rebuilt — Images/Videos tabs, character folders (tap a character to see their scenes), a swipe viewer with prev/next, per-image and per-video delete, plus video 'Combine & loop all' (a sequential looping playlist of the separate clips) and 'Pin playlist to chat' which loops them in the story rail. Per-image Animate/Movie deferred to its own pass. Story screen now uses the universe image as its background, falling back through sub-area then location then universe as you move; the bare emoji placeholder is gone when a universe image exists. {{user}} is now a universal placeholder substituted to your name in all player-authored content fed to the model — bios, world setting, and location descriptions. Landing page uses your uploaded image as a full-bleed background (compressed + embedded as base64 to keep the single-file rule; ~127KB), with the title overlaid at top and the Proceed button at the bottom-middle. UI overhaul batch 1: onboarding collapsed to a single landing page with a bottom-centered Proceed button — the API-key step and character-roster step are removed (keys live in Settings now); Proceed drops straight into the characters page. Universe cards now overlay the name + short setting top-left and a character-count chip bottom-left. Pregnancy/event dice rolls are now LOGGED (console + chat.lastTrackerRoll) and a FAILED chance-roll surfaces a quiet "didn't take" beat instead of silently swallowing the miss; a guard stops re-rolling once already conceived. Tracker editor redesigned into compact segmented method cards + a clear chance card (all field IDs preserved). Recap thresholds (start/refresh/keep) are now tunable persisted settings, ready for UI controls in the upcoming overhaul. Voice calls: background rolling recap — stacked 'story so far' chapters (3rd-person narrative + fact bullets on decisions/plans/who-believes-what) keep a long call consistent without slowing replies; visible in call debug. Standard-RP wiring is next. Prior: much stronger STT correction — the auto-fixer now knows this world's place & character names and maps mis-heard words to them (fixes e.g. "bozkır"→"yalı"); plus light nova-3 keyterm boosting. Prior: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-30 · v18.30 (DUBBING added — characters can now speak. A 🔊 button on each reply reads it aloud in that character's voice (xAI TTS via your AtlasCloud key), with a 🔊 Read-aloud in diaries too. Each character gets a Dub voice in their editor (Turkish Emre/Kaan/Aylin or multilingual, or a custom/cloned voice id). A 🎬🗣️ button turns a reply WITH an image into a lip-synced talking video (TTS → Kling lip-sync, server-side — no extra tools). Global voice/language/speed live in Settings → Voice Calls → Dubbing. Notes: dubbing is generate-then-play (a few seconds), not the live-call pipeline; talking-video is two cloud jobs so it's slower + costs more and works best on front-facing portrait frames. Prior — Videos tab: you can now CHECK specific clips and loop/pin just those — each video has a 'Loop' checkbox plus a Select-all/Clear toggle; the Combine and Pin buttons act on your selection (and still mean ALL when nothing is checked), in the order shown. Prior RELEASE — UI overhaul complete: landing-page image, story-page universe background, universal {{user}} substitution, redesigned Diaries (swipe pages), rebuilt Gallery (character folders + swipe viewer + video combine/pin), rebuilt Memories (character folders), and Settings regrouped by system into 8 sections with all element wiring proven intact. Per-universe overrides audited: prompts already fully per-universe; non-prompt settings remain global by design. — Batch 4 UI: SETTINGS regrouped BY SYSTEM into 8 sections — API Keys (all keys incl. Deepgram/Inworld now together), Memory System, Roleplay, Image Generation, Video Generation, Voice Calls, World & Director, and Interface & Data. Each system now keeps its model picker, prompts, and on/off toggles in ONE place instead of scattered across LLMs/Prompts/Functions groups. This was a pure layout move — every setting's wiring is preserved (proven: all 411 element IDs identical before/after, none lost or duplicated). Batch 3 UI: MEMORIES page rebuilt into character folders — tap a character to see what they remember (still universe-scoped); a back button returns to the grid, legacy ownerless memories get an Unassigned folder, and deleting the last memory in a folder drops you back to the grid. Edit/Delete/Add/Condense all unchanged. Batch 2 UI: DIARIES redesigned — fuller papyrus page, date moved to top-right, removed the Day-tab/cover-button clutter, and added swipe (or arrow) to turn between days. GALLERY rebuilt — Images/Videos tabs, character folders (tap a character to see their scenes), a swipe viewer with prev/next, per-image and per-video delete, plus video 'Combine & loop all' (a sequential looping playlist of the separate clips) and 'Pin playlist to chat' which loops them in the story rail. Per-image Animate/Movie deferred to its own pass. Story screen now uses the universe image as its background, falling back through sub-area then location then universe as you move; the bare emoji placeholder is gone when a universe image exists. {{user}} is now a universal placeholder substituted to your name in all player-authored content fed to the model — bios, world setting, and location descriptions. Landing page uses your uploaded image as a full-bleed background (compressed + embedded as base64 to keep the single-file rule; ~127KB), with the title overlaid at top and the Proceed button at the bottom-middle. UI overhaul batch 1: onboarding collapsed to a single landing page with a bottom-centered Proceed button — the API-key step and character-roster step are removed (keys live in Settings now); Proceed drops straight into the characters page. Universe cards now overlay the name + short setting top-left and a character-count chip bottom-left. Pregnancy/event dice rolls are now LOGGED (console + chat.lastTrackerRoll) and a FAILED chance-roll surfaces a quiet "didn't take" beat instead of silently swallowing the miss; a guard stops re-rolling once already conceived. Tracker editor redesigned into compact segmented method cards + a clear chance card (all field IDs preserved). Recap thresholds (start/refresh/keep) are now tunable persisted settings, ready for UI controls in the upcoming overhaul. Voice calls: background rolling recap — stacked 'story so far' chapters (3rd-person narrative + fact bullets on decisions/plans/who-believes-what) keep a long call consistent without slowing replies; visible in call debug. Standard-RP wiring is next. Prior: much stronger STT correction — the auto-fixer now knows this world's place & character names and maps mis-heard words to them (fixes e.g. "bozkır"→"yalı"); plus light nova-3 keyterm boosting. Prior: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -873,7 +873,17 @@
       <summary><span class="sg-ico"><svg class="ic"><use href="#i-message"/></svg></span><span class="sg-meta">Voice Calls<div class="sg-sub">Call model, voices, STT/TTS tuning, barge-in</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
         <div class="card">
-          <h3><svg class="ic"><use href="#i-message"/></svg> Voice calls</h3>
+          <h3><svg class="ic"><use href="#i-message"/></svg> Dubbing — spoken replies &amp; talking videos (xAI TTS)</h3>
+          <div class="desc" style="margin-bottom:8px">Powers the 🔊 button on chat replies, diary Read-aloud, and 🎬🗣️ talking videos. Runs on your AtlasCloud key. Each character can override the voice in their editor.</div>
+          <div><label>Default dub voice</label>
+            <select class="fld" id="setTtsVoice"></select>
+          </div>
+          <div><label>Custom default voice id (overrides the dropdown if set)</label><input class="fld" id="setTtsVoiceCustom" placeholder="e.g. a cloned voice_id · leave blank to use the dropdown"></div>
+          <div><label>Language (BCP-47)</label><input class="fld" id="setTtsLang" placeholder="tr" value="tr"></div>
+          <div><label>Speaking speed (0.7–1.5)</label><input type="number" id="setTtsSpeed" min="0.7" max="1.5" step="0.05" value="1"></div>
+          <div><label>Lip-sync model (talking video)</label><input class="fld" id="setLipsyncModel" placeholder="kwaivgi/kling-lipsync/audio-to-video"></div>
+        </div>
+        <div class="card">
           <div class="desc">Real-time spoken conversations with a character. Speech-to-text by Deepgram, the reply by your call model below (via OpenRouter, reusing your main key), and the voice by Inworld through your TTS relay. See DEPLOY-WORKER.md for the relay.</div>
           <div><label>Call model (OpenRouter)</label><input type="text" id="setCallModel" list="modelList" value="deepseek/deepseek-v4-pro"></div>
           <div class="desc" style="margin-top:6px">A fast model matters for a call — first-word latency is what you feel. Provider routing is set to lowest-latency automatically.</div>
@@ -1527,6 +1537,13 @@
       <div class="desc">Baseline motivations the character pursues on their own — read by the Gamemaster, the offstage-intent engine, and the character's own turns, so they drive the story instead of only reacting.</div></div>
     <div><label>Speaking style</label><textarea class="fld" id="peStyle" placeholder="Clipped, dry wit, occasional old-world phrasing" style="min-height:48px"></textarea></div>
     <div><label><svg class="ic"><use href="#i-message"/></svg> Voice (Inworld voice id, for voice calls)</label><input class="fld" id="peVoiceId" placeholder="e.g. Ashley · leave blank to use the default call voice"></div>
+    <div><label><svg class="ic"><use href="#i-message"/></svg> Dub voice (xAI TTS — for 🔊 spoken replies &amp; talking videos)</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select class="fld" id="peTtsVoiceSel" style="flex:1;min-width:140px" onchange="_peTtsVoiceSync()"></select>
+        <input class="fld" id="peTtsVoiceCustom" style="flex:1;min-width:140px" placeholder="…or a custom/cloned voice_id" oninput="_peTtsVoiceCustomTyped()">
+      </div>
+      <div class="desc" style="margin-top:3px">Pick a Turkish or multilingual voice, or paste a custom/cloned id. Blank = global default voice.</div>
+    </div>
     <div><label>Appearance (used for image prompts)</label>
       <div class="desc" style="margin:2px 0 6px">Structured so back/profile shots can drop the face cleanly. Leave blank to inherit nothing — fill what you know. WRITE IN ENGLISH.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1594,6 +1611,7 @@
 <script>
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
+  ttsVoice:"sm_ttsvoice",ttsLang:"sm_ttslang",ttsSpeed:"sm_ttsspeed",lipsyncModel:"sm_lipsyncmodel",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",provDeny:"sm_provdeny",geminiUnsafe:"sm_geminiunsafe",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",moviePrompt:"sm_movieprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",movieSegs:"sm_moviesegs",
@@ -4330,6 +4348,10 @@ function loadState(){
     key:store.raw(K.key,""),
     segkey:store.raw(K.segkey,""),
     atlasKey:store.raw(K.atlasKey,""),
+    ttsVoice:store.raw(K.ttsVoice,"Aylin"),
+    ttsLang:store.raw(K.ttsLang,"tr"),
+    ttsSpeed:parseFloat(store.raw(K.ttsSpeed,"1"))||1,
+    lipsyncModel:store.raw(K.lipsyncModel,"kwaivgi/kling-lipsync/audio-to-video"),
     model:store.raw(K.model,"deepseek/deepseek-v4-flash"),
     rewriter:store.raw(K.rewriter,"deepseek/deepseek-v3.2"),
     imgProvider:store.raw(K.imgProvider,"atlascloud"),
@@ -5643,7 +5665,7 @@ async function modelslabVideo(prompt,imageUrl,negative,rule){
 // Shared: submit a generation request, then poll the prediction endpoint until done.
 async function atlasGenerate(kind,body,label,setStat){
   if(!state.atlasKey)throw{friendly:"No AtlasCloud API key set. Add it in Settings."};
-  const endpoint=kind==="video"?"model/generateVideo":"model/generateImage";
+  const endpoint=kind==="video"?"model/generateVideo":kind==="audio"?"model/generateAudio":"model/generateImage";
   const hdr={"Authorization":"Bearer "+state.atlasKey,"Content-Type":"application/json"};
   const entry=dbg(label,"AtlasCloud",ATLAS+endpoint,
     Object.assign({},body,body.image_url?{image_url:"[image data omitted]"}:{},body.image?{image:"[image data omitted]"}:{}));
@@ -5827,6 +5849,162 @@ async function atlasVideo(prompt,imageUrl,negative,rule){
   const body={model,image:img,prompt,resolution:res,duration:dur,seed:-1};
   const label="Video generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
   return await atlasGenerate("video",body,label,null);
+}
+
+/* ===== xAI TTS (AtlasCloud) — text → spoken audio (mp3 URL) ====================
+   Async submit→poll, same engine as image/video. Returns a remote mp3 URL.
+   voice_id: a Turkish-optimised xAI voice (Emre/Kaan/Aylin) or any custom/cloned id.   */
+const XAI_TTS_VOICES=[
+  // Turkish-optimised (named) — these lock language to tr
+  {id:"Emre",  label:"Emre (Turkish, male)"},
+  {id:"Kaan",  label:"Kaan (Turkish, male)"},
+  {id:"Aylin", label:"Aylin (Turkish, female)"},
+  // Universal multilingual voices (work for Turkish too)
+  {id:"eve", label:"Eve (multilingual, female)"},
+  {id:"ara", label:"Ara (multilingual, female)"},
+  {id:"leo", label:"Leo (multilingual, male)"},
+  {id:"rex", label:"Rex (multilingual, male)"},
+  {id:"sal", label:"Sal (multilingual, male)"}
+];
+const DEFAULT_TTS_VOICE="Aylin";
+// Resolve the effective xAI voice for a persona: their ttsVoice, else the global default.
+function ttsVoiceFor(p){
+  const v=p&&typeof p.ttsVoice==="string"&&p.ttsVoice.trim();
+  return v||state.ttsVoice||DEFAULT_TTS_VOICE;
+}
+// Strip narration/asterisks/markdown so the TTS reads the SPOKEN line, not stage directions.
+// Roleplay replies mix *actions* with dialogue; we voice the words, drop the rest.
+function ttsCleanText(s){
+  let t=String(s||"");
+  t=t.replace(/\*\*([^*]+)\*\*/g,"$1");         // **bold** → keep the words, drop markers
+  t=t.replace(/\*[^*]+\*/g,"");                 // *action* asides → drop entirely
+  t=t.replace(/\*/g,"");                         // any stray asterisks
+  t=t.replace(/\([^)]*\)/g,"");                 // (parentheticals)
+  t=t.replace(/[_`#>~]/g,"");                   // md noise
+  t=t.replace(/\s+/g," ").trim();
+  return t.slice(0,15000);                       // model hard cap
+}
+async function atlasTTS(text,voiceId,lang,setStat){
+  if(!state.atlasKey)throw{friendly:"No AtlasCloud API key set (Settings → AtlasCloud key)."};
+  const clean=ttsCleanText(text);
+  if(!clean){throw{friendly:"Nothing to speak in this line."};}
+  const body={
+    model:"xai/tts-v1",
+    text:clean,
+    language:lang||state.ttsLang||"tr",
+    voice_id:voiceId||DEFAULT_TTS_VOICE,
+    codec:"mp3", sample_rate:24000, bit_rate:128000,
+    speed:(+state.ttsSpeed||1), text_normalization:true, optimize_streaming_latency:0
+  };
+  return await atlasGenerate("audio",body,"TTS (xAI)",setStat);
+}
+/* ===== Kling lip-sync (AtlasCloud) — image + audio → talking video ============
+   The "dubbed video" path: feed a character image + a TTS mp3 URL; get a lip-synced clip.
+   Audio-to-video, async submit→poll. Front-facing portrait frames sync best.            */
+async function atlasLipsync(imageUrl,audioUrl,setStat){
+  if(!state.atlasKey)throw{friendly:"No AtlasCloud API key set (Settings → AtlasCloud key)."};
+  let img=imageUrl;
+  try{ img=await atlasUpload(imageUrl); } catch(e){ img=imageUrl; }   // model wants a hosted image
+  const model=state.lipsyncModel||"kwaivgi/kling-lipsync/audio-to-video";
+  // Field names vary slightly by model; send the common ones so whichever the model reads is present.
+  const body={ model, image:img, image_url:img, audio:audioUrl, audio_url:audioUrl };
+  return await atlasGenerate("video",body,"Lip-sync (Kling)",setStat);
+}
+
+/* ----- persona dub-voice picker (dropdown of named voices + custom id field) ----- */
+function _peTtsVoicePopulate(){
+  const sel=document.getElementById('peTtsVoiceSel'); if(!sel)return;
+  sel.innerHTML=`<option value="">Global default (${esc(state.ttsVoice||DEFAULT_TTS_VOICE)})</option>`+
+    XAI_TTS_VOICES.map(v=>`<option value="${esc(v.id)}">${esc(v.label)}</option>`).join("")+
+    `<option value="__custom__">Custom voice id…</option>`;
+}
+function _peTtsVoiceLoad(val){
+  _peTtsVoicePopulate();
+  const sel=document.getElementById('peTtsVoiceSel'), cust=document.getElementById('peTtsVoiceCustom');
+  if(!sel||!cust)return;
+  cust.value="";
+  if(!val){ sel.value=""; return; }                                  // inherit default
+  if(XAI_TTS_VOICES.some(v=>v.id===val)){ sel.value=val; }            // a named voice
+  else { sel.value="__custom__"; cust.value=val; }                   // custom/cloned id
+}
+function _peTtsVoiceSync(){
+  const sel=document.getElementById('peTtsVoiceSel'), cust=document.getElementById('peTtsVoiceCustom');
+  if(!sel||!cust)return;
+  if(sel.value!=="__custom__") cust.value="";                        // a concrete pick clears custom
+}
+function _peTtsVoiceCustomTyped(){
+  const sel=document.getElementById('peTtsVoiceSel'), cust=document.getElementById('peTtsVoiceCustom');
+  if(!sel||!cust)return;
+  if(cust.value.trim()) sel.value="__custom__";                      // typing a custom id implies Custom
+}
+function _peTtsVoiceValue(){
+  const sel=document.getElementById('peTtsVoiceSel'), cust=document.getElementById('peTtsVoiceCustom');
+  if(!sel) return (editingPersona&&editingPersona.ttsVoice)||"";
+  if(sel.value==="__custom__") return (cust&&cust.value.trim())||"";
+  return sel.value;   // "" (inherit) or a named voice id
+}
+
+/* ----- DUB: play a character line aloud (xAI TTS) ----- */
+let _diaryReadText="";   // text of the diary page currently open (for Read aloud)
+// Voice the currently-open diary page in the owner's voice. Not cached (pages change per day).
+async function dubDiary(ownerId){
+  const txt=_diaryReadText; if(!txt){toast("Nothing to read");return;}
+  const btn=document.querySelector('[data-diaryread]'); const set=t=>{if(btn)btn.textContent=t;};
+  set("⏳ …");
+  try{
+    const p=state.personas.find(x=>x.id===ownerId)||null;
+    const url=await atlasTTS(txt,ttsVoiceFor(p),state.ttsLang||"tr");
+    if(url)_playDubUrl(url);
+    set("🔊 Read aloud");
+  }catch(e){ set("🔊 Read aloud"); toast(e&&e.friendly?e.friendly:"Read-aloud failed"); }
+}
+let _dubAudio=null;   // the single shared <audio> element
+function _stopDub(){ if(_dubAudio){try{_dubAudio.pause();}catch(_){}_dubAudio.src="";} }
+function _playDubUrl(url){
+  _stopDub();
+  if(!_dubAudio){ _dubAudio=new Audio(); _dubAudio.preload="auto"; }
+  _dubAudio.src=httpsMedia(url); _dubAudio.play&&_dubAudio.play().catch(()=>{});
+}
+async function dubMessage(mid){
+  const m=findMsg(mid); if(!m)return;
+  // Replay if we already have audio for this line.
+  if(m.ttsUrl){ _playDubUrl(m.ttsUrl); toast("Playing"); return; }
+  const btn=document.querySelector(`[data-dub="${mid}"]`);
+  const setBtn=t=>{ if(btn)btn.textContent=t; };
+  setBtn("⏳");
+  try{
+    // Whose voice? The speaking persona's ttsVoice, else global default.
+    const p=(m.speakerId&&state.personas.find(x=>x.id===m.speakerId))||
+            (m.name&&state.personas.find(x=>x.name===m.name))||null;
+    const voice=ttsVoiceFor(p);
+    const url=await atlasTTS(m.content,voice,state.ttsLang||"tr");
+    if(!url)throw{friendly:"No audio came back."};
+    m.ttsUrl=url; markChatDirty&&markChatDirty(curChat()); persistChats();
+    _playDubUrl(url); setBtn("🔊");
+  }catch(e){ setBtn("🔊"); toast(e&&e.friendly?e.friendly:"Dubbing failed"); }
+}
+// "Dub this scene as a talking video": TTS the line, then lip-sync it onto the message's image.
+async function dubAsVideo(mid){
+  const m=findMsg(mid); if(!m){return;}
+  if(!m.img && !m.imgSrc){ toast("This line has no image to lip-sync. Generate a scene image first."); return; }
+  if(m.vidState==="loading"){ return; }
+  const setStat=t=>{ const e=document.getElementById('vidstat_'+mid); if(e)e.textContent=t; };
+  m.vidState="loading"; m.video=null; persistChats(); refreshBubble(mid);
+  try{
+    const p=(m.speakerId&&state.personas.find(x=>x.id===m.speakerId))||
+            (m.name&&state.personas.find(x=>x.name===m.name))||null;
+    setStat("Recording the voice…");
+    const audioUrl=m.ttsUrl||await atlasTTS(m.content,ttsVoiceFor(p),state.ttsLang||"tr",setStat);
+    if(audioUrl){ m.ttsUrl=audioUrl; }
+    setStat("Lip-syncing…");
+    const videoUrl=await atlasLipsync(m.imgSrc||m.img,audioUrl,setStat);
+    if(!videoUrl)throw{friendly:"No video came back."};
+    m.video=videoUrl; m.vidState="done";
+    state.videos.push({id:"vid_"+Date.now(),url:videoUrl,prompt:"(dubbed) "+ttsCleanText(m.content).slice(0,80),character:(p&&p.name)||m.name||"",date:Date.now(),dubbed:true});
+    if(typeof persistVideos==="function")persistVideos();
+    markChatDirty&&markChatDirty(curChat()); persistChats(); refreshBubble(mid); updateStorage();
+    toast("Dubbed video ready");
+  }catch(e){ m.vidState="error"; m.vidErr=(e&&e.friendly)||""; persistChats(); refreshBubble(mid); toast((e&&e.friendly)||"Dubbed video failed"); }
 }
 
 /* ===== SMART ROUTER: an LLM picks the model rule from the prompt ===== */
@@ -9016,6 +9194,7 @@ function editPersona(id){
   {const e=document.getElementById('peTraits'); if(e)e.value=p.traits||"";}
   {const e=document.getElementById('peGoals'); if(e)e.value=p.goals||"";}
   {const e=document.getElementById('peVoiceId'); if(e)e.value=p.voiceId||"";}
+  _peTtsVoiceLoad(p.ttsVoice||"");
   {const sg=document.getElementById('peSocialGraph'); if(sg)sg.value=p.socialGraph||"";
    const auto=document.getElementById('peSocialAuto');
    if(auto){ const a=(p.socialGraphAuto||"").trim();
@@ -9881,6 +10060,7 @@ function savePersona(){
     look:readLookEditor(),
     // Per-character Inworld voice for voice calls (Stage 2). Optional; absent = default call voice.
     voiceId:(document.getElementById('peVoiceId')?document.getElementById('peVoiceId').value.trim():((editingPersona&&editingPersona.voiceId)||"")),
+    ttsVoice:_peTtsVoiceValue(),
     interject:document.getElementById('peInterject').value.trim(),
     // Social graph: author-owned text (editable) + LLM-discovered lines (append-only, never
     // overwritten by the save — preserved from the existing persona).
@@ -11210,7 +11390,11 @@ function bubble(m){
   const _revealing=m._reveal && (_revealPending.has(m.mid) || _revealTimers[m.mid] || _presentingMid===m.mid);
   // Per-message edit/delete controls (real chat lines only — not GM/narrator/day markers,
   // which return earlier). Kept tiny and muted so they don't crowd the bubble.
-  const actions=`<span class="msgActions"><button class="msgAct" title="Edit" onclick="editMessage('${m.mid}')">✏️</button><button class="msgAct" title="Delete" onclick="deleteMessage('${m.mid}')">🗑️</button></span>`;
+  const _dubBtn = (m.role==='assistant')
+    ? `<button class="msgAct" title="Dub (speak aloud)" data-dub="${m.mid}" onclick="dubMessage('${m.mid}')">🔊</button>`+
+      ((m.img||m.imgSrc)?`<button class="msgAct" title="Dub as talking video" onclick="dubAsVideo('${m.mid}')">🎬🗣️</button>`:"")
+    : "";
+  const actions=`<span class="msgActions">${_dubBtn}<button class="msgAct" title="Edit" onclick="editMessage('${m.mid}')">✏️</button><button class="msgAct" title="Delete" onclick="deleteMessage('${m.mid}')">🗑️</button></span>`;
   b.innerHTML=`<div class="meta">${avatar}${esc(name)}${tempTag}${gmTag}${voiceTag}${actions}</div><div class="body">${_revealing?"":md(m.content)}</div>`;
   if(m.role==='assistant'){
     // For finished image/video use the safe DOM builder (handles huge base64 data URLs);
@@ -14963,7 +15147,7 @@ const DIARY_FONTS=[
 function diaryFont(){ const id=localStorage.getItem('sm_diaryfont')||"caveat"; return DIARY_FONTS.find(f=>f.id===id)||DIARY_FONTS[0]; }
 function setDiaryFont(id){ localStorage.setItem('sm_diaryfont',id); if(_diaryReaderOwner!=null)openDiaryReader(_diaryReaderOwner,_diaryReaderDay); }
 let _diaryReaderOwner=null;
-function _diaryClose(){ const m=document.getElementById('diaryReaderModal'); if(m)m.remove(); _diaryReaderOwner=null; }
+function _diaryClose(){ if(typeof _stopDub==="function")_stopDub(); const m=document.getElementById('diaryReaderModal'); if(m)m.remove(); _diaryReaderOwner=null; }
 function openDiaryReader(ownerId,day){
   const p=state.personas.find(x=>x.id===ownerId); if(!p)return;
   const uni=curUniverseObj();
@@ -14991,7 +15175,9 @@ function openDiaryReader(ownerId,day){
       <button class="diaryArrow" ${prevDay==null?"disabled":""} onclick="${prevDay==null?"":`openDiaryReader('${ownerId}',${prevDay})`}">‹</button>
       <span class="diaryNavLabel">Day ${day}${days.length>1?` · ${dayIdx+1}/${days.length}`:""}</span>
       <button class="diaryArrow" ${nextDay==null?"disabled":""} onclick="${nextDay==null?"":`openDiaryReader('${ownerId}',${nextDay})`}">›</button>
-    </div>`;
+    </div>
+    <div style="text-align:center;margin-bottom:10px"><button class="btn sec small" style="width:auto" data-diaryread onclick="dubDiary('${ownerId}')">🔊 Read aloud</button></div>`;
+  _diaryReadText=bodyText;   // captured so the read-aloud button can voice the current page
   const m=document.createElement('div'); m.id="diaryReaderModal"; m.className="modal show";
   m.innerHTML=`<button class="x" onclick="_diaryClose()">×</button>
     <div class="diaryReader">
@@ -15327,6 +15513,17 @@ function syncSettingsUI(){
   {const e=document.getElementById('setCallPronounce'); if(e)e.value=state.callPronounce||"";}
   {const e=document.getElementById('setCallSttFix'); if(e)e.checked=!!state.callSttFix;}
   {const ak=document.getElementById('setAtlasKey'); if(ak)ak.value=state.atlasKey||'';}
+  {const sel=document.getElementById('setTtsVoice');
+   if(sel){
+     sel.innerHTML=XAI_TTS_VOICES.map(v=>`<option value="${v.id}">${v.label}</option>`).join("");
+     const cur=state.ttsVoice||"Aylin";
+     const named=XAI_TTS_VOICES.some(v=>v.id===cur);
+     sel.value=named?cur:"Aylin";
+     const cust=document.getElementById('setTtsVoiceCustom'); if(cust)cust.value=named?"":cur;
+   }}
+  {const e=document.getElementById('setTtsLang'); if(e)e.value=state.ttsLang||"tr";}
+  {const e=document.getElementById('setTtsSpeed'); if(e)e.value=state.ttsSpeed||1;}
+  {const e=document.getElementById('setLipsyncModel'); if(e)e.value=state.lipsyncModel||"kwaivgi/kling-lipsync/audio-to-video";}
   {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud")aim.value=state.imgModel||'';}
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")avm.value=state.vidModel||'';}
   document.getElementById('setModel').value=state.model;
@@ -15484,6 +15681,12 @@ function saveSettings(notify){
   store.set(K.callSttFix,!!state.callSttFix);
   store.setRaw(K.summThreshold,String(state.summThreshold||16));store.setRaw(K.summEvery,String(state.summEvery||6));store.setRaw(K.summKeep,String(state.summKeep||4));
   {const ak=document.getElementById('setAtlasKey'); if(ak)state.atlasKey=ak.value.trim();}
+  {const cust=document.getElementById('setTtsVoiceCustom'); const sel=document.getElementById('setTtsVoice');
+   const cv=cust&&cust.value.trim();
+   if(cv) state.ttsVoice=cv; else if(sel) state.ttsVoice=sel.value||"Aylin";}
+  {const e=document.getElementById('setTtsLang'); if(e)state.ttsLang=e.value.trim()||"tr";}
+  {const e=document.getElementById('setTtsSpeed'); if(e){const n=parseFloat(e.value); state.ttsSpeed=(n>=0.7&&n<=1.5)?n:1;}}
+  {const e=document.getElementById('setLipsyncModel'); if(e)state.lipsyncModel=e.value.trim()||"kwaivgi/kling-lipsync/audio-to-video";}
   state.model=document.getElementById('setModel').value.trim()||"anthropic/claude-3.5-sonnet";
   {const e=document.getElementById('setRpRotation'); if(e){const v=e.value.trim(); if(v!==state.rpRotation){state.rpRotation=v; state.rpRotIdx=0; store.set(K.rpRotIdx,0);} store.setRaw(K.rpRotation,v);}}
   state.rewriter=document.getElementById('setRewriter').value.trim()||"openai/gpt-4o-mini";
@@ -15592,6 +15795,7 @@ function saveSettings(notify){
   store.set(K.streamReveal,state.streamReveal);
   {const rc=document.getElementById('setRevealCps'); if(rc){const v=+rc.value; state.revealCps=(v>=8&&v<=80)?v:REVEAL_CPS_DEFAULT; store.set(K.revealCps,state.revealCps);}}
   store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.atlasKey,state.atlasKey||"");store.setRaw(K.model,state.model);
+  store.setRaw(K.ttsVoice,state.ttsVoice||"Aylin");store.setRaw(K.ttsLang,state.ttsLang||"tr");store.setRaw(K.ttsSpeed,String(state.ttsSpeed||1));store.setRaw(K.lipsyncModel,state.lipsyncModel||"kwaivgi/kling-lipsync/audio-to-video");
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
   store.setRaw(K.vidProvider,state.vidProvider);store.setRaw(K.vidModel,state.vidModel);
