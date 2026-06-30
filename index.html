@@ -358,6 +358,18 @@
   .galVidPick input{accent-color:var(--accent);margin:0;}
   .galVidPick:has(input:checked){border-color:var(--accent);color:var(--accent);}
   .settingsSaveBar{position:sticky;bottom:0;z-index:20;display:flex;gap:8px;padding:12px 0 14px;margin-top:10px;background:linear-gradient(to top,var(--bg) 70%,transparent);}
+  .ruleRow{border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:var(--surface);overflow:hidden;}
+  .ruleRow.open{border-color:var(--accent);}
+  .ruleRow.off{opacity:.55;}
+  .ruleRowHead{display:flex;align-items:center;gap:6px;padding:8px 10px;}
+  .ruleRowHead .reord{display:flex;flex-direction:column;gap:2px;}
+  .ruleRowHead .reord button{background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;width:26px;height:18px;font-size:9px;line-height:1;cursor:pointer;padding:0;}
+  .ruleRowHead .reord button:disabled{opacity:.3;cursor:default;}
+  .ruleRowHead .ruleName{flex:1;text-align:left;background:none;border:none;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;padding:6px 2px;}
+  .ruleRowHead .ruleCaret{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;width:26px;}
+  .ruleRowBody{padding:4px 12px 12px;display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border);}
+  .ruleRowBody label{font-size:12px;color:var(--muted);margin-top:4px;}
+  .ruleRowBody input[type=text],.ruleRowBody input[type=number],.ruleRowBody textarea,.ruleRowBody select{width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px;}
   .imgNav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:none;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);color:#fff;font-size:26px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;}
   .imgNav.imgPrev{left:14px;} .imgNav.imgNext{right:14px;}
   .diaryReader{max-width:600px;width:100%;max-height:92%;overflow-y:auto;background:none;border:none;padding:0;}
@@ -569,7 +581,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.34</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.35</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -15480,68 +15492,73 @@ function addMemoryManual(){ openMemEditor(); }
 /* ---- settings ---- */
 /* ===== Editable model-routing rules (add/remove as many as you want) ===== */
 function rulesFor(kind){return kind==='img'?state.imgRules:state.vidRules;}
+let _ruleOpen={img:null,vid:null};   // id of the currently-expanded rule per kind (one at a time)
+function toggleRuleOpen(kind,id){ _ruleOpen[kind]=(_ruleOpen[kind]===id)?null:id; renderRules(kind); }
 function renderRules(kind){
   const el=document.getElementById(kind==='img'?'imgRuleList':'vidRuleList');
   if(!el)return;el.innerHTML="";
   const rules=rulesFor(kind);
   if(!rules.length){el.innerHTML=`<div class="desc">No rules yet — add one. With none, nothing will generate.</div>`;return;}
+  const openId=_ruleOpen[kind];
   rules.forEach((r,i)=>{
-    const c=document.createElement('div');c.className="card";c.style.background="var(--surface)";c.style.gap="8px";
-    c.innerHTML=`
-      <div class="ruleHead">
-        <div class="reord">
-          <button data-up title="Move up" ${i===0?'disabled':''}>▲</button>
-          <button data-down title="Move down" ${i===rules.length-1?'disabled':''}>▼</button>
+    const isOpen=(r.id===openId);
+    const c=document.createElement('div');c.className="ruleRow"+(isOpen?" open":"")+(r.enabled===false?" off":"");
+    // COMPACT HEADER: reorder · name (tap to expand) · enabled · caret. Full editor only when open.
+    const head=document.createElement('div');head.className="ruleRowHead";
+    head.innerHTML=`
+      <div class="reord">
+        <button data-up title="Move up" ${i===0?'disabled':''}>▲</button>
+        <button data-down title="Move down" ${i===rules.length-1?'disabled':''}>▼</button>
+      </div>
+      <button class="ruleName" data-open>${esc(r.label||'(unnamed rule)')}</button>
+      <label class="switchLbl" title="Enabled" style="margin:0 6px"><input type="checkbox" data-k="enabled" ${r.enabled!==false?'checked':''}><span class="sl"></span></label>
+      <button class="ruleCaret" data-open>${isOpen?'▾':'▸'}</button>`;
+    c.appendChild(head);
+    head.querySelector('[data-up]').onclick=(e)=>{e.stopPropagation();moveRule(kind,i,-1);};
+    head.querySelector('[data-down]').onclick=(e)=>{e.stopPropagation();moveRule(kind,i,1);};
+    head.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>toggleRuleOpen(kind,r.id));
+    head.querySelector('[data-k="enabled"]').addEventListener('change',e=>{ r.enabled=e.target.checked; c.classList.toggle('off',!r.enabled); });
+
+    if(isOpen){
+      const body=document.createElement('div');body.className="ruleRowBody";
+      body.innerHTML=`
+        <label>Rule name</label>
+        <input type="text" value="${esc(r.label||'')}" placeholder="Rule name" data-k="label">
+        <label>When to use (the router reads this)</label>
+        <textarea class="fld" data-k="when" style="min-height:54px">${esc(r.when||'')}</textarea>
+        <label>Provider</label>
+        <select data-k="provider" data-sel="1" style="width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px">
+          <option value="default"${(!r.provider||r.provider==='default')?' selected':''}>Default (global ${kind==='img'?'image':'video'} provider)</option>
+          <option value="modelslab"${r.provider==='modelslab'?' selected':''}>ModelsLab</option>
+          <option value="atlascloud"${r.provider==='atlascloud'?' selected':''}>AtlasCloud</option>
+          ${kind==='img'?`<option value="fal"${r.provider==='fal'?' selected':''}>fal.ai (z-image LoRA)</option>`:''}
+        </select>
+        <div class="row">
+          <div style="flex:1"><label>Model id</label><input type="text" data-k="model_id" value="${esc(r.model_id||'')}" placeholder="${kind==='img'?'realtime_t2i':'wan2.7-i2v'}"></div>
+          <div style="flex:1"><label>Endpoint</label><input type="text" data-k="endpoint" value="${esc(r.endpoint||(kind==='img'?'images/text2img':'video/img2video'))}"></div>
         </div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:8px">
-          <div class="kvline" style="padding:0">
-            <input type="text" value="${esc(r.label||'')}" placeholder="Rule name" data-k="label"
-              style="flex:1;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px;font-weight:600">
-            <label class="switchLbl" style="margin-left:8px"><input type="checkbox" data-k="enabled" ${r.enabled!==false?'checked':''}><span class="sl"></span></label>
-          </div>
-          <label>When to use (the router reads this)</label>
-          <textarea class="fld" data-k="when" style="min-height:54px">${esc(r.when||'')}</textarea>
-          <div class="row">
-            <div style="flex:1"><label>Provider</label>
-              <select data-k="provider" data-sel="1" style="width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px">
-                <option value="default"${(!r.provider||r.provider==='default')?' selected':''}>Default (use global ${kind==='img'?'image':'video'} provider)</option>
-                <option value="modelslab"${r.provider==='modelslab'?' selected':''}>ModelsLab</option>
-                <option value="atlascloud"${r.provider==='atlascloud'?' selected':''}>AtlasCloud</option>
-                <option value="fal"${r.provider==='fal'?' selected':''}>fal.ai (z-image LoRA)</option>
-                <option value="openrouter"${r.provider==='openrouter'?' selected':''}>OpenRouter</option>
-              </select>
-            </div>
-          </div>
-          <div class="row">
-            <div style="flex:1"><label>Model id</label><input type="text" data-k="model_id" value="${esc(r.model_id||'')}" placeholder="realtime_t2i"></div>
-            <div style="flex:1"><label>Endpoint</label><input type="text" data-k="endpoint" value="${esc(r.endpoint||(kind==='img'?'images/text2img':'video/img2video'))}"></div>
-          </div>
-          <label>LoRA model (optional)</label>
-          <input type="text" data-k="lora_model" value="${esc(r.lora_model||'')}" placeholder="e.g. add-detail-xl (leave blank for none)">
-          <label>AtlasCloud LoRA path (optional) — needs a <code>-lora</code> model id</label>
-          <input type="text" data-k="loraPath" value="${esc(r.loraPath||'')}" placeholder="HF owner/name, a .safetensors URL, or a CivitAI download URL">
-          <div class="row">
-            <div style="flex:1"><label>LoRA scale</label><input type="number" data-k="loraScale" step="0.05" min="0" max="2" value="${r.loraScale!=null?esc(String(r.loraScale)):'1'}" placeholder="1"></div>
-          </div>
-          <div class="desc" style="margin:-2px 0 6px">Atlas LoRA needs a matching base (e.g. model id <code>z-image/turbo-lora</code> for image, a Wan <code>…-lora</code> id for video). LoRA must be a single <code>.safetensors</code>. Put the LoRA's <b>trigger word</b> in this rule's prompt below, or it won't activate. CivitAI direct URLs are unofficial — if it fails, re-host the file on Hugging Face.</div>
-          <label>Negative prompt (optional)</label>
-          <input type="text" data-k="negative" value="${esc(r.negative||'')}" placeholder="low quality, blurry…">
-          ${kind==='img'?`<label>Per-class image prompt (injected into the prompt writer when this rule is chosen — NOT shown to the router)</label>
-          <textarea class="fld" data-k="promptStyle" style="min-height:90px" placeholder="Specific pose / shot / camera instructions for this kind of scene. The universal image prompt holds general rules; this is injected between it and the scene, so each generation only loads the detail for the chosen class.">${esc(r.promptStyle||'')}</textarea>`:''}
-          <button class="btn danger sec small" data-del="1" style="margin-top:4px">Delete rule</button>
-        </div>
-      </div>`;
-    // reorder
-    c.querySelector('[data-up]').onclick=()=>moveRule(kind,i,-1);
-    c.querySelector('[data-down]').onclick=()=>moveRule(kind,i,1);
-    // wire inputs
-    c.querySelectorAll('[data-k]').forEach(inp=>{
-      const key=inp.dataset.k;
-      const isSel=inp.tagName==='SELECT';
-      const ev=(inp.type==='checkbox'||isSel)?'change':'input';
-      inp.addEventListener(ev,()=>{ r[key]= inp.type==='checkbox'?inp.checked:inp.value; });
-    });
-    c.querySelector('[data-del]').onclick=()=>{rulesFor(kind).splice(i,1);renderRules(kind);};
+        <label>LoRA path (optional) — needs a <code>-lora</code> model id</label>
+        <input type="text" data-k="loraPath" value="${esc(r.loraPath||'')}" placeholder="HF owner/name, .safetensors URL, or CivitAI download URL">
+        <div class="row"><div style="flex:1"><label>LoRA scale</label><input type="number" data-k="loraScale" step="0.05" min="0" max="2" value="${r.loraScale!=null?esc(String(r.loraScale)):'1'}" placeholder="1"></div></div>
+        <div class="desc" style="margin:-2px 0 6px">LoRA needs a matching base (e.g. <code>z-image/turbo-lora</code>). Single <code>.safetensors</code>. Put the LoRA's <b>trigger word</b> in the prompt below. CivitAI links auto-attach your CivitAI key.</div>
+        <label>Negative prompt (optional)</label>
+        <input type="text" data-k="negative" value="${esc(r.negative||'')}" placeholder="low quality, blurry…">
+        ${kind==='img'?`<label>Per-class image prompt (injected into the writer when this rule is chosen — NOT shown to the router)</label>
+        <textarea class="fld" data-k="promptStyle" style="min-height:90px" placeholder="Pose / shot / camera instructions for this scene type.">${esc(r.promptStyle||'')}</textarea>`:''}
+        <button class="btn danger sec small" data-del="1" style="margin-top:4px">Delete rule</button>`;
+      c.appendChild(body);
+      // live-update the header name as you type
+      body.querySelectorAll('[data-k]').forEach(inp=>{
+        const key=inp.dataset.k;
+        const isSel=inp.tagName==='SELECT';
+        const ev=(inp.type==='checkbox'||isSel)?'change':'input';
+        inp.addEventListener(ev,()=>{
+          r[key]= inp.type==='checkbox'?inp.checked:inp.value;
+          if(key==='label'){ const nm=head.querySelector('.ruleName'); if(nm)nm.textContent=inp.value||'(unnamed rule)'; }
+        });
+      });
+      body.querySelector('[data-del]').onclick=()=>{ if(confirm("Delete this rule?")){rulesFor(kind).splice(i,1);if(_ruleOpen[kind]===r.id)_ruleOpen[kind]=null;renderRules(kind);} };
+    }
     el.appendChild(c);
   });
 }
@@ -15551,6 +15568,7 @@ function addRule(kind){
     provider:"default",
     model_id:kind==='img'?"realtime_t2i":"wan2.7-i2v",endpoint:kind==='img'?"images/text2img":"video/img2video",
     lora_model:"",negative:"",...(kind==='img'?{promptStyle:""}:{}),enabled:true});
+  _ruleOpen[kind]=id;   // open the new rule for editing immediately
   renderRules(kind);
 }
 function moveRule(kind,i,dir){
