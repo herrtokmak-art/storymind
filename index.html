@@ -530,7 +530,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.18-voice (Voice calls round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.19-voice (Voice calls: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -15866,14 +15866,25 @@ function vcStartDeepgram(){
   ws.onmessage=(ev)=>{
     let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
     if(m.type==='SpeechStarted') return;   // bare VAD is NOT a barge-in (echo/noise)
-    if(m.type==='UtteranceEnd'){ vcCommitUserTurn(); return; }
+    if(m.type==='UtteranceEnd'){ if(vc.audioPlaying) return; vcCommitUserTurn(); return; }
     if(m.type==='Results'||m.channel){
       const alt=m.channel&&m.channel.alternatives&&m.channel.alternatives[0];
       const txt=alt&&alt.transcript?alt.transcript:""; if(!txt) return;
-      // confirmed-words barge-in: only while real audio is PLAYING, past the guard window
-      if(vc.audioPlaying && txt.replace(/\s/g,'').length>=(state.callBargeMin||3)){
-        if(performance.now()-(vc.audioStartedAt||0) >= (state.callBargeGuard||700)) vcBargeIn();
+      // ECHO GATE (half-duplex): while the CHARACTER's audio is playing, the mic hears that
+      // audio back (speakerphone has no echo cancellation). Those transcripts are the character's
+      // OWN words, NOT the user. Do NOT buffer or commit them as a user turn — that caused the
+      // "my sentence was the character's speech, and it interrupted itself" bug. Such transcripts
+      // are only considered as a possible deliberate BARGE-IN (sustained speech past the guard).
+      if(vc.audioPlaying){
+        const len=txt.replace(/\s/g,'').length;
+        if(len>=(state.callBargeMin||3) && performance.now()-(vc.audioStartedAt||0) >= (state.callBargeGuard||700)){
+          // Treat as a real barge-in ONLY if it's a substantial final phrase (echo fragments are short/partial).
+          if(m.is_final && len>=8){ vcBargeIn(); vc._postBargeAt=performance.now(); vc._finalBuf=txt.trim(); if(m.speech_final) vcCommitUserTurn(); }
+        }
+        return;   // otherwise ignore entirely — it's echo
       }
+      // Just after audio ends, skip a brief tail to let the last echo flush before we trust the mic.
+      if(performance.now()-(vc._audioEndedAt||0) < 250) return;
       if(m.is_final){ vc._finalBuf=((vc._finalBuf||'')+' '+txt).trim(); vcStatus('… '+vc._finalBuf); }
       else vcStatus('… '+((vc._finalBuf||'')+' '+txt).trim());
       if(m.speech_final) vcCommitUserTurn();
@@ -16100,9 +16111,9 @@ function vcEnqueuePcm(arrbuf){
   const startAt=Math.max(ctx.currentTime,vc.nextStartTime); node.start(startAt); vc.nextStartTime=startAt+buffer.duration;
   vc.activeSources.push(node);
   if(!vc.audioPlaying){ vc.audioStartedAt=performance.now(); } vc.audioPlaying=true;
-  node.onended=()=>{ vc.activeSources=vc.activeSources.filter(s=>s!==node); if(vc.activeSources.length===0){ vc.audioPlaying=false; if(!vc.generating){ vc.speaking=false; if(vc.active) vcStatus("Listening…"); } } };
+  node.onended=()=>{ vc.activeSources=vc.activeSources.filter(s=>s!==node); if(vc.activeSources.length===0){ vc.audioPlaying=false; vc._audioEndedAt=performance.now(); if(!vc.generating){ vc.speaking=false; if(vc.active) vcStatus("Listening…"); } } };
 }
-function vcStopPlayback(){ vc.activeSources.forEach(s=>{try{s.stop();}catch(e){}}); vc.activeSources=[]; if(vc.playCtx) vc.nextStartTime=vc.playCtx.currentTime; vc.speaking=false; vc.audioPlaying=false; }
+function vcStopPlayback(){ vc.activeSources.forEach(s=>{try{s.stop();}catch(e){}}); vc.activeSources=[]; if(vc.playCtx) vc.nextStartTime=vc.playCtx.currentTime; vc.speaking=false; vc.audioPlaying=false; vc._audioEndedAt=performance.now(); }
 function vcB64ToBuf(b64){ const bin=atob(b64); const len=bin.length; const bytes=new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
 
 /* ---- barge-in ---- */
@@ -16235,7 +16246,7 @@ VOICE DELIVERY (steering) — your speech is performed by a TTS voice actor you 
 2. The bracket goes at the very START of each sentence, before its first word.
 3. You MAY also drop inline non-verbals where they occur: [laugh] [sigh] [breathe] [clear throat] [cough] [yawn].
 4. To stress a key word, CAPITALIZE it. Use sparingly.
-5. Keep delivery BRISK — avoid pacing words that add gaps. Favor EMOTION/TONE over speed/pauses. Short sentences, minimal commas.`);
+5. Keep delivery BRISK, but place pauses where a real speaker would: a comma for a small breath, an em-dash — for a beat before something important, and "…" for a thoughtful or hesitant pause. Use them deliberately and sparingly, where the MEANING calls for a pause — not randomly. Otherwise favor short sentences.`);
   return blocks.join("\n\n");
 }
 
