@@ -530,7 +530,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.17-voice (Voice calls + fixes: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.18-voice (Voice calls round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -722,6 +722,9 @@
               <textarea class="fld" id="setCallPronounce" style="min-height:90px" placeholder="abi=âbi&#10;hala=hâlâ"></textarea>
               <div class="desc">Exact whole-word match (Turkish-aware): <code>abi=âbi</code> fixes “abi” but never touches “tabi”. Applied to the text just before it’s spoken.</div>
             </div>
+            <div class="kvline" style="margin-top:8px"><span>Auto-fix speech-to-text errors</span>
+              <label class="switchLbl"><input type="checkbox" id="setCallSttFix"><span class="sl"></span></label></div>
+            <div class="desc">When on, a quick model corrects mis-heard words in YOUR speech using the conversation context before the character replies. More accurate, but adds a small delay before each reply. Leave off for fastest responses.</div>
           </details>
         </div>
 
@@ -1254,12 +1257,13 @@
 
 <!-- ===== VOICE CALL — in-call overlay ===== -->
 <div class="modal" id="callOverlay">
-  <div class="card editCard" style="text-align:center;max-width:360px">
-    <div id="vcAvatar" style="font-size:64px;line-height:1;margin:8px 0">🎭</div>
+  <div class="card editCard" style="text-align:center;max-width:380px">
+    <div id="vcPic" style="width:96px;height:96px;border-radius:50%;margin:8px auto;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-size:56px;background-color:rgba(255,255,255,.06)">🎭</div>
     <h3 id="vcName" style="margin:4px 0">…</h3>
     <div id="vcStatus" style="opacity:.8;margin:6px 0 2px">Connecting…</div>
     <div id="vcDur" style="font-variant-numeric:tabular-nums;font-size:13px;opacity:.6">0:00</div>
-    <div class="desc" style="margin:10px 0 4px">In-person conversation · speak naturally · this uses metered services (Deepgram · OpenRouter · Inworld)</div>
+    <div id="vcTranscript" style="text-align:left;max-height:34vh;overflow:auto;margin:10px 0;padding:8px;border-radius:8px;background:rgba(0,0,0,.18);font-size:13px;line-height:1.5;display:none"></div>
+    <div class="desc" style="margin:8px 0 4px">In-person conversation · speak naturally · metered services (Deepgram · OpenRouter · Inworld)</div>
     <div class="row" style="justify-content:center;margin-top:10px">
       <button class="btn" style="background:#c0392b;border-color:#c0392b" onclick="hangUpCall()"><svg class="ic"><use href="#i-phone"/></svg> Hang up</button>
     </div>
@@ -1578,7 +1582,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   // Voice calls (Stage 2)
   dgKey:"sm_dgkey",ttsRelay:"sm_ttsrelay",callModel:"sm_callmodel",callVoice:"sm_callvoice",callDgModel:"sm_calldgmodel",
   callSttLang:"sm_callsttlang",callTtsModel:"sm_callttsmodel",callTtsLang:"sm_callttslang",callDelivery:"sm_calldelivery",callRate:"sm_callrate",
-  callEndpoint:"sm_callendpoint",callUttEnd:"sm_calluttend",callBargeMin:"sm_callbargemin",callBargeGuard:"sm_callbargeguard",callPronounce:"sm_callpronounce"};
+  callEndpoint:"sm_callendpoint",callUttEnd:"sm_calluttend",callBargeMin:"sm_callbargemin",callBargeGuard:"sm_callbargeguard",callPronounce:"sm_callpronounce",callSttFix:"sm_callsttfix"};
 // ModelsLab API base. Image and video endpoints live under different paths.
 const ML="https://modelslab.com/api/v6/";
 const ATLAS="https://api.atlascloud.ai/api/v1/";   // AtlasCloud image/video (async submit→poll)
@@ -4427,6 +4431,7 @@ function loadState(){
     callBargeMin:+store.raw(K.callBargeMin,3),
     callBargeGuard:+store.raw(K.callBargeGuard,700),
     callPronounce:store.raw(K.callPronounce,"abi=âbi\nabicim=âbicim\nabin=âbin\nhala=hâlâ\nkari=kârî"),
+    callSttFix:store.get(K.callSttFix,false),
     theme:store.raw(K.theme,"dark"),
     font:+store.raw(K.font,14),
     streamReveal:store.get(K.streamReveal,true),
@@ -15015,6 +15020,7 @@ function syncSettingsUI(){
   {const e=document.getElementById('setCallBargeMin'); if(e)e.value=state.callBargeMin||3;}
   {const e=document.getElementById('setCallBargeGuard'); if(e)e.value=state.callBargeGuard||700;}
   {const e=document.getElementById('setCallPronounce'); if(e)e.value=state.callPronounce||"";}
+  {const e=document.getElementById('setCallSttFix'); if(e)e.checked=!!state.callSttFix;}
   {const ak=document.getElementById('setAtlasKey'); if(ak)ak.value=state.atlasKey||'';}
   {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud")aim.value=state.imgModel||'';}
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")avm.value=state.vidModel||'';}
@@ -15163,12 +15169,14 @@ function saveSettings(notify){
   {const e=document.getElementById('setCallBargeMin'); if(e)state.callBargeMin=Math.max(1,+e.value||3);}
   {const e=document.getElementById('setCallBargeGuard'); if(e)state.callBargeGuard=Math.max(0,+e.value||700);}
   {const e=document.getElementById('setCallPronounce'); if(e)state.callPronounce=e.value;}
+  {const e=document.getElementById('setCallSttFix'); if(e)state.callSttFix=e.checked;}
   store.setRaw(K.dgKey,state.dgKey||"");store.setRaw(K.ttsRelay,state.ttsRelay||"");store.setRaw(K.callModel,state.callModel||"");
   store.setRaw(K.callVoice,state.callVoice||"");store.setRaw(K.callDgModel,state.callDgModel||"");store.setRaw(K.callSttLang,state.callSttLang||"");
   store.setRaw(K.callTtsModel,state.callTtsModel||"");store.setRaw(K.callTtsLang,state.callTtsLang||"");store.setRaw(K.callDelivery,state.callDelivery||"");
   store.setRaw(K.callRate,String(state.callRate));store.setRaw(K.callEndpoint,String(state.callEndpoint));store.setRaw(K.callUttEnd,String(state.callUttEnd));
   store.setRaw(K.callBargeMin,String(state.callBargeMin));store.setRaw(K.callBargeGuard,String(state.callBargeGuard));
   store.setRaw(K.callPronounce,state.callPronounce||"");
+  store.set(K.callSttFix,!!state.callSttFix);
   {const ak=document.getElementById('setAtlasKey'); if(ak)state.atlasKey=ak.value.trim();}
   state.model=document.getElementById('setModel').value.trim()||"anthropic/claude-3.5-sonnet";
   {const e=document.getElementById('setRpRotation'); if(e){const v=e.value.trim(); if(v!==state.rpRotation){state.rpRotation=v; state.rpRotIdx=0; store.set(K.rpRotIdx,0);} store.setRaw(K.rpRotation,v);}}
@@ -15788,10 +15796,18 @@ const VC_OR_URL = "https://openrouter.ai/api/v1/chat/completions";
 let vc = null;            // active call state, or null
 let _vcWakeLock = null;
 let _vcLastCallDebug = null;   // debug snapshot of the most recent call (prompt, timings, chunks)
+function vcDbgEvent(kind,detail){ if(vc&&vc.debug){ if(!vc.debug.events)vc.debug.events=[]; vc.debug.events.push({kind,detail:detail||'',at:Date.now()-(vc.debug.startedAt||Date.now())}); } }
 const vcHistory = [];     // {role,content} for the current call
 
 function vcLog(/*msg,*/){ /* dev hook; silent in app */ }
 function vcStatus(txt){ const e=document.getElementById('vcStatus'); if(e)e.textContent=txt; }
+function vcAddTranscript(who,text,isUser){
+  const tr=document.getElementById('vcTranscript'); if(!tr||!text) return;
+  tr.style.display='block';
+  const row=document.createElement('div'); row.style.margin='3px 0';
+  row.innerHTML=`<b style="opacity:${isUser?.6:.95}">${esc(who)}:</b> ${esc(text)}`;
+  tr.appendChild(row); tr.scrollTop=tr.scrollHeight;
+}
 
 function vcFresh(callee){
   return {
@@ -15846,7 +15862,7 @@ function vcStartDeepgram(){
   let ws; try{ ws=new WebSocket("wss://api.deepgram.com/v1/listen?"+params.toString(), ["token",key]); }
   catch(e){ toast("Deepgram connect failed"); return; }
   vc.dgWs=ws;
-  ws.onopen=()=>{ vc._dgRetries=0; vc.dgKeepAlive=setInterval(()=>{ try{ ws.readyState===1&&ws.send(JSON.stringify({type:"KeepAlive"})); }catch(e){} },5000); vcStatus("Listening…"); };
+  ws.onopen=()=>{ vc._dgRetries=0; vcDbgEvent("dg-open"); vc.dgKeepAlive=setInterval(()=>{ try{ ws.readyState===1&&ws.send(JSON.stringify({type:"KeepAlive"})); }catch(e){} },5000); vcStatus("Listening…"); };
   ws.onmessage=(ev)=>{
     let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
     if(m.type==='SpeechStarted') return;   // bare VAD is NOT a barge-in (echo/noise)
@@ -15867,7 +15883,7 @@ function vcStartDeepgram(){
   ws.onclose=()=>{
     if(vc&&vc.dgKeepAlive){ clearInterval(vc.dgKeepAlive); vc.dgKeepAlive=null; }
     if(vc&&vc.active){
-      vc._dgRetries=(vc._dgRetries||0)+1;
+      vc._dgRetries=(vc._dgRetries||0)+1; vcDbgEvent("dg-reconnect","try "+vc._dgRetries);
       if(vc._dgRetries<=5){ const w=Math.min(3000,500*vc._dgRetries); setTimeout(()=>{ if(vc&&vc.active) vcStartDeepgram(); },w); }
       else { vcStatus("Lost connection"); }
     }
@@ -15875,8 +15891,29 @@ function vcStartDeepgram(){
 }
 function vcCommitUserTurn(){
   const full=(vc._finalBuf||'').trim(); if(!full) return;
+  // GUARD: Deepgram sends speech_final AND UtteranceEnd for the same utterance, often
+  // milliseconds apart. Without this, one thing you say commits twice → two replies, and
+  // the second bumps turnSeq and aborts the first mid-stream (the "repeats then cuts off"
+  // bug). Drop a commit that is identical to the last one within a short window.
+  const now=performance.now();
+  if(vc._lastCommitText===full && (now-(vc._lastCommitAt||0))<2500){ vc._finalBuf=''; return; }
+  vc._lastCommitText=full; vc._lastCommitAt=now;
   vc._finalBuf=''; vcStatus("Listening…");
+  if(state.callSttFix){
+    vcStatus("…");
+    vcFixStt(full).then(fixed=>{
+      const text=(fixed&&fixed.trim())||full;
+      if(fixed&&fixed!==full) vcDbgEvent("stt-fix",full+" → "+fixed);
+      vc.transcript.push({role:'user',content:text});
+      vcAddTranscript(state.user||'You', text, true);
+      vcDbgEvent("user-commit",text);
+      vcOnUserTurn(text);
+    });
+    return;
+  }
   vc.transcript.push({role:'user',content:full});
+  vcAddTranscript(state.user||'You', full, true);
+  vcDbgEvent("user-commit",full);
   vcOnUserTurn(full);
 }
 
@@ -15894,7 +15931,7 @@ async function vcOnUserTurn(userText){
   if(vc.debug){ if(!vc.debug.sysLogged){ vc.debug.sys=vc._sysPrompt; vc.debug.sysLogged=true; } vc.debug.turns.push(dbg); }
   const chunker=vcMakeChunker(seg=>{ if(myTurn===vc.turnSeq){ dbg.chunks.push({text:seg, at:Math.round(performance.now()-dbg.t0)}); vcTtsSend(seg); } });
   const sys=vc._sysPrompt||"You are a friend talking with the user. Reply briefly in their language.";
-  const messages=[{role:'system',content:sys}, ...vcHistory.slice(-12)];
+  const messages=[{role:'system',content:sys}, ...vcHistory.slice(-30)];
   const reqBody={ model:(state.callModel||"deepseek/deepseek-v4-pro"), messages, stream:true,
     temperature:fnTemp("call",0.8), max_tokens:fnTok("call",300), reasoning:{enabled:false,exclude:true},
     provider:{sort:"latency"} };
@@ -15920,7 +15957,10 @@ async function vcOnUserTurn(userText){
   finally{
     vc.generating=false;
     dbg.reply=acc.trim(); dbg.total=Math.round(performance.now()-dbg.t0);
-    if(myTurn===vc.turnSeq && acc.trim()){ vcHistory.push({role:'assistant',content:acc.trim()}); vc.transcript.push({role:'assistant',content:acc.trim()}); }
+    if(myTurn===vc.turnSeq && acc.trim()){ vcHistory.push({role:'assistant',content:acc.trim()}); vc.transcript.push({role:'assistant',content:acc.trim()});
+      const shown=acc.trim().replace(/\[[^\]]*\]/g,'').replace(/\s+/g,' ').trim();
+      if(shown && vc.callee) vcAddTranscript(vc.callee.name, shown, false);
+    }
   }
 }
 
@@ -16005,6 +16045,22 @@ function vcApplyPronounce(text){
   for(const [re,to] of vcBuildPronounce()){ out=out.replace(re,to); }
   return out;
 }
+/* Optional STT fixer (toggle): the user's spoken line is auto-transcribed and may contain
+   mis-heard words (esp. Turkish + names). When enabled, a fast model corrects ONLY obvious
+   mis-captures using the recent conversation as context — it must NOT rephrase or answer. */
+async function vcFixStt(text){
+  try{
+    if(!state.key||!text||text.length<3) return text;
+    const ctx=vcHistory.slice(-6).map(m=>`${m.role==='user'?(state.user||'User'):(vc.callee&&vc.callee.name||'Them')}: ${m.content}`).join("\n");
+    const sys=`You repair speech-to-text errors in a spoken line. The user spoke in a live conversation and the transcript may contain mis-heard words (wrong similar-sounding words, mangled names, broken Turkish). Using the conversation context, return the CORRECTED line and NOTHING else. Rules: keep the SAME language; keep the user's meaning and wording; fix only words that are clearly mis-transcribed; if a name from the context fits a garbled word, use it; do NOT answer, rephrase, translate, add, or remove content; if nothing is clearly wrong, return the line unchanged. Output ONLY the corrected line.`;
+    const usr=`Conversation so far:\n${ctx||'(start of conversation)'}\n\nRaw transcript of what the user just said:\n"${text}"\n\nCorrected line:`;
+    const out=await chatCompletion([{role:'system',content:sys},{role:'user',content:usr}],
+      state.callModel||"deepseek/deepseek-v4-flash",{temp:0.1,max:120,dbg:"Call STT fix"});
+    let fixed=(out||'').trim().replace(/^["'""]|["'""]$/g,'').trim();
+    if(!fixed||fixed.length>text.length*2.5) return text;   // sanity: reject runaway output
+    return fixed;
+  }catch(e){ return text; }
+}
 async function vcSynth(text,turn){
   const relay=(state.ttsRelay||"").trim().replace(/\/+$/,''); if(!relay) return;
   const callee=vc.callee||{};
@@ -16050,7 +16106,7 @@ function vcStopPlayback(){ vc.activeSources.forEach(s=>{try{s.stop();}catch(e){}
 function vcB64ToBuf(b64){ const bin=atob(b64); const len=bin.length; const bytes=new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
 
 /* ---- barge-in ---- */
-function vcBargeIn(){ vc.turnSeq++; vcStopPlayback(); if(vc.orAbort){try{vc.orAbort.abort();}catch(e){}} if(vc.ttsAbort&&vc.ttsAbort!==vc.orAbort){try{vc.ttsAbort.abort();}catch(e){}} vc.ttsQueue=[]; vc.ttsBusy=false; vc.generating=false; vc.speaking=false; vcStatus("Listening…"); }
+function vcBargeIn(){ vcDbgEvent("barge-in"); vc.turnSeq++; vcStopPlayback(); if(vc.orAbort){try{vc.orAbort.abort();}catch(e){}} if(vc.ttsAbort&&vc.ttsAbort!==vc.orAbort){try{vc.ttsAbort.abort();}catch(e){}} vc.ttsQueue=[]; vc.ttsBusy=false; vc.generating=false; vc.speaking=false; vcStatus("Listening…"); }
 
 /* ---- wake lock ---- */
 async function vcWakeLock(){ try{ if('wakeLock' in navigator){ _vcWakeLock=await navigator.wakeLock.request('screen'); } }catch(e){} }
@@ -16080,9 +16136,10 @@ function startCallWith(pid){
   const p=(state.personas||[]).find(x=>x.id===pid);
   if(!p){ toast("Character not found"); return; }
   closeModal('callPickerModal');
-  // populate overlay
-  {const a=document.getElementById('vcAvatar'); if(a)a.textContent=p.avatar||'🎭';}
+  // populate overlay — character's generated image if present, else their emoji
+  {const pic=document.getElementById('vcPic'); if(pic){ if(p.image){ pic.style.backgroundImage=`url("${p.image}")`; pic.textContent=''; } else { pic.style.backgroundImage='none'; pic.textContent=p.avatar||'🎭'; } }}
   {const n=document.getElementById('vcName'); if(n)n.textContent=p.name;}
+  {const tr=document.getElementById('vcTranscript'); if(tr){ tr.innerHTML=''; tr.style.display='none'; }}
   vcStatus("Connecting…");
   {const d=document.getElementById('vcDur'); if(d)d.textContent='0:00';}
   openModal('callOverlay');
@@ -16117,6 +16174,11 @@ function vcShowDebug(){
     </div>`);
   });
   host.innerHTML=rows.join('');
+  // event log (STT commits, barge-ins, reconnects)
+  if(d.events&&d.events.length){
+    const evRows=d.events.map(e=>`<div style="font-size:11px;margin:1px 0"><span style="opacity:.5">${e.at}ms</span> <b>${esc(e.kind)}</b> ${esc(String(e.detail||'').slice(0,80))}</div>`).join('');
+    host.innerHTML+=`<details style="margin-top:8px"><summary>Event log (${d.events.length})</summary>${evRows}</details>`;
+  }
   openModal('callDbgModal');
 }
 
@@ -16197,6 +16259,10 @@ async function commitCallMemory(callee, transcript){
     if(!chat.presentIds.includes(callee.id)) chat.presentIds.push(callee.id);
     const savedLoc=chat.location; if(arcPlace) chat.location=arcPlace;
     await commitMemoryArc(chat, startIdx, chat.messages.length-1, curGameDay());
+    // Calendar pass over the call: plans made on the call ("let's meet at 8") become real
+    // calendar entries, exactly as in a text scene. runCalendarEngine reads recentExchangeMsgs
+    // from chat.messages, so it must run while the transcript span is still spliced on.
+    try{ if(state.calOn) await runCalendarEngine(chat); }catch(e){}
     chat.location=savedLoc;
   } finally {
     chat.messages=realMessages; chat.presentIds=realPresent; markChatDirty(chat);
