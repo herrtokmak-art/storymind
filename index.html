@@ -354,6 +354,9 @@
   .galComboBar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
   .galVidWrap{margin-bottom:16px;}
   .galVidRow{display:flex;align-items:center;gap:10px;margin-top:6px;}
+  .galVidPick{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 9px;cursor:pointer;user-select:none;white-space:nowrap;}
+  .galVidPick input{accent-color:var(--accent);margin:0;}
+  .galVidPick:has(input:checked){border-color:var(--accent);color:var(--accent);}
   .imgNav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:none;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);color:#fff;font-size:26px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;}
   .imgNav.imgPrev{left:14px;} .imgNav.imgNext{right:14px;}
   .diaryReader{max-width:600px;width:100%;max-height:92%;overflow-y:auto;background:none;border:none;padding:0;}
@@ -565,7 +568,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-30 · v18.28 (RELEASE — UI overhaul complete: landing-page image, story-page universe background, universal {{user}} substitution, redesigned Diaries (swipe pages), rebuilt Gallery (character folders + swipe viewer + video combine/pin), rebuilt Memories (character folders), and Settings regrouped by system into 8 sections with all element wiring proven intact. Per-universe overrides audited: prompts already fully per-universe; non-prompt settings remain global by design. — Batch 4 UI: SETTINGS regrouped BY SYSTEM into 8 sections — API Keys (all keys incl. Deepgram/Inworld now together), Memory System, Roleplay, Image Generation, Video Generation, Voice Calls, World & Director, and Interface & Data. Each system now keeps its model picker, prompts, and on/off toggles in ONE place instead of scattered across LLMs/Prompts/Functions groups. This was a pure layout move — every setting's wiring is preserved (proven: all 411 element IDs identical before/after, none lost or duplicated). Batch 3 UI: MEMORIES page rebuilt into character folders — tap a character to see what they remember (still universe-scoped); a back button returns to the grid, legacy ownerless memories get an Unassigned folder, and deleting the last memory in a folder drops you back to the grid. Edit/Delete/Add/Condense all unchanged. Batch 2 UI: DIARIES redesigned — fuller papyrus page, date moved to top-right, removed the Day-tab/cover-button clutter, and added swipe (or arrow) to turn between days. GALLERY rebuilt — Images/Videos tabs, character folders (tap a character to see their scenes), a swipe viewer with prev/next, per-image and per-video delete, plus video 'Combine & loop all' (a sequential looping playlist of the separate clips) and 'Pin playlist to chat' which loops them in the story rail. Per-image Animate/Movie deferred to its own pass. Story screen now uses the universe image as its background, falling back through sub-area then location then universe as you move; the bare emoji placeholder is gone when a universe image exists. {{user}} is now a universal placeholder substituted to your name in all player-authored content fed to the model — bios, world setting, and location descriptions. Landing page uses your uploaded image as a full-bleed background (compressed + embedded as base64 to keep the single-file rule; ~127KB), with the title overlaid at top and the Proceed button at the bottom-middle. UI overhaul batch 1: onboarding collapsed to a single landing page with a bottom-centered Proceed button — the API-key step and character-roster step are removed (keys live in Settings now); Proceed drops straight into the characters page. Universe cards now overlay the name + short setting top-left and a character-count chip bottom-left. Pregnancy/event dice rolls are now LOGGED (console + chat.lastTrackerRoll) and a FAILED chance-roll surfaces a quiet "didn't take" beat instead of silently swallowing the miss; a guard stops re-rolling once already conceived. Tracker editor redesigned into compact segmented method cards + a clear chance card (all field IDs preserved). Recap thresholds (start/refresh/keep) are now tunable persisted settings, ready for UI controls in the upcoming overhaul. Voice calls: background rolling recap — stacked 'story so far' chapters (3rd-person narrative + fact bullets on decisions/plans/who-believes-what) keep a long call consistent without slowing replies; visible in call debug. Standard-RP wiring is next. Prior: much stronger STT correction — the auto-fixer now knows this world's place & character names and maps mis-heard words to them (fixes e.g. "bozkır"→"yalı"); plus light nova-3 keyterm boosting. Prior: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-30 · v18.29 (Videos tab: you can now CHECK specific clips and loop/pin just those — each video has a 'Loop' checkbox plus a Select-all/Clear toggle; the Combine and Pin buttons act on your selection (and still mean ALL when nothing is checked), in the order shown. Prior RELEASE — UI overhaul complete: landing-page image, story-page universe background, universal {{user}} substitution, redesigned Diaries (swipe pages), rebuilt Gallery (character folders + swipe viewer + video combine/pin), rebuilt Memories (character folders), and Settings regrouped by system into 8 sections with all element wiring proven intact. Per-universe overrides audited: prompts already fully per-universe; non-prompt settings remain global by design. — Batch 4 UI: SETTINGS regrouped BY SYSTEM into 8 sections — API Keys (all keys incl. Deepgram/Inworld now together), Memory System, Roleplay, Image Generation, Video Generation, Voice Calls, World & Director, and Interface & Data. Each system now keeps its model picker, prompts, and on/off toggles in ONE place instead of scattered across LLMs/Prompts/Functions groups. This was a pure layout move — every setting's wiring is preserved (proven: all 411 element IDs identical before/after, none lost or duplicated). Batch 3 UI: MEMORIES page rebuilt into character folders — tap a character to see what they remember (still universe-scoped); a back button returns to the grid, legacy ownerless memories get an Unassigned folder, and deleting the last memory in a folder drops you back to the grid. Edit/Delete/Add/Condense all unchanged. Batch 2 UI: DIARIES redesigned — fuller papyrus page, date moved to top-right, removed the Day-tab/cover-button clutter, and added swipe (or arrow) to turn between days. GALLERY rebuilt — Images/Videos tabs, character folders (tap a character to see their scenes), a swipe viewer with prev/next, per-image and per-video delete, plus video 'Combine & loop all' (a sequential looping playlist of the separate clips) and 'Pin playlist to chat' which loops them in the story rail. Per-image Animate/Movie deferred to its own pass. Story screen now uses the universe image as its background, falling back through sub-area then location then universe as you move; the bare emoji placeholder is gone when a universe image exists. {{user}} is now a universal placeholder substituted to your name in all player-authored content fed to the model — bios, world setting, and location descriptions. Landing page uses your uploaded image as a full-bleed background (compressed + embedded as base64 to keep the single-file rule; ~127KB), with the title overlaid at top and the Proceed button at the bottom-middle. UI overhaul batch 1: onboarding collapsed to a single landing page with a bottom-centered Proceed button — the API-key step and character-roster step are removed (keys live in Settings now); Proceed drops straight into the characters page. Universe cards now overlay the name + short setting top-left and a character-count chip bottom-left. Pregnancy/event dice rolls are now LOGGED (console + chat.lastTrackerRoll) and a FAILED chance-roll surfaces a quiet "didn't take" beat instead of silently swallowing the miss; a guard stops re-rolling once already conceived. Tracker editor redesigned into compact segmented method cards + a clear chance card (all field IDs preserved). Recap thresholds (start/refresh/keep) are now tunable persisted settings, ready for UI controls in the upcoming overhaul. Voice calls: background rolling recap — stacked 'story so far' chapters (3rd-person narrative + fact bullets on decisions/plans/who-believes-what) keep a long call consistent without slowing replies; visible in call debug. Standard-RP wiring is next. Prior: much stronger STT correction — the auto-fixer now knows this world's place & character names and maps mis-heard words to them (fixes e.g. "bozkır"→"yalı"); plus light nova-3 keyterm boosting. Prior: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -12689,12 +12692,22 @@ function _renderGalImages(el){
 function _renderGalVideos(el){
   const vids=state.videos.filter(v=>v&&v.url);
   if(!vids.length){ const d=document.createElement('div');d.className="desc";d.style.marginTop="14px";d.textContent="No videos yet. Animate a scene from the chat to create one.";el.appendChild(d);return; }
-  // "Combine" = sequential looping playlist of ALL videos (newest→oldest), not a rendered file.
-  const combo=document.createElement('div'); combo.className="galComboBar";
-  combo.innerHTML=`<button class="btn small" onclick="playVideoPlaylist()">▶️ Combine &amp; loop all</button>
-    <button class="btn sec small" onclick="pinVideoPlaylist()">📌 Pin playlist to chat</button>`;
-  el.appendChild(combo);
+  // Drop any selection ids that no longer exist (e.g. after a delete).
+  const liveIds=new Set(vids.map(v=>v.id));
+  _galVidSel.forEach(id=>{ if(!liveIds.has(id))_galVidSel.delete(id); });
   const list=vids.slice().reverse();
+  const selCount=_galVidSel.size;
+  // Combine/pin act on the SELECTED clips; with nothing checked they fall back to ALL (preserving
+  // the original "combine & loop all" behaviour). The labels show the count so it's unambiguous.
+  const combo=document.createElement('div'); combo.className="galComboBar";
+  const actN=selCount||list.length;
+  combo.innerHTML=`
+    <button class="btn small" onclick="playVideoPlaylist()">▶️ ${selCount?`Loop selected (${selCount})`:"Combine &amp; loop all"}</button>
+    <button class="btn sec small" onclick="pinVideoPlaylist()">📌 ${selCount?`Pin selected (${selCount})`:"Pin all to chat"}</button>
+    <button class="btn sec small" onclick="galVidSelectAll()">${selCount===list.length?"Clear selection":"Select all"}</button>`;
+  el.appendChild(combo);
+  if(selCount){ const hint=document.createElement('div');hint.className="desc";hint.style.cssText="margin:-4px 0 10px";hint.textContent=`${selCount} selected · they loop/pin in the order shown below.`;el.appendChild(hint); }
+
   list.forEach(v=>{
     const wrap=document.createElement('div'); wrap.className="galVidWrap";
     const remote=httpsMedia(v.url);
@@ -12703,12 +12716,25 @@ function _renderGalVideos(el){
     vid.style.cssText="width:100%;border-radius:12px;border:1px solid var(--border);background:#000";
     vid.onerror=()=>{ const fb=document.createElement('div');fb.style.cssText="padding:10px;font-size:13px;line-height:1.4";fb.innerHTML=`▶️ Video ready. <a href="${remote}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">Tap to open ↗</a>`; if(vid.parentNode){vid.parentNode.insertBefore(fb,vid);vid.remove();} };
     const row=document.createElement('div'); row.className="galVidRow";
+    // selection checkbox
+    const lbl=document.createElement('label'); lbl.className="galVidPick"; lbl.title="Include in the loop / pin";
+    const cb=document.createElement('input'); cb.type="checkbox"; cb.checked=_galVidSel.has(v.id);
+    cb.onchange=()=>{ if(cb.checked)_galVidSel.add(v.id); else _galVidSel.delete(v.id); renderGallery(); };
+    const tick=document.createElement('span'); tick.textContent="Loop";
+    lbl.appendChild(cb); lbl.appendChild(tick);
     const cap=document.createElement('div'); cap.className="desc"; cap.style.flex="1"; cap.textContent=`${v.character||""}${v.prompt?" — "+v.prompt:""}`;
     const del=document.createElement('button'); del.className="btn sec small"; del.textContent="🗑"; del.style.width="auto";
     del.onclick=()=>{ if(confirm("Delete this video?"))delGalleryVideo(v.id); };
-    row.appendChild(cap); row.appendChild(del);
+    row.appendChild(lbl); row.appendChild(cap); row.appendChild(del);
     wrap.appendChild(vid); wrap.appendChild(row); el.appendChild(wrap);
   });
+}
+// Toggle select-all / clear for the video loop selection.
+function galVidSelectAll(){
+  const vids=state.videos.filter(v=>v&&v.url);
+  if(_galVidSel.size===vids.length) _galVidSel.clear();
+  else vids.forEach(v=>_galVidSel.add(v.id));
+  renderGallery();
 }
 
 /* ---- swipe image viewer (gallery) ---- */
@@ -12744,7 +12770,15 @@ function downloadCurrent(){ if(_curImg&&_curImg.url){const a=document.createElem
 
 /* ---- video playlist (combine = sequential endless loop of separate clips) ---- */
 let _vpEls=null,_vpIdx=0;
-function _videoPlaylistUrls(){ return state.videos.filter(v=>v&&v.url).slice().reverse().map(v=>httpsMedia(v.url)); }
+let _galVidSel=new Set();   // ids of videos chosen for the loop/pin (empty = all)
+// Resolve the working set of videos in DISPLAY order (newest→oldest). If some are selected, only
+// those; otherwise all. Returns the raw records so callers can map to url or httpsMedia.
+function _selectedVideos(){
+  const list=state.videos.filter(v=>v&&v.url).slice().reverse();
+  if(_galVidSel.size) return list.filter(v=>_galVidSel.has(v.id));
+  return list;
+}
+function _videoPlaylistUrls(){ return _selectedVideos().map(v=>httpsMedia(v.url)); }
 function playVideoPlaylist(){
   const urls=_videoPlaylistUrls(); if(!urls.length){toast("No videos to play");return;}
   // Reuse the image modal shell as a player surface.
@@ -12758,14 +12792,14 @@ function playVideoPlaylist(){
   playAt(0);
   openModal('imgModal');
 }
-// Pin the playlist into the chat as a persistent scene card that plays clips consecutively.
+// Pin the selected (or all) clips into the chat as a persistent looping playlist.
 function pinVideoPlaylist(){
   const chat=curChat(); if(!chat){toast("Open a story first");return;}
-  const urls=state.videos.filter(v=>v&&v.url).slice().reverse().map(v=>v.url);
+  const urls=_selectedVideos().map(v=>v.url);
   if(!urls.length){toast("No videos to pin");return;}
   chat.pinnedPlaylist=urls; markChatDirty&&markChatDirty(chat); persistChats();
   if(typeof renderImageRail==="function")renderImageRail();
-  toast("Playlist pinned to chat");
+  toast(`Pinned ${urls.length} clip${urls.length===1?"":"s"} to chat`);
   show('chat');
 }
 
