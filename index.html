@@ -530,7 +530,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.19-voice (Voice calls: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.20-voice (Voice calls: much stronger STT correction — the auto-fixer now knows this world's place & character names and maps mis-heard words to them (fixes e.g. "bozkır"→"yalı"); plus light nova-3 keyterm boosting. Prior: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -15859,6 +15859,16 @@ function vcStartDeepgram(){
     interim_results:"true", vad_events:"true", endpointing:String(state.callEndpoint||400),
     utterance_end_ms:String(state.callUttEnd||1800), smart_format:"true", punctuate:"true"
   });
+  // Keyterm prompting (nova-3): gently boost recall of this world's proper nouns so STT mangles
+  // them less. Kept SMALL and capped — over-stuffing causes the model to force false matches, and
+  // non-English keyterm support is limited, so this is a light secondary aid; the post-hoc STT
+  // corrector remains the primary fix.
+  try{
+    if((state.callDgModel||"nova-3").startsWith("nova-3")){
+      const terms=(vcNameGlossary()||"").split(",").map(s=>s.trim()).filter(s=>s.length>=3).slice(0,12);
+      terms.forEach(t=>params.append("keyterm",t));
+    }
+  }catch(e){}
   let ws; try{ ws=new WebSocket("wss://api.deepgram.com/v1/listen?"+params.toString(), ["token",key]); }
   catch(e){ toast("Deepgram connect failed"); return; }
   vc.dgWs=ws;
@@ -16059,12 +16069,35 @@ function vcApplyPronounce(text){
 /* Optional STT fixer (toggle): the user's spoken line is auto-transcribed and may contain
    mis-heard words (esp. Turkish + names). When enabled, a fast model corrects ONLY obvious
    mis-captures using the recent conversation as context — it must NOT rephrase or answer. */
+/* Build a glossary of proper nouns STT is likely to mangle: places, sub-areas, characters,
+   the player + callee names. Cached on vc per call. */
+function vcNameGlossary(){
+  if(vc&&vc._glossary) return vc._glossary;
+  const names=new Set();
+  try{
+    if(state.user) names.add(state.user);
+    (curLocations()||[]).forEach(l=>{ if(l&&l.name)names.add(l.name); (l.sublocations||[]).forEach(s=>{ if(s&&s.name)names.add(s.name); }); });
+    const uid=(curChat()&&curChat().universeId)||state.curUniverse;
+    personasInUniverse(uid).forEach(p=>{ if(p&&p.name)names.add(p.name); });
+  }catch(e){}
+  const g=Array.from(names).filter(Boolean).slice(0,60).join(", ");
+  if(vc) vc._glossary=g;
+  return g;
+}
 async function vcFixStt(text){
   try{
     if(!state.key||!text||text.length<3) return text;
     const ctx=vcHistory.slice(-6).map(m=>`${m.role==='user'?(state.user||'User'):(vc.callee&&vc.callee.name||'Them')}: ${m.content}`).join("\n");
-    const sys=`You repair speech-to-text errors in a spoken line. The user spoke in a live conversation and the transcript may contain mis-heard words (wrong similar-sounding words, mangled names, broken Turkish). Using the conversation context, return the CORRECTED line and NOTHING else. Rules: keep the SAME language; keep the user's meaning and wording; fix only words that are clearly mis-transcribed; if a name from the context fits a garbled word, use it; do NOT answer, rephrase, translate, add, or remove content; if nothing is clearly wrong, return the line unchanged. Output ONLY the corrected line.`;
-    const usr=`Conversation so far:\n${ctx||'(start of conversation)'}\n\nRaw transcript of what the user just said:\n"${text}"\n\nCorrected line:`;
+    const glossary=vcNameGlossary();
+    const sys=`You repair speech-to-text (STT) errors in ONE spoken line from a live voice conversation. The line was auto-transcribed and often contains mis-heard words: similar-SOUNDING wrong words, mangled proper nouns (names/places), and broken Turkish. Your ONLY job is to recover what the user most likely actually said, using the conversation context and the list of known names.
+
+Rules:
+- Keep the SAME language and the user's own wording and meaning. You are NOT rephrasing or improving — only repairing mis-transcription.
+- Be willing to fix words that SOUND like a known name or a context word but came out garbled (e.g. a place/character from the list rendered as nonsense). Map garbled sounds to the correct known name when the phonetics and context clearly fit.
+- Do NOT answer, reply, translate, add, or remove meaning. Do NOT add punctuation-heavy rewrites.
+- If the line already makes sense, return it UNCHANGED.
+- Output ONLY the corrected line, nothing else.`;
+    const usr=`KNOWN NAMES in this world (fix garbled words toward these when they fit by sound + context):\n${glossary||'(none)'}\n\nConversation so far:\n${ctx||'(start of conversation)'}\n\nRaw STT transcript of what the user just said:\n"${text}"\n\nCorrected line:`;
     const out=await chatCompletion([{role:'system',content:sys},{role:'user',content:usr}],
       state.callModel||"deepseek/deepseek-v4-flash",{temp:0.1,max:120,dbg:"Call STT fix"});
     let fixed=(out||'').trim().replace(/^["'""]|["'""]$/g,'').trim();
