@@ -569,7 +569,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-30 · v18.31 (DUBBING fixes + auto-speak. Fixed: xAI TTS was failing because the Turkish voice names weren't valid AtlasCloud voice ids — now uses the real voices (eve/ara/leo/rex/sal, all speak Turkish) with a custom field for cloned ids. Fixed: Settings now has a Save button (a sticky bar at the bottom) — before, settings only saved when you hit Test connection. NEW: choose your TTS engine (xAI or your Inworld relay) in Settings → Voice Calls → Dubbing. NEW: Auto-speak toggle — when on, each character's DIALOGUE is spoken automatically (never narration or thoughts), and the roleplay payload asks the model to write that dialogue with xAI's tone/emotion tags (pauses, whisper, laugh…). Prior v18.30: DUBBING added — characters can now speak. A 🔊 button on each reply reads it aloud in that character's voice (xAI TTS via your AtlasCloud key), with a 🔊 Read-aloud in diaries too. Each character gets a Dub voice in their editor (Turkish Emre/Kaan/Aylin or multilingual, or a custom/cloned voice id). A 🎬🗣️ button turns a reply WITH an image into a lip-synced talking video (TTS → Kling lip-sync, server-side — no extra tools). Global voice/language/speed live in Settings → Voice Calls → Dubbing. Notes: dubbing is generate-then-play (a few seconds), not the live-call pipeline; talking-video is two cloud jobs so it's slower + costs more and works best on front-facing portrait frames. Prior — Videos tab: you can now CHECK specific clips and loop/pin just those — each video has a 'Loop' checkbox plus a Select-all/Clear toggle; the Combine and Pin buttons act on your selection (and still mean ALL when nothing is checked), in the order shown. Prior RELEASE — UI overhaul complete: landing-page image, story-page universe background, universal {{user}} substitution, redesigned Diaries (swipe pages), rebuilt Gallery (character folders + swipe viewer + video combine/pin), rebuilt Memories (character folders), and Settings regrouped by system into 8 sections with all element wiring proven intact. Per-universe overrides audited: prompts already fully per-universe; non-prompt settings remain global by design. — Batch 4 UI: SETTINGS regrouped BY SYSTEM into 8 sections — API Keys (all keys incl. Deepgram/Inworld now together), Memory System, Roleplay, Image Generation, Video Generation, Voice Calls, World & Director, and Interface & Data. Each system now keeps its model picker, prompts, and on/off toggles in ONE place instead of scattered across LLMs/Prompts/Functions groups. This was a pure layout move — every setting's wiring is preserved (proven: all 411 element IDs identical before/after, none lost or duplicated). Batch 3 UI: MEMORIES page rebuilt into character folders — tap a character to see what they remember (still universe-scoped); a back button returns to the grid, legacy ownerless memories get an Unassigned folder, and deleting the last memory in a folder drops you back to the grid. Edit/Delete/Add/Condense all unchanged. Batch 2 UI: DIARIES redesigned — fuller papyrus page, date moved to top-right, removed the Day-tab/cover-button clutter, and added swipe (or arrow) to turn between days. GALLERY rebuilt — Images/Videos tabs, character folders (tap a character to see their scenes), a swipe viewer with prev/next, per-image and per-video delete, plus video 'Combine & loop all' (a sequential looping playlist of the separate clips) and 'Pin playlist to chat' which loops them in the story rail. Per-image Animate/Movie deferred to its own pass. Story screen now uses the universe image as its background, falling back through sub-area then location then universe as you move; the bare emoji placeholder is gone when a universe image exists. {{user}} is now a universal placeholder substituted to your name in all player-authored content fed to the model — bios, world setting, and location descriptions. Landing page uses your uploaded image as a full-bleed background (compressed + embedded as base64 to keep the single-file rule; ~127KB), with the title overlaid at top and the Proceed button at the bottom-middle. UI overhaul batch 1: onboarding collapsed to a single landing page with a bottom-centered Proceed button — the API-key step and character-roster step are removed (keys live in Settings now); Proceed drops straight into the characters page. Universe cards now overlay the name + short setting top-left and a character-count chip bottom-left. Pregnancy/event dice rolls are now LOGGED (console + chat.lastTrackerRoll) and a FAILED chance-roll surfaces a quiet "didn't take" beat instead of silently swallowing the miss; a guard stops re-rolling once already conceived. Tracker editor redesigned into compact segmented method cards + a clear chance card (all field IDs preserved). Recap thresholds (start/refresh/keep) are now tunable persisted settings, ready for UI controls in the upcoming overhaul. Voice calls: background rolling recap — stacked 'story so far' chapters (3rd-person narrative + fact bullets on decisions/plans/who-believes-what) keep a long call consistent without slowing replies; visible in call debug. Standard-RP wiring is next. Prior: much stronger STT correction — the auto-fixer now knows this world's place & character names and maps mis-heard words to them (fixes e.g. "bozkır"→"yalı"); plus light nova-3 keyterm boosting. Prior: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-30 · v18.33 (fal.ai added as a THIRD image provider — z-image with LoRA. Set a rule's provider to 'fal.ai' to use it; the rule's LoRA path/scale apply. Key + model + an NSFW safety-checker toggle live in Settings → Image Generation → fal.ai. The safety checker is OFF by default (that's what was blocking non-explicit images in fal's playground — it forces the filter on). Note: off ≠ fully uncensored — z-image is a mainstream model, so the toggle only controls fal's output filter, not the model itself. Prior v18.32: AtlasCloud LoRA support — image AND video rules now have a 'LoRA path' + 'scale' field. Paste a Hugging Face owner/name, a .safetensors URL, or a CivitAI download URL. Requires a LoRA-capable base model id (e.g. z-image/turbo-lora for image, a Wan …-lora id for video) and the LoRA's trigger word in that rule's prompt. Note: CivitAI direct URLs are unofficial on Atlas — if one fails, re-host the .safetensors on Hugging Face. Prior v18.31: DUBBING fixes + auto-speak. Fixed: xAI TTS was failing because the Turkish voice names weren't valid AtlasCloud voice ids — now uses the real voices (eve/ara/leo/rex/sal, all speak Turkish) with a custom field for cloned ids. Fixed: Settings now has a Save button (a sticky bar at the bottom) — before, settings only saved when you hit Test connection. NEW: choose your TTS engine (xAI or your Inworld relay) in Settings → Voice Calls → Dubbing. NEW: Auto-speak toggle — when on, each character's DIALOGUE is spoken automatically (never narration or thoughts), and the roleplay payload asks the model to write that dialogue with xAI's tone/emotion tags (pauses, whisper, laugh…). Prior v18.30: DUBBING added — characters can now speak. A 🔊 button on each reply reads it aloud in that character's voice (xAI TTS via your AtlasCloud key), with a 🔊 Read-aloud in diaries too. Each character gets a Dub voice in their editor (Turkish Emre/Kaan/Aylin or multilingual, or a custom/cloned voice id). A 🎬🗣️ button turns a reply WITH an image into a lip-synced talking video (TTS → Kling lip-sync, server-side — no extra tools). Global voice/language/speed live in Settings → Voice Calls → Dubbing. Notes: dubbing is generate-then-play (a few seconds), not the live-call pipeline; talking-video is two cloud jobs so it's slower + costs more and works best on front-facing portrait frames. Prior — Videos tab: you can now CHECK specific clips and loop/pin just those — each video has a 'Loop' checkbox plus a Select-all/Clear toggle; the Combine and Pin buttons act on your selection (and still mean ALL when nothing is checked), in the order shown. Prior RELEASE — UI overhaul complete: landing-page image, story-page universe background, universal {{user}} substitution, redesigned Diaries (swipe pages), rebuilt Gallery (character folders + swipe viewer + video combine/pin), rebuilt Memories (character folders), and Settings regrouped by system into 8 sections with all element wiring proven intact. Per-universe overrides audited: prompts already fully per-universe; non-prompt settings remain global by design. — Batch 4 UI: SETTINGS regrouped BY SYSTEM into 8 sections — API Keys (all keys incl. Deepgram/Inworld now together), Memory System, Roleplay, Image Generation, Video Generation, Voice Calls, World & Director, and Interface & Data. Each system now keeps its model picker, prompts, and on/off toggles in ONE place instead of scattered across LLMs/Prompts/Functions groups. This was a pure layout move — every setting's wiring is preserved (proven: all 411 element IDs identical before/after, none lost or duplicated). Batch 3 UI: MEMORIES page rebuilt into character folders — tap a character to see what they remember (still universe-scoped); a back button returns to the grid, legacy ownerless memories get an Unassigned folder, and deleting the last memory in a folder drops you back to the grid. Edit/Delete/Add/Condense all unchanged. Batch 2 UI: DIARIES redesigned — fuller papyrus page, date moved to top-right, removed the Day-tab/cover-button clutter, and added swipe (or arrow) to turn between days. GALLERY rebuilt — Images/Videos tabs, character folders (tap a character to see their scenes), a swipe viewer with prev/next, per-image and per-video delete, plus video 'Combine & loop all' (a sequential looping playlist of the separate clips) and 'Pin playlist to chat' which loops them in the story rail. Per-image Animate/Movie deferred to its own pass. Story screen now uses the universe image as its background, falling back through sub-area then location then universe as you move; the bare emoji placeholder is gone when a universe image exists. {{user}} is now a universal placeholder substituted to your name in all player-authored content fed to the model — bios, world setting, and location descriptions. Landing page uses your uploaded image as a full-bleed background (compressed + embedded as base64 to keep the single-file rule; ~127KB), with the title overlaid at top and the Proceed button at the bottom-middle. UI overhaul batch 1: onboarding collapsed to a single landing page with a bottom-centered Proceed button — the API-key step and character-roster step are removed (keys live in Settings now); Proceed drops straight into the characters page. Universe cards now overlay the name + short setting top-left and a character-count chip bottom-left. Pregnancy/event dice rolls are now LOGGED (console + chat.lastTrackerRoll) and a FAILED chance-roll surfaces a quiet "didn't take" beat instead of silently swallowing the miss; a guard stops re-rolling once already conceived. Tracker editor redesigned into compact segmented method cards + a clear chance card (all field IDs preserved). Recap thresholds (start/refresh/keep) are now tunable persisted settings, ready for UI controls in the upcoming overhaul. Voice calls: background rolling recap — stacked 'story so far' chapters (3rd-person narrative + fact bullets on decisions/plans/who-believes-what) keep a long call consistent without slowing replies; visible in call debug. Standard-RP wiring is next. Prior: much stronger STT correction — the auto-fixer now knows this world's place & character names and maps mis-heard words to them (fixes e.g. "bozkır"→"yalı"); plus light nova-3 keyterm boosting. Prior: fixed the echo bug where the character's own playing audio was transcribed as the user and interrupted its own reply (half-duplex gate while audio plays); plus deliberate, well-placed pauses via punctuation. Round 2: fixed double-reply/cut-off bug, calendar plans from calls, character photo + live transcript in the call screen, full debug event log, optional STT auto-fix toggle, wider call memory (30). Prior: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -787,6 +787,16 @@
     <details class="sgroup">
       <summary><span class="sg-ico"><svg class="ic"><use href="#i-image"/></svg></span><span class="sg-meta">Image Generation<div class="sg-sub">Provider, model rules, router, rewriter, auto-illustration</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
+        <div class="card">
+          <h3><svg class="ic"><use href="#i-image"/></svg> fal.ai (z-image LoRA)</h3>
+          <div class="desc" style="margin-bottom:8px">A second image provider with z-image + LoRA. Set a rule's provider to "fal.ai" to use it; the rule's LoRA path/scale apply here too.</div>
+          <div><label>fal.ai API key</label><input type="password" id="setFalKey" placeholder="fal key" autocomplete="off"></div>
+          <div><label>fal.ai model</label><input class="fld" id="setFalModel" placeholder="fal-ai/z-image/turbo/lora"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0">
+            <label style="margin:0">NSFW safety checker <span class="desc" style="display:block;font-weight:400">When OFF, fal.ai won't auto-filter outputs. (The base model is still mainstream — off ≠ fully uncensored.)</span></label>
+            <label class="switchLbl"><input type="checkbox" id="setFalSafety"><span class="sl"></span></label>
+          </div>
+        </div>
         <div class="card">
           <div><label>Default provider</label>
             <div class="seg" id="imgProvSeg">
@@ -1626,6 +1636,7 @@
 const OR="https://openrouter.ai/api/v1";
 const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
   ttsVoice:"sm_ttsvoice",ttsLang:"sm_ttslang",ttsSpeed:"sm_ttsspeed",lipsyncModel:"sm_lipsyncmodel",ttsEngine:"sm_ttsengine",autoSpeak:"sm_autospeak",
+  falKey:"sm_falkey",falModel:"sm_falmodel",falSafety:"sm_falsafety",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
   reasoningOn:"sm_reasoningon",topP:"sm_topp",freqPenalty:"sm_freqpen",presPenalty:"sm_prespen",provDeny:"sm_provdeny",geminiUnsafe:"sm_geminiunsafe",
   rewritePrompt:"sm_rewriteprompt",vidPrompt:"sm_vidprompt",moviePrompt:"sm_movieprompt",style:"sm_style",ratio:"sm_ratio",vidDur:"sm_viddur",vidRes:"sm_vidres",vidSound:"sm_vidsound",movieSegs:"sm_moviesegs",
@@ -4368,6 +4379,9 @@ function loadState(){
     lipsyncModel:store.raw(K.lipsyncModel,"kwaivgi/kling-lipsync/audio-to-video"),
     ttsEngine:store.raw(K.ttsEngine,"xai"),
     autoSpeak:store.raw(K.autoSpeak,"")==="1",
+    falKey:store.raw(K.falKey,""),
+    falModel:store.raw(K.falModel,"fal-ai/z-image/turbo/lora"),
+    falSafety:store.raw(K.falSafety,"")==="1",   // OFF by default (you can enable the NSFW filter)
     model:store.raw(K.model,"deepseek/deepseek-v4-flash"),
     rewriter:store.raw(K.rewriter,"deepseek/deepseek-v3.2"),
     imgProvider:store.raw(K.imgProvider,"atlascloud"),
@@ -5780,13 +5794,72 @@ function atlasMsg(s){
   return "AtlasCloud error (HTTP "+s+").";
 }
 // Text-to-image via AtlasCloud. Returns a remote image URL.
+// Build the AtlasCloud `loras` array from a rule's loraPath/loraScale, per the Atlas LoRA guide:
+// loras:[{path:"<HF owner/name | .safetensors URL | CivitAI URL>", scale:<number>}].
+// Returns undefined when no LoRA is set (so the field is omitted entirely).
+function atlasLoras(rule){
+  const p=rule&&typeof rule.loraPath==="string"&&rule.loraPath.trim();
+  if(!p) return undefined;
+  let scale=parseFloat(rule.loraScale);
+  if(!(scale>=0)) scale=1;
+  return [{path:p, scale}];
+}
 async function atlasImage(prompt,negative,rule){
   const model=(rule&&rule.model_id)||state.imgModel||"seedream-3.0";
   const body={model,prompt};
   if(negative)body.negative_prompt=negative;
   if(rule&&rule.size)body.size=rule.size;
+  const loras=atlasLoras(rule); if(loras)body.loras=loras;
   const label="Image generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
   return await atlasGenerate("image",body,label,null);
+}
+
+/* ===== fal.ai image (z-image turbo LoRA, NSFW filter optional) ================
+   Synchronous endpoint (https://fal.run/{model}); returns the image directly. Auth is
+   "Authorization: Key {FAL_KEY}". enable_safety_checker is OFF unless state.falSafety is set.   */
+const FAL_RUN="https://fal.run/";
+// Map the app's RATIOS key to fal's image_size enum.
+function falImageSize(){
+  const r=state.ratio||"square";
+  if(/portrait|3_4|9_16|tall/i.test(r)) return "portrait_4_3";
+  if(/land|16_9|wide/i.test(r)) return "landscape_4_3";
+  return "square_hd";
+}
+async function falImage(prompt,negative,rule){
+  if(!state.falKey) throw{friendly:"No fal.ai API key set (Settings → Image Generation → fal.ai key)."};
+  const model=(rule&&rule.falModel)||(rule&&rule.model_id&&/^fal-ai\//.test(rule.model_id)&&rule.model_id)||state.falModel||"fal-ai/z-image/turbo/lora";
+  // LoRA: reuse the rule's loraPath/loraScale (fal wants [{path,scale}], path = URL or HF owner/name).
+  const loras=[];
+  const lp=rule&&typeof rule.loraPath==="string"&&rule.loraPath.trim();
+  if(lp){ let sc=parseFloat(rule.loraScale); if(!(sc>=0))sc=1; loras.push({path:lp,scale:sc}); }
+  const body={
+    prompt,
+    image_size:falImageSize(),
+    num_inference_steps:8,
+    num_images:1,
+    enable_safety_checker:!!state.falSafety,   // OFF by default
+    output_format:"png",
+    acceleration:"regular",
+    loras
+  };
+  const url=FAL_RUN+model.replace(/^\/+/,"");
+  const entry=dbg("Image generation (fal.ai)"+(rule&&rule.label?" · "+rule.label:""),"fal.ai",url,Object.assign({},body,{loras:loras.length?loras:"[]"}));
+  let res;
+  try{ res=await fetch(url,{method:"POST",headers:{"Authorization":"Key "+state.falKey,"Content-Type":"application/json"},body:JSON.stringify(body)}); }
+  catch(e){ dbgDone(entry,"error","CORS / network"); throw{friendly:"Couldn't reach fal.ai from the browser (network/CORS)."}; }
+  if(!res.ok){ dbgDone(entry,"error","HTTP "+res.status); throw{friendly:falMsg(res.status)}; }
+  let d; try{ d=await res.json(); }catch(e){ dbgDone(entry,"error","Unreadable response"); throw{friendly:"fal.ai returned an unreadable response."}; }
+  const out=d&&Array.isArray(d.images)&&d.images[0]&&d.images[0].url;
+  if(!out){ dbgDone(entry,"error","No image url"); throw{friendly:"fal.ai returned no image."}; }
+  dbgDone(entry,"ok",out);
+  return out;
+}
+function falMsg(s){
+  if(s===401||s===403)return "fal.ai rejected the key. Check your fal.ai key in Settings.";
+  if(s===402)return "Out of fal.ai credit. Add funds at fal.ai.";
+  if(s===422)return "fal.ai rejected the request (bad parameter or LoRA path).";
+  if(s===429)return "fal.ai rate limit hit. Wait a moment and retry.";
+  return "fal.ai error (HTTP "+s+").";
 }
 // Upload a base64 data URI to AtlasCloud and get back a hosted URL.
 // AtlasCloud's image-to-video models require a hosted image URL (from uploadMedia),
@@ -5863,6 +5936,7 @@ async function atlasVideo(prompt,imageUrl,negative,rule){
   catch(e){ img=imageUrl; }
   // Per the official schema, the request body is { model, image, prompt, resolution, duration, seed }.
   const body={model,image:img,prompt,resolution:res,duration:dur,seed:-1};
+  const loras=atlasLoras(rule); if(loras)body.loras=loras;   // Wan -lora variants accept a general loras[] channel
   const label="Video generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
   return await atlasGenerate("video",body,label,null);
 }
@@ -6121,6 +6195,7 @@ async function genImageForRule(rule,finalPrompt,baseNeg){
   const prov=effImgProvider(rule);
   const neg=(rule&&rule.negative)||baseNeg;
   if(prov==="atlascloud") return await atlasImage(finalPrompt,neg,rule);
+  if(prov==="fal")        return await falImage(finalPrompt,neg,rule);
   if(prov==="modelslab")  return await modelslabImage(finalPrompt,neg,rule);
   // OpenRouter / direct: ignores rule model_id, uses the global OpenRouter image model.
   return await imageCompletion(finalPrompt,state.imgModel,RATIOS[state.ratio]);
@@ -15416,6 +15491,7 @@ function renderRules(kind){
                 <option value="default"${(!r.provider||r.provider==='default')?' selected':''}>Default (use global ${kind==='img'?'image':'video'} provider)</option>
                 <option value="modelslab"${r.provider==='modelslab'?' selected':''}>ModelsLab</option>
                 <option value="atlascloud"${r.provider==='atlascloud'?' selected':''}>AtlasCloud</option>
+                <option value="fal"${r.provider==='fal'?' selected':''}>fal.ai (z-image LoRA)</option>
                 <option value="openrouter"${r.provider==='openrouter'?' selected':''}>OpenRouter</option>
               </select>
             </div>
@@ -15426,6 +15502,12 @@ function renderRules(kind){
           </div>
           <label>LoRA model (optional)</label>
           <input type="text" data-k="lora_model" value="${esc(r.lora_model||'')}" placeholder="e.g. add-detail-xl (leave blank for none)">
+          <label>AtlasCloud LoRA path (optional) — needs a <code>-lora</code> model id</label>
+          <input type="text" data-k="loraPath" value="${esc(r.loraPath||'')}" placeholder="HF owner/name, a .safetensors URL, or a CivitAI download URL">
+          <div class="row">
+            <div style="flex:1"><label>LoRA scale</label><input type="number" data-k="loraScale" step="0.05" min="0" max="2" value="${r.loraScale!=null?esc(String(r.loraScale)):'1'}" placeholder="1"></div>
+          </div>
+          <div class="desc" style="margin:-2px 0 6px">Atlas LoRA needs a matching base (e.g. model id <code>z-image/turbo-lora</code> for image, a Wan <code>…-lora</code> id for video). LoRA must be a single <code>.safetensors</code>. Put the LoRA's <b>trigger word</b> in this rule's prompt below, or it won't activate. CivitAI direct URLs are unofficial — if it fails, re-host the file on Hugging Face.</div>
           <label>Negative prompt (optional)</label>
           <input type="text" data-k="negative" value="${esc(r.negative||'')}" placeholder="low quality, blurry…">
           ${kind==='img'?`<label>Per-class image prompt (injected into the prompt writer when this rule is chosen — NOT shown to the router)</label>
@@ -15610,6 +15692,9 @@ function syncSettingsUI(){
   {const e=document.getElementById('setCallPronounce'); if(e)e.value=state.callPronounce||"";}
   {const e=document.getElementById('setCallSttFix'); if(e)e.checked=!!state.callSttFix;}
   {const ak=document.getElementById('setAtlasKey'); if(ak)ak.value=state.atlasKey||'';}
+  {const e=document.getElementById('setFalKey'); if(e)e.value=state.falKey||'';}
+  {const e=document.getElementById('setFalModel'); if(e)e.value=state.falModel||'fal-ai/z-image/turbo/lora';}
+  {const e=document.getElementById('setFalSafety'); if(e)e.checked=!!state.falSafety;}
   {const sel=document.getElementById('setTtsVoice');
    if(sel){
      sel.innerHTML=XAI_TTS_VOICES.map(v=>`<option value="${v.id}">${v.label}</option>`).join("");
@@ -15780,6 +15865,9 @@ function saveSettings(notify){
   store.set(K.callSttFix,!!state.callSttFix);
   store.setRaw(K.summThreshold,String(state.summThreshold||16));store.setRaw(K.summEvery,String(state.summEvery||6));store.setRaw(K.summKeep,String(state.summKeep||4));
   {const ak=document.getElementById('setAtlasKey'); if(ak)state.atlasKey=ak.value.trim();}
+  {const e=document.getElementById('setFalKey'); if(e)state.falKey=e.value.trim();}
+  {const e=document.getElementById('setFalModel'); if(e)state.falModel=e.value.trim()||'fal-ai/z-image/turbo/lora';}
+  {const e=document.getElementById('setFalSafety'); if(e)state.falSafety=e.checked;}
   {const cust=document.getElementById('setTtsVoiceCustom'); const sel=document.getElementById('setTtsVoice');
    const cv=cust&&cust.value.trim();
    if(cv) state.ttsVoice=cv; else if(sel) state.ttsVoice=sel.value||"eve";}
@@ -15896,7 +15984,7 @@ function saveSettings(notify){
   store.set(K.streamReveal,state.streamReveal);
   {const rc=document.getElementById('setRevealCps'); if(rc){const v=+rc.value; state.revealCps=(v>=8&&v<=80)?v:REVEAL_CPS_DEFAULT; store.set(K.revealCps,state.revealCps);}}
   store.setRaw(K.key,state.key);store.setRaw(K.segkey,state.segkey);store.setRaw(K.atlasKey,state.atlasKey||"");store.setRaw(K.model,state.model);
-  store.setRaw(K.ttsVoice,state.ttsVoice||"eve");store.setRaw(K.ttsLang,state.ttsLang||"tr");store.setRaw(K.ttsSpeed,String(state.ttsSpeed||1));store.setRaw(K.lipsyncModel,state.lipsyncModel||"kwaivgi/kling-lipsync/audio-to-video");store.setRaw(K.ttsEngine,state.ttsEngine||"xai");store.setRaw(K.autoSpeak,state.autoSpeak?"1":"");
+  store.setRaw(K.ttsVoice,state.ttsVoice||"eve");store.setRaw(K.ttsLang,state.ttsLang||"tr");store.setRaw(K.ttsSpeed,String(state.ttsSpeed||1));store.setRaw(K.lipsyncModel,state.lipsyncModel||"kwaivgi/kling-lipsync/audio-to-video");store.setRaw(K.ttsEngine,state.ttsEngine||"xai");store.setRaw(K.autoSpeak,state.autoSpeak?"1":"");store.setRaw(K.falKey,state.falKey||"");store.setRaw(K.falModel,state.falModel||"fal-ai/z-image/turbo/lora");store.setRaw(K.falSafety,state.falSafety?"1":"");
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
   store.setRaw(K.vidProvider,state.vidProvider);store.setRaw(K.vidModel,state.vidModel);
