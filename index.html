@@ -581,7 +581,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.37</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.38</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -5960,10 +5960,12 @@ async function atlasVideo(prompt,imageUrl,negative,rule){
   catch(e){ img=imageUrl; }
   // Per the official schema, the request body is { model, image, prompt, resolution, duration, seed }.
   // EXCEPTION: the "infinite" segmented models REQUIRE prompt to be a JSON array (one entry per
-  // segment), never a plain string. We send the single motion prompt as a one-element array so the
-  // Infinite model runs. (Multi-segment authoring — up to 6 beats — is a separate future feature.)
+  // segment), never a plain string. The Movie feature (movieScene) already passes an ARRAY of
+  // segments — forward that verbatim. Only a bare STRING prompt (the Animate path) gets wrapped into
+  // a one-element array, so we never double-nest (which 400s).
   const isInfinite=/infinite/i.test(model);
-  const body={model,image:img,prompt:isInfinite?[prompt]:prompt,resolution:res,duration:dur,seed:-1};
+  const promptOut = isInfinite ? (Array.isArray(prompt)?prompt:[prompt]) : prompt;
+  const body={model,image:img,prompt:promptOut,resolution:res,duration:dur,seed:-1};
   const loras=atlasLoras(rule); if(loras)body.loras=loras;   // Wan -lora variants accept a general loras[] channel
   // Optional Wan MoE channels (advanced): high_noise = structure/layout, low_noise = detail/texture.
   // Each takes the same {path,scale} shape; only sent when the rule fills them.
