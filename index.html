@@ -530,7 +530,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.16-voice (Voice calls: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">build 2026-06-29 · v18.17-voice (Voice calls + fixes: chunker now splits only on real sentence ends (no more mid-sentence choppiness / flat endings), per-sentence tone tags, Turkish pronunciation respellings (abi→âbi, never tabi), and a per-call debug viewer showing the prompt, timings, and chunking. Prior: real-time in-person spoken conversations with a character — call from the chat menu, pick who to talk to, hang up to commit their memory + relationship. STT Deepgram nova-3, reply via a tunable call model, voice via Inworld relay. Stage A: settings + per-character voice id wired, dormant — no behaviour change yet. Prior: scene no longer goes permanently silent after a character leaves. An event whose character has already gone now resolves properly instead of looping empty narration, and the Gamemaster steps in sooner when you are left alone to move the scene forward)</div></header>
   <div class="pad">
 
     <!-- ============ 1 · API KEYS ============ -->
@@ -718,6 +718,10 @@
               <div></div>
             </div>
             <div class="desc">Raise <b>Utterance end</b> if the character jumps in before you finish a long sentence. Raise <b>Speaking rate</b> / use <b>STABLE</b> delivery if speech feels too slow or pausey.</div>
+            <div style="margin-top:8px"><label>Pronunciation respellings (one per line: <code>word=respelling</code>)</label>
+              <textarea class="fld" id="setCallPronounce" style="min-height:90px" placeholder="abi=âbi&#10;hala=hâlâ"></textarea>
+              <div class="desc">Exact whole-word match (Turkish-aware): <code>abi=âbi</code> fixes “abi” but never touches “tabi”. Applied to the text just before it’s spoken.</div>
+            </div>
           </details>
         </div>
 
@@ -1231,6 +1235,19 @@
     <div id="callPickerList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:50vh;overflow:auto"></div>
     <div class="row" style="margin-top:10px">
       <button class="btn sec" onclick="closeModal('callPickerModal')">Cancel</button>
+      <button class="btn sec" onclick="vcShowDebug()">🔍 Last call debug</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VOICE CALL — debug viewer ===== -->
+<div class="modal" id="callDbgModal">
+  <button class="x" onclick="closeModal('callDbgModal')">×</button>
+  <div class="card editCard" style="max-width:560px">
+    <h3>🔍 Last call debug</h3>
+    <div id="callDbgBody" style="max-height:70vh;overflow:auto"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn sec" onclick="closeModal('callDbgModal')">Close</button>
     </div>
   </div>
 </div>
@@ -1561,7 +1578,7 @@ const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model"
   // Voice calls (Stage 2)
   dgKey:"sm_dgkey",ttsRelay:"sm_ttsrelay",callModel:"sm_callmodel",callVoice:"sm_callvoice",callDgModel:"sm_calldgmodel",
   callSttLang:"sm_callsttlang",callTtsModel:"sm_callttsmodel",callTtsLang:"sm_callttslang",callDelivery:"sm_calldelivery",callRate:"sm_callrate",
-  callEndpoint:"sm_callendpoint",callUttEnd:"sm_calluttend",callBargeMin:"sm_callbargemin",callBargeGuard:"sm_callbargeguard"};
+  callEndpoint:"sm_callendpoint",callUttEnd:"sm_calluttend",callBargeMin:"sm_callbargemin",callBargeGuard:"sm_callbargeguard",callPronounce:"sm_callpronounce"};
 // ModelsLab API base. Image and video endpoints live under different paths.
 const ML="https://modelslab.com/api/v6/";
 const ATLAS="https://api.atlascloud.ai/api/v1/";   // AtlasCloud image/video (async submit→poll)
@@ -4409,6 +4426,7 @@ function loadState(){
     callUttEnd:+store.raw(K.callUttEnd,1800),
     callBargeMin:+store.raw(K.callBargeMin,3),
     callBargeGuard:+store.raw(K.callBargeGuard,700),
+    callPronounce:store.raw(K.callPronounce,"abi=âbi\nabicim=âbicim\nabin=âbin\nhala=hâlâ\nkari=kârî"),
     theme:store.raw(K.theme,"dark"),
     font:+store.raw(K.font,14),
     streamReveal:store.get(K.streamReveal,true),
@@ -14996,6 +15014,7 @@ function syncSettingsUI(){
   {const e=document.getElementById('setCallUttEnd'); if(e)e.value=state.callUttEnd||1800;}
   {const e=document.getElementById('setCallBargeMin'); if(e)e.value=state.callBargeMin||3;}
   {const e=document.getElementById('setCallBargeGuard'); if(e)e.value=state.callBargeGuard||700;}
+  {const e=document.getElementById('setCallPronounce'); if(e)e.value=state.callPronounce||"";}
   {const ak=document.getElementById('setAtlasKey'); if(ak)ak.value=state.atlasKey||'';}
   {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud")aim.value=state.imgModel||'';}
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")avm.value=state.vidModel||'';}
@@ -15143,11 +15162,13 @@ function saveSettings(notify){
   {const e=document.getElementById('setCallUttEnd'); if(e)state.callUttEnd=Math.max(500,+e.value||1800);}
   {const e=document.getElementById('setCallBargeMin'); if(e)state.callBargeMin=Math.max(1,+e.value||3);}
   {const e=document.getElementById('setCallBargeGuard'); if(e)state.callBargeGuard=Math.max(0,+e.value||700);}
+  {const e=document.getElementById('setCallPronounce'); if(e)state.callPronounce=e.value;}
   store.setRaw(K.dgKey,state.dgKey||"");store.setRaw(K.ttsRelay,state.ttsRelay||"");store.setRaw(K.callModel,state.callModel||"");
   store.setRaw(K.callVoice,state.callVoice||"");store.setRaw(K.callDgModel,state.callDgModel||"");store.setRaw(K.callSttLang,state.callSttLang||"");
   store.setRaw(K.callTtsModel,state.callTtsModel||"");store.setRaw(K.callTtsLang,state.callTtsLang||"");store.setRaw(K.callDelivery,state.callDelivery||"");
   store.setRaw(K.callRate,String(state.callRate));store.setRaw(K.callEndpoint,String(state.callEndpoint));store.setRaw(K.callUttEnd,String(state.callUttEnd));
   store.setRaw(K.callBargeMin,String(state.callBargeMin));store.setRaw(K.callBargeGuard,String(state.callBargeGuard));
+  store.setRaw(K.callPronounce,state.callPronounce||"");
   {const ak=document.getElementById('setAtlasKey'); if(ak)state.atlasKey=ak.value.trim();}
   state.model=document.getElementById('setModel').value.trim()||"anthropic/claude-3.5-sonnet";
   {const e=document.getElementById('setRpRotation'); if(e){const v=e.value.trim(); if(v!==state.rpRotation){state.rpRotation=v; state.rpRotIdx=0; store.set(K.rpRotIdx,0);} store.setRaw(K.rpRotation,v);}}
@@ -15766,6 +15787,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 const VC_OR_URL = "https://openrouter.ai/api/v1/chat/completions";
 let vc = null;            // active call state, or null
 let _vcWakeLock = null;
+let _vcLastCallDebug = null;   // debug snapshot of the most recent call (prompt, timings, chunks)
 const vcHistory = [];     // {role,content} for the current call
 
 function vcLog(/*msg,*/){ /* dev hook; silent in app */ }
@@ -15779,7 +15801,8 @@ function vcFresh(callee){
     playCtx:null, nextStartTime:0, activeSources:[],
     speaking:false, audioPlaying:false, audioStartedAt:0, generating:false,
     orAbort:null, ttsAbort:null, ttsQueue:[], ttsBusy:false, ttsTurn:0, turnSeq:0,
-    transcript:[]   // {role:'user'|'assistant',content} — committed at hang-up
+    transcript:[],   // {role:'user'|'assistant',content} — committed at hang-up
+    debug:{ sys:'', sysLogged:false, turns:[], startedAt:Date.now() }
   };
 }
 
@@ -15866,7 +15889,10 @@ async function vcOnUserTurn(userText){
   const ctrl=new AbortController(); vc.orAbort=ctrl;
   vcBeginReply(myTurn);
   let acc='';
-  const chunker=vcMakeChunker(seg=>{ if(myTurn===vc.turnSeq) vcTtsSend(seg); });
+  // ---- debug record for this turn ----
+  const dbg={ user:userText, t0:performance.now(), ttft:null, chunks:[], reply:'', model:(state.callModel||"deepseek/deepseek-v4-pro") };
+  if(vc.debug){ if(!vc.debug.sysLogged){ vc.debug.sys=vc._sysPrompt; vc.debug.sysLogged=true; } vc.debug.turns.push(dbg); }
+  const chunker=vcMakeChunker(seg=>{ if(myTurn===vc.turnSeq){ dbg.chunks.push({text:seg, at:Math.round(performance.now()-dbg.t0)}); vcTtsSend(seg); } });
   const sys=vc._sysPrompt||"You are a friend talking with the user. Reply briefly in their language.";
   const messages=[{role:'system',content:sys}, ...vcHistory.slice(-12)];
   const reqBody={ model:(state.callModel||"deepseek/deepseek-v4-pro"), messages, stream:true,
@@ -15876,7 +15902,7 @@ async function vcOnUserTurn(userText){
     const res=await fetch(VC_OR_URL,{method:'POST',
       headers:{'Authorization':'Bearer '+state.key,'Content-Type':'application/json','HTTP-Referer':'https://storymind.app','X-Title':'StoryMind'},
       body:JSON.stringify(reqBody), signal:ctrl.signal});
-    if(!res.ok){ vc.generating=false; return; }
+    if(!res.ok){ vc.generating=false; dbg.error='HTTP '+res.status; return; }
     const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
     while(true){
       const {done,value}=await reader.read(); if(done) break;
@@ -15886,22 +15912,58 @@ async function vcOnUserTurn(userText){
         const line=buf.slice(0,nl).trim(); buf=buf.slice(nl+1);
         if(!line.startsWith('data:')) continue;
         const data=line.slice(5).trim(); if(data==='[DONE]') continue;
-        try{ const j=JSON.parse(data); const tok=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content; if(tok){ acc+=tok; chunker.push(tok); } }catch(e){}
+        try{ const j=JSON.parse(data); const tok=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content; if(tok){ if(dbg.ttft===null)dbg.ttft=Math.round(performance.now()-dbg.t0); acc+=tok; chunker.push(tok); } }catch(e){}
       }
     }
     chunker.flush();
   }catch(e){ /* aborted or network */ }
   finally{
     vc.generating=false;
+    dbg.reply=acc.trim(); dbg.total=Math.round(performance.now()-dbg.t0);
     if(myTurn===vc.turnSeq && acc.trim()){ vcHistory.push({role:'assistant',content:acc.trim()}); vc.transcript.push({role:'assistant',content:acc.trim()}); }
   }
 }
 
 /* ---- sentence chunker (whole sentences only; never splits inside [..]) ---- */
 function vcMakeChunker(emit){
-  let buf='', depth=0;
-  function boundaryEnd(s){ let d=0; for(let i=0;i<s.length;i++){const ch=s[i]; if(ch==='[')d++; else if(ch===']'){if(d>0)d--; continue;} if(d>0)continue; if(ch==='.'||ch==='!'||ch==='?'||ch==='…'){ if(i+1>=s.length||/\s/.test(s[i+1])) return i+1; }} return -1; }
-  function tryEmit(force){ if(depth>0&&!force) return; let s=buf.trim(); if(!s){if(force)buf='';return;} if(force){emit(s);buf='';return;} const end=boundaryEnd(s); if(end>0){emit(s.slice(0,end).trim()); buf=s.slice(end);} }
+  let buf='', depth=0, lastTone='';
+  // Known abbreviations whose trailing dot is NOT a sentence end.
+  const ABBR=/(?:^|\s)(?:dr|sn|vb|vs|prof|doç|av|bkz|öğr|mr|mrs|ms|st|no)\.$/i;
+  function boundaryEnd(s){
+    let d=0;
+    for(let i=0;i<s.length;i++){
+      const ch=s[i];
+      if(ch==='['){d++;continue;}
+      if(ch===']'){if(d>0)d--;continue;}
+      if(d>0)continue;                                   // never split inside [..]
+      if(ch==='!'||ch==='?'){ if(i+1>=s.length||/\s/.test(s[i+1])) return i+1; continue; }
+      if(ch==='.'){
+        if(s[i+1]==='.'){ while(s[i+1]==='.')i++; continue; } // "..." = soft pause, not a break
+        if(/\d/.test(s[i-1]||'')) continue;                  // decimal / ordinal: "8.30", "20."
+        if(ABBR.test(s.slice(0,i+1))) continue;              // "Dr.", "vs." …
+        if(i+1>=s.length) return i+1;                        // real period at end of buffer
+        if(/^\s+["'“]?[A-ZÇĞİÖŞÜ]/.test(s.slice(i+1))) return i+1; // next sentence starts
+        continue;                                            // period mid-clause → keep going
+      }
+    }
+    return -1;
+  }
+  // Per-sentence tone: keep a sentence's own leading [say ...] if it has one;
+  // otherwise carry forward the last seen one so later sentences never go flat.
+  function withTone(seg){
+    seg=seg.trim();
+    const m=seg.match(/^(\[[^\]]*\])\s*/);
+    if(m){ lastTone=m[1]; return seg; }                  // sentence carries its own tone
+    if(lastTone) return lastTone+' '+seg;                // inherit the last tone
+    return seg;
+  }
+  function tryEmit(force){
+    if(depth>0&&!force) return;
+    let s=buf.trim(); if(!s){if(force)buf='';return;}
+    if(force){ emit(withTone(s)); buf=''; return; }
+    const end=boundaryEnd(s);
+    if(end>0){ emit(withTone(s.slice(0,end).trim())); buf=s.slice(end); }
+  }
   return {
     push(t){ for(const ch of t){ if(ch==='[')depth++; else if(ch===']'&&depth>0)depth--; buf+=ch; } let b; do{b=buf;tryEmit(false);}while(buf!==b&&buf.trim()); },
     flush(){ let b; do{b=buf;tryEmit(false);}while(buf!==b&&buf.trim()); tryEmit(true); }
@@ -15919,17 +15981,45 @@ async function vcPumpTts(){
   try{ await vcSynth(item.text,item.turn); }catch(e){}
   finally{ vc.ttsBusy=false; if(vc.ttsQueue.length) vcPumpTts(); }
 }
+/* Pronunciation dictionary: respell words for the TTS (e.g. abi→âbi) using EXACT
+   whole-word, Turkish-aware matching so "abi" is hit but "tabi" is not. Parsed from
+   state.callPronounce ("word=respelling" per line), cached until the text changes. */
+let _vcPronRaw=null, _vcPronRules=[];
+function vcBuildPronounce(){
+  const raw=state.callPronounce||"";
+  if(raw===_vcPronRaw) return _vcPronRules;
+  _vcPronRaw=raw; _vcPronRules=[];
+  const TLET="A-Za-zÇĞİıÖŞÜçğöşü";
+  raw.split(/\n+/).forEach(line=>{
+    const m=line.split("="); if(m.length<2) return;
+    const from=m[0].trim(), to=m.slice(1).join("=").trim();
+    if(!from||!to) return;
+    const esc=from.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    try{ _vcPronRules.push([new RegExp(`(?<![${TLET}])(?:${esc})(?![${TLET}])`,'gi'), to]); }catch(e){}
+  });
+  return _vcPronRules;
+}
+function vcApplyPronounce(text){
+  if(!state.callPronounce) return text;
+  let out=text;
+  for(const [re,to] of vcBuildPronounce()){ out=out.replace(re,to); }
+  return out;
+}
 async function vcSynth(text,turn){
   const relay=(state.ttsRelay||"").trim().replace(/\/+$/,''); if(!relay) return;
   const callee=vc.callee||{};
   const voice=(callee.voiceId&&callee.voiceId.trim())||state.callVoice||"Ashley";
+  text=vcApplyPronounce(text);   // Turkish respellings (abi→âbi), exact whole-word only
   const body={ text, voiceId:voice, modelId:(state.callTtsModel||"inworld-tts-2"),
     audioConfig:{audioEncoding:'LINEAR16',sampleRateHertz:24000,speakingRate:Math.max(0.5,Math.min(1.5,state.callRate||1.1))},
     deliveryMode:(state.callDelivery||'BALANCED') };
   if(state.callTtsLang) body.language=state.callTtsLang;
   const ctrl=vc.orAbort||new AbortController(); vc.ttsAbort=ctrl;
+  const _tts0=performance.now();
   const res=await fetch(relay,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal});
-  if(!res.ok) return;
+  if(!res.ok){ if(vc.debug&&vc.debug.turns.length){ const lt=vc.debug.turns[vc.debug.turns.length-1]; const lc=lt.chunks&&lt.chunks[lt.chunks.length-1]; if(lc)lc.ttsError='HTTP '+res.status; } return; }
+  // attach first-audio latency to the matching chunk in the debug log
+  if(vc.debug&&vc.debug.turns.length){ const lt=vc.debug.turns[vc.debug.turns.length-1]; const lc=lt.chunks&&lt.chunks.find(c=>c.text===text||vcApplyPronounce(c.text)===text); if(lc)lc.ttsMs=Math.round(performance.now()-_tts0); }
   const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
   while(true){
     const {done,value}=await reader.read(); if(done) break;
@@ -16004,6 +16094,32 @@ async function hangUpCall(){
   toast("Call ended");
 }
 
+/* Show the most recent call's debug: system prompt, per-turn timing, and how each
+   reply was chunked (with the tone tag actually sent to the voice). */
+function vcShowDebug(){
+  const d=_vcLastCallDebug;
+  const host=document.getElementById('callDbgBody');
+  if(!host) return;
+  if(!d||!d.turns||!d.turns.length){ host.innerHTML='<div class="desc">No call recorded yet. Make a call, hang up, then open this.</div>'; openModal('callDbgModal'); return; }
+  const rows=[];
+  rows.push(`<div class="desc">Call with <b>${esc(d.callee||'?')}</b> · ${d.turns.length} turn(s) · model <code>${esc((d.turns[0]&&d.turns[0].model)||'')}</code></div>`);
+  rows.push(`<details style="margin:6px 0"><summary>System prompt (the RP payload sent)</summary><pre style="white-space:pre-wrap;font-size:11px;max-height:40vh;overflow:auto">${esc(d.sys||'(none)')}</pre></details>`);
+  d.turns.forEach((t,i)=>{
+    const chunkLines=(t.chunks||[]).map((c,k)=>{
+      const tts=c.ttsMs!=null?` · TTS ${c.ttsMs}ms`:(c.ttsError?` · TTS ${esc(c.ttsError)}`:'');
+      return `<div style="margin:2px 0 2px 10px;font-size:12px">↳ chunk ${k+1} @ ${c.at}ms${tts}<br><span style="opacity:.85">${esc(c.text)}</span></div>`;
+    }).join('');
+    rows.push(`<div style="border-top:1px solid var(--line,#333);padding:8px 0">
+      <div style="font-size:12px"><b>Turn ${i+1}</b> · TTFT ${t.ttft!=null?t.ttft+'ms':'—'} · total ${t.total!=null?t.total+'ms':'—'}${t.error?' · <span style="color:#e06">'+esc(t.error)+'</span>':''}</div>
+      <div style="font-size:12px;margin:3px 0"><span style="opacity:.6">you:</span> ${esc(t.user||'')}</div>
+      <div style="font-size:12px;opacity:.55">chunks (${(t.chunks||[]).length}) — tone tag is what the voice received:</div>
+      ${chunkLines}
+    </div>`);
+  });
+  host.innerHTML=rows.join('');
+  openModal('callDbgModal');
+}
+
 async function startVoiceCall(callee){
   if(vc&&vc.active) return;
   if(!state.key){ toast("Add your OpenRouter key in Settings"); return; }
@@ -16023,6 +16139,7 @@ async function startVoiceCall(callee){
 async function endVoiceCall(){
   if(!vc) return;
   const callee=vc.callee, transcript=vc.transcript.slice();
+  _vcLastCallDebug={ callee:callee&&callee.name, when:Date.now(), ...(vc.debug||{}) };  // survive vc=null
   vc.active=false;
   if(vc.dgKeepAlive) clearInterval(vc.dgKeepAlive);
   if(vc.durTimer) clearInterval(vc.durTimer);
@@ -16052,9 +16169,9 @@ function buildCallInstructions(callee, chat){
 Speak naturally and warmly in short spoken sentences. Reply in the SAME language ${state.user} speaks (Turkish if they speak Turkish). Keep replies to 1–3 sentences so the conversation flows.
 
 VOICE DELIVERY (steering) — your speech is performed by a TTS voice actor you direct with bracketed cues:
-1. Begin a reply with ONE bracketed delivery instruction in ENGLISH describing HOW to say it, e.g. [say warmly with quiet amusement] or [say with surprised delight]. It directs the voice and is never spoken aloud.
-2. Only ONE delivery instruction, at the very START of the reply.
-3. You MAY drop inline non-verbals where they occur: [laugh] [sigh] [breathe] [clear throat] [cough] [yawn].
+1. Begin EACH sentence with its OWN bracketed delivery instruction in ENGLISH describing HOW to say that sentence, e.g. [say warmly] then the sentence, then [say with a teasing grin] before the next one. Each sentence gets its own tone so the emotion can shift naturally across the reply. The bracket directs the voice and is never spoken aloud.
+2. The bracket goes at the very START of each sentence, before its first word.
+3. You MAY also drop inline non-verbals where they occur: [laugh] [sigh] [breathe] [clear throat] [cough] [yawn].
 4. To stress a key word, CAPITALIZE it. Use sparingly.
 5. Keep delivery BRISK — avoid pacing words that add gaps. Favor EMOTION/TONE over speed/pauses. Short sentences, minimal commas.`);
   return blocks.join("\n\n");
