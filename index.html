@@ -14363,25 +14363,148 @@ function memTokens(s){
   catch(e){ words=s.match(/[a-z0-9çğıöşü]+/g)||[]; }   // fallback if Unicode property escapes unsupported
   return words.filter(w=>w.length>2);
 }
+/* ===== MULTI-SIGNAL MEMORY RELEVANCE SCORER =====
+   The prefilter scores each candidate memory on several independent signals, each normalized to a
+   small bounded contribution and multiplied by a tunable weight, then summed (SkyrimNet/mantella
+   style). This is the CODE-side selector that narrows the pool the LLM ranker then judges. It does
+   NOT replace the ranker — it makes the candidate set it sees smarter, not narrower.
+
+   Signals (each degrades to a neutral 0 contribution when its field is absent on old memories):
+   - lexical : query words found anywhere in the memory's searchable surface (the original signal)
+   - tag     : query words that hit the memory's curated `tags` (a topic handle is worth more than a
+               stray content word)
+   - people  : the memory involves someone physically present in the scene right now
+   - location: the memory happened in the scene's current location / sub-area
+   - emotion : the memory's stored emotion matches the emotional tone of the current moment
+   - recency : newer memories (by gameDay) score higher, with a gentle floor so old ones still surface
+   - import  : the builder's importance score for the whole arc
+   - gist    : bystander "gist" observations (observerOnly) are vaguer than lived experience, so they
+               are slightly down-weighted unless strongly charged
+
+   All weights live in ONE object so they can be retuned in one place (and later wired to a settings
+   slider) without touching the scoring math — this is the single "weight set" for retrieval. */
+const MEM_SCORE_WEIGHTS={
+  lexical:1.0,   // per query word matched in the memory surface
+  tag:0.8,       // per query word matched specifically against a tag
+  people:1.5,    // memory involves someone present in the scene
+  location:1.2,  // memory's place matches the current scene's place
+  emotion:0.7,   // memory's emotion matches the current emotional tone
+  recency:1.0,   // scaled by a 0..1 recency factor (newest day = 1)
+  importance:0.6,// scaled by the memory's 0..1 importance
+  gistPenalty:0.6// subtracted from a low-charge bystander gist (lived memories preferred)
+};
+// Coarse emotion families so "angry" in a memory resonates with an angry-toned moment even when the
+// exact word differs. Maps both the builder's main enum and the bystander-gist enum into a few buckets.
+const MEM_EMOTION_FAMILY={
+  joyful:"positive", content:"positive", affectionate:"positive", amused:"positive",
+  angry:"hostile", tense:"hostile", disapproving:"hostile",
+  fearful:"anxious", concerned:"anxious", suspicious:"anxious",
+  sad:"low", hurt:"low",
+  surprised:"surprise",
+  curious:"interest",
+  neutral:"neutral", indifferent:"neutral"
+};
+// A tiny lexicon to GUESS the current moment's emotional family from the query/recent text, for the
+// emotion-resonance signal. Deliberately small and conservative (Turkish + a little English) — it only
+// nudges; the LLM ranker carries the nuance. Returns a family string or "" (no opinion).
+function _momentEmotionFamily(text){
+  const t=(" "+String(text||"").toLowerCase()+" ");
+  const has=arr=>arr.some(w=>t.includes(w));
+  if(has(["öfke","kızgın","sinir","bağır","kavga","nefret","angry","furious","yell","fight"])) return "hostile";
+  if(has(["kork","endişe","tehlike","panik","ürk","afraid","fear","danger","worried","scared"])) return "anxious";
+  if(has(["üzgün","ağla","hüzün","kayıp","yalnız","sad","cry","grief","lonely"])) return "low";
+  if(has(["sevgi","aşk","öpüc","sarıl","mutlu","gül","tatlı","love","kiss","happy","tender","smile"])) return "positive";
+  if(has(["şaşır","inanma","beklenmedik","şok","surprise","shock","unexpected"])) return "surprise";
+  return "";
+}
 /* keyword pre-filter so the ranker sees a bounded candidate set */
 function prefilter(query,limit,poolOverride){
   const qWords=new Set(memTokens(query));
+  const W=MEM_SCORE_WEIGHTS;
   const pool=poolOverride||visibleMemories();
-  // Names of characters present in the current scene — memories involving them get a light boost so
-  // a character recalls their history with whoever just walked in. Soft (a boost, not a filter), so
-  // general-topic memories still surface. Uses the richer `people` field the arc builder now stores.
-  const here=new Set();
-  try{ const c=curChat(); if(c) presentCast(c).forEach(p=>{ if(p&&p.name){ try{ here.add(p.name.toLocaleLowerCase("tr")); }catch(e){ here.add(p.name.toLowerCase()); } } }); }catch(e){}
+  // ---- Gather the current SCENE CONTEXT once (cheap; read straight off the chat). Every piece is
+  // optional — each signal that depends on it simply contributes 0 when the context is missing. ----
+  const here=new Set();        // lowercased names of characters present in the scene right now
+  let curPlace="";             // the scene's current "Location — Sub-area" (or "" if unknown)
+  let curDay=0;                // current in-game day, for the recency signal
+  try{
+    const c=curChat();
+    if(c){
+      presentCast(c).forEach(p=>{ if(p&&p.name){ try{ here.add(p.name.toLocaleLowerCase("tr")); }catch(e){ here.add(p.name.toLowerCase()); } } });
+      curDay=(c.gameDay||0);
+      if(c.locationId){
+        const _l=locById(c.locationId);
+        if(_l){
+          const _sid=curSubId(c); const _s=_sid?subById(_l,_sid):null;
+          curPlace=_s?`${_l.name} — ${_s.name}`:_l.name;
+        }
+      }
+    }
+  }catch(e){}
+  let curPlaceLc=""; try{ curPlaceLc=curPlace.toLocaleLowerCase("tr"); }catch(e){ curPlaceLc=curPlace.toLowerCase(); }
+  // Span of days present in the pool, so recency is normalized to THIS character's own history
+  // (a campaign on day 40 and one on day 3 both get a sensible 0..1 spread).
+  let minDay=Infinity,maxDay=0;
+  pool.forEach(m=>{ const d=m.gameDay||0; if(d){ if(d<minDay)minDay=d; if(d>maxDay)maxDay=d; } });
+  if(!isFinite(minDay))minDay=0;
+  const dayRef=Math.max(maxDay,curDay)||0;            // "now" for recency
+  const daySpan=Math.max(1,dayRef-minDay);            // avoid divide-by-zero
+  const momentEmo=_momentEmotionFamily(query);        // guessed emotional tone of the current moment
+
   const scored=pool.map(m=>{
-    // SEARCH over the full memory surface (content + people + details + tags), not just content —
-    // the richer format moved searchable specifics out of content into their own fields. The query is
-    // tokenized Unicode-aware (so Turkish words stay whole), but matched as a SUBSTRING against the
-    // haystack — Turkish is agglutinative ("restoran" must match "restoranda"), so whole-word equality
-    // would miss suffixed forms. Turkish-locale lowercase on both sides for correct İ/I handling.
+    // --- lexical: query words found anywhere in the memory surface (content+people+details+tags+loc).
+    // Substring match, Turkish-locale lowercase, because Turkish is agglutinative ("restoran" must
+    // match "restoranda") and whole-word equality would miss suffixed forms. ---
     let hay; try{ hay=(memSearchText(m)+" "+(m.location||"")).toLocaleLowerCase("tr"); }catch(e){ hay=(memSearchText(m)+" "+(m.location||"")).toLowerCase(); }
-    let score=0; qWords.forEach(w=>{ if(hay.includes(w))score++; });
-    score+=(m.importance||0)*0.5;
-    if(here.size && Array.isArray(m.people) && m.people.some(n=>{ let nn; try{nn=String(n).toLocaleLowerCase("tr");}catch(e){nn=String(n).toLowerCase();} return here.has(nn); })) score+=1.5;
+    let lexical=0; qWords.forEach(w=>{ if(hay.includes(w))lexical++; });
+
+    // --- tag overlap: query words that hit a curated tag are worth an EXTRA increment on top of
+    // lexical (tags are deliberate topic handles). ---
+    let tagHit=0;
+    if(Array.isArray(m.tags)&&m.tags.length){
+      let tagHay=""; try{ tagHay=" "+m.tags.join(" ").toLocaleLowerCase("tr")+" "; }catch(e){ tagHay=" "+m.tags.join(" ").toLowerCase()+" "; }
+      qWords.forEach(w=>{ if(tagHay.includes(w))tagHit++; });
+    }
+
+    // --- people present: memory involves someone in the scene right now. ---
+    let peopleHit=0;
+    if(here.size && Array.isArray(m.people) && m.people.some(n=>{ let nn; try{nn=String(n).toLocaleLowerCase("tr");}catch(e){nn=String(n).toLowerCase();} return here.has(nn); })) peopleHit=1;
+
+    // --- location: memory's place matches the current scene's place (tolerant substring either way,
+    // so "Galata'daki Gizli Bar — Main Bar" matches "Galata'daki Gizli Bar"). ---
+    let locHit=0;
+    if(curPlaceLc && m.location){
+      let mLoc=""; try{ mLoc=String(m.location).toLocaleLowerCase("tr"); }catch(e){ mLoc=String(m.location).toLowerCase(); }
+      if(mLoc && (curPlaceLc.includes(mLoc)||mLoc.includes(curPlaceLc))) locHit=1;
+    }
+
+    // --- emotion resonance: the memory's stored emotion shares a family with the current moment. ---
+    let emoHit=0;
+    if(momentEmo && m.emotion){
+      const fam=MEM_EMOTION_FAMILY[String(m.emotion).toLowerCase()];
+      if(fam && fam===momentEmo) emoHit=1;
+    }
+
+    // --- recency: newer memories score higher; linear 0..1 over the pool's day span, with a 0.15
+    // floor so even the oldest memory keeps a small presence and can still surface on a strong topic. ---
+    let recency=0;
+    if(m.gameDay){ recency=0.15+0.85*Math.max(0,Math.min(1,(m.gameDay-minDay)/daySpan)); }
+
+    // --- importance (0..1) and gist down-weight (vague bystander glimpses lose to lived experience
+    // unless they carry a real gossip charge). ---
+    const importance=Math.max(0,Math.min(1, typeof m.importance==="number"?m.importance:0.5));
+    let gistPenalty=0;
+    if(m.observerOnly){ const ch=typeof m.charge==="number"?m.charge:0; if(ch<0.5) gistPenalty=1; }
+
+    const score =
+        W.lexical*lexical
+      + W.tag*tagHit
+      + W.people*peopleHit
+      + W.location*locHit
+      + W.emotion*emoHit
+      + W.recency*recency
+      + W.importance*importance
+      - W.gistPenalty*gistPenalty;
     return {m,score};
   }).sort((a,b)=>b.score-a.score);
   return scored.slice(0,limit).map(x=>x.m);
