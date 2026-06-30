@@ -581,7 +581,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.35</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.36</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -5961,6 +5961,12 @@ async function atlasVideo(prompt,imageUrl,negative,rule){
   // Per the official schema, the request body is { model, image, prompt, resolution, duration, seed }.
   const body={model,image:img,prompt,resolution:res,duration:dur,seed:-1};
   const loras=atlasLoras(rule); if(loras)body.loras=loras;   // Wan -lora variants accept a general loras[] channel
+  // Optional Wan MoE channels (advanced): high_noise = structure/layout, low_noise = detail/texture.
+  // Each takes the same {path,scale} shape; only sent when the rule fills them.
+  const hi=rule&&typeof rule.loraHighPath==="string"&&rule.loraHighPath.trim();
+  if(hi){ let s=parseFloat(rule.loraHighScale); if(!(s>=0))s=1; body.high_noise_loras=[{path:civitaiLoraUrl(hi),scale:s}]; }
+  const lo=rule&&typeof rule.loraLowPath==="string"&&rule.loraLowPath.trim();
+  if(lo){ let s=parseFloat(rule.loraLowScale); if(!(s>=0))s=1; body.low_noise_loras=[{path:civitaiLoraUrl(lo),scale:s}]; }
   const label="Video generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
   return await atlasGenerate("video",body,label,null);
 }
@@ -15540,6 +15546,15 @@ function renderRules(kind){
         <label>LoRA path (optional) — needs a <code>-lora</code> model id</label>
         <input type="text" data-k="loraPath" value="${esc(r.loraPath||'')}" placeholder="HF owner/name, .safetensors URL, or CivitAI download URL">
         <div class="row"><div style="flex:1"><label>LoRA scale</label><input type="number" data-k="loraScale" step="0.05" min="0" max="2" value="${r.loraScale!=null?esc(String(r.loraScale)):'1'}" placeholder="1"></div></div>
+        ${kind==='vid'?`<details class="acc" style="margin:2px 0"><summary>Advanced: high/low-noise LoRA channels (Wan MoE)</summary>
+          <div class="desc" style="margin:6px 0">Optional. Most LoRAs just use the path above. Wan splits into two experts — <b>high-noise</b> = overall structure/layout, <b>low-noise</b> = fine detail/texture. Fill these only if the LoRA's page gives separate high/low files.</div>
+          <label>High-noise LoRA path</label>
+          <input type="text" data-k="loraHighPath" value="${esc(r.loraHighPath||'')}" placeholder="HF owner/name, URL, or CivitAI link">
+          <div class="row"><div style="flex:1"><label>High-noise scale</label><input type="number" data-k="loraHighScale" step="0.05" min="0" max="2" value="${r.loraHighScale!=null?esc(String(r.loraHighScale)):'1'}" placeholder="1"></div></div>
+          <label>Low-noise LoRA path</label>
+          <input type="text" data-k="loraLowPath" value="${esc(r.loraLowPath||'')}" placeholder="HF owner/name, URL, or CivitAI link">
+          <div class="row"><div style="flex:1"><label>Low-noise scale</label><input type="number" data-k="loraLowScale" step="0.05" min="0" max="2" value="${r.loraLowScale!=null?esc(String(r.loraLowScale)):'1'}" placeholder="1"></div></div>
+        </details>`:''}
         <div class="desc" style="margin:-2px 0 6px">LoRA needs a matching base (e.g. <code>z-image/turbo-lora</code>). Single <code>.safetensors</code>. Put the LoRA's <b>trigger word</b> in the prompt below. CivitAI links auto-attach your CivitAI key.</div>
         <label>Negative prompt (optional)</label>
         <input type="text" data-k="negative" value="${esc(r.negative||'')}" placeholder="low quality, blurry…">
