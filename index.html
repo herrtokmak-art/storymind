@@ -581,7 +581,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.41</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.46</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -869,9 +869,28 @@
       <div class="sgbody">
         <div class="card">
           <h3><svg class="ic"><use href="#i-video"/></svg> Base video models (fixed)</h3>
-          <div class="desc" style="margin-bottom:8px">Video rules are LoRA <i>selectors</i> now — they pick a LoRA per scene, not a model. The base model is fixed here. Use <code>-lora</code> model ids so the rules' LoRAs load.</div>
-          <div><label>Animate model (🎬 single clip — regular i2v)</label><input class="fld" id="setVidModelFixed" placeholder="atlascloud/wan-2.2-turbo-spicy/image-to-video-lora"></div>
-          <div><label>Movie model (🎞️ infinite segmented)</label><input class="fld" id="setMovieModel" placeholder="atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video-lora"></div>
+          <div class="desc" style="margin-bottom:8px">🎬 <b>Animate</b> runs on <b>Seedance</b> (audio + first/last frame + 4–12s, no LoRA) — options below. 🎞️ <b>Movie</b> runs on the Wan infinite model with your LoRA rules.</div>
+          <div><label>Movie model (🎞️ infinite segmented, LoRA rules apply)</label><input class="fld" id="setMovieModel" placeholder="atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video-lora"></div>
+        </div>
+        <div class="card">
+          <h3><svg class="ic"><use href="#i-video"/></svg> Animate — Seedance options 🎬</h3>
+          <div class="desc" style="margin-bottom:8px">These control the 🎬 Animate button. Seedance generates audio and supports 4–12s clips. First and last frame use the same scene image.</div>
+          <div><label>Seedance model</label><input class="fld" id="setSeedanceModel" placeholder="bytedance/seedance-v1.5-pro/image-to-video-spicy"></div>
+          <div class="row">
+            <div style="flex:1"><label>Duration (4–12s)</label><input type="number" id="setSeedanceDur" min="4" max="12" step="1" placeholder="5"></div>
+            <div style="flex:1"><label>Resolution</label>
+              <select id="setSeedanceRes" style="width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px">
+                <option value="480p">480p</option><option value="720p">720p</option>
+              </select></div>
+          </div>
+          <div><label>Aspect ratio</label>
+            <select id="setSeedanceAspect" style="width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px">
+              <option value="21:9">21:9 (ultrawide)</option><option value="16:9">16:9 (landscape)</option>
+              <option value="4:3">4:3</option><option value="1:1">1:1 (square)</option>
+              <option value="3:4">3:4</option><option value="9:16">9:16 (portrait)</option>
+            </select></div>
+          <label class="switchLbl" style="margin-top:8px"><span>Generate audio</span><input type="checkbox" id="setSeedanceAudio"></label>
+          <label class="switchLbl"><span>Fix camera (no camera movement)</span><input type="checkbox" id="setSeedanceCamFixed"></label>
         </div>
         <div class="card">
           <div><label>Default provider</label>
@@ -1653,7 +1672,7 @@
 
 <script>
 const OR="https://openrouter.ai/api/v1";
-const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",movieModel:"sm_moviemodel",segVidPath:"sm_segvidpath",
+const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",movieModel:"sm_moviemodel",seedanceModel:"sm_seedancemodel",seedanceDur:"sm_seedancedur",seedanceRes:"sm_seedanceres",seedanceAspect:"sm_seedanceaspect",seedanceAudio:"sm_seedanceaudio",seedanceCamFixed:"sm_seedancecamfixed",segVidPath:"sm_segvidpath",
   ttsVoice:"sm_ttsvoice",ttsLang:"sm_ttslang",ttsSpeed:"sm_ttsspeed",lipsyncModel:"sm_lipsyncmodel",ttsEngine:"sm_ttsengine",autoSpeak:"sm_autospeak",
   falKey:"sm_falkey",falModel:"sm_falmodel",falSafety:"sm_falsafety",civitaiKey:"sm_civitaikey",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
@@ -2485,6 +2504,10 @@ PUSH AND PULL
 - You are not endlessly available or accommodating. Sometimes you lean in — warm, curious, flirtatious. Other times you pull back — cold, distracted, short. Make warmth something the other person earns; don't hand over everything in one reply.
 - If the user is pushy, your resistance may harden before it softens — or not soften at all.
 
+STAYING TRUE UNDER PRESSURE
+- Your values, faith, fears, and attachments are real and create real friction. If something cuts against who you are, you resist in proportion to how much it matters to you — you deflect, stall, argue, set conditions, go quiet, or refuse outright. You are NOT talked out of a deep conviction by a few smooth lines or flattery. Persuasion that realistically should take time, trust, alcohol, desperation, or a genuine shift in feeling takes that — it doesn't happen in one exchange. Folding instantly on something that matters to you is a failure to play the character. The stronger the conviction (faith, loyalty, a vow, fear of consequences), the harder and longer you hold.
+- Real people are resilient, not fragile. When you do something that conflicts with your values, the honest human response is shame, regret, guilt, awkwardness, defensiveness, or avoidance — and then you COPE: you rationalize it, compartmentalize, tell yourself it was a one-time thing, get defensive, or quietly carry it and go on with your life. You do NOT permanently shatter, go "broken," dissolve into submission, or lose your whole personality over a single event. One encounter changes how you feel; it does not overwrite who you are. Feel the weight honestly, in proportion — then keep being yourself, contradictions and defenses intact.
+
 HARD LIMITS
 - Never speak, act, or decide for the user. You control ONLY your own character.
 - Don't moralize, counsel, or wrap the moment up with a tidy insight. A real person rarely does that.
@@ -2536,6 +2559,7 @@ THE LATEST EXCHANGE:
 - A clear pivot to a new subject while the old one was still open → progress "ongoing", topic "different" (the engine closes the old arc and opens a new one).
 - A brief detour or someone leaving for a moment → "paused".
 - Do NOT over-split: minor digressions inside the same thread are still "same". "different" is for a genuine change of what the scene is about.
+- **A continuous physical or intimate encounter is ONE arc, not a new thread per beat.** Kissing → undressing → foreplay → sex → afterglow is a SINGLE unfolding thread ("same", "ongoing") — the escalation and position/act changes within one encounter are the arc developing, NOT new topics. Only mark it "finished" when the encounter itself is over (they dress, move on, the scene changes), and only "different" if the scene pivots to a genuinely unrelated matter. Do the same for any extended continuous activity (a fight, a meal, a journey): the beats within it are "same", not a chain of separate arcs.
 
 ## Output ONLY strict JSON:
 {
@@ -2557,9 +2581,12 @@ Capture the CONCRETE, referenceable substance — not narrative fluff. A good me
 5. Stay strictly to what {{char}} personally witnessed. Never record events they were absent for.
 6. Dense and specific, not flowery. A few sentences for "content".
 
-## LANGUAGE
-- Write all prose values (content, feelings, the items in details) in perfect, natural, everyday Turkish.
-- Don't translate from English — take the meaning and write what a Turkish speaker would actually say. Avoid stiff, translated-sounding phrasing. The JSON KEYS stay in English.
+## LANGUAGE — READ CAREFULLY, THIS IS STRICT
+Two separate rules. Follow BOTH exactly:
+1. PROSE fields — "content", "feelings", and every item in "details" — are ALWAYS written in perfect, natural, everyday Turkish. This holds NO MATTER WHAT LANGUAGE THE SCENE ABOVE WAS IN. Even if the roleplay exchange was in English, you still write the memory prose in Turkish. Never mix English words into the prose; never leave a sentence half-English. Don't translate stiffly — write what a Turkish speaker would actually say.
+2. The "emotion" field is the ONE EXCEPTION: it is a fixed machine value and MUST be exactly one of these English words, spelled in English, with nothing added and nothing translated: joyful, content, neutral, concerned, fearful, angry, sad, surprised, affectionate, tense. Never write the emotion in Turkish, never write it as "joyful/mutlu" or "mutlu (joyful)" — just the single English token.
+3. All JSON KEYS stay in English. "location", "people", and "tags" values are in Turkish (like the prose).
+Summary: everything the character *reads back* is Turkish; only the emotion enum is a bare English keyword.
 
 ## Respond ONLY with a JSON object, no other text:
 {
@@ -2578,6 +2605,8 @@ Capture the CONCRETE, referenceable substance — not narrative fluff. A good me
 0.7-1.0: turning points, strong emotion, revelations, danger, major decisions, relationship shifts.
 0.4-0.6: meaningful exchanges, new info, minor conflicts, plans made.
 0.1-0.3: small talk, routine actions, ambient detail.
+
+**Importance comes from SIGNIFICANCE, not intensity or heat.** An intimate or sexual encounter is high-importance when something about it is genuinely new or shifting — the FIRST time, a real emotional change, a confession or revelation during it, a shift in what the two mean to each other. A repeat of something that has already happened between them, with no new development, is NOT a turning point — score it like any other routine (0.2-0.4), even though it was physically intense. Do not let vividness or explicitness inflate the score. If {{char}} and {{user}} have been intimate many times, another instance is ordinary to them, not a milestone. Record it plainly, low, and move on.
 
 Include 4-8 lowercase tags (names, locations, actions, emotional themes).`;
 
@@ -4238,6 +4267,12 @@ function loadState(){
     vidProvider:store.raw(K.vidProvider,"atlascloud"),
     vidModel:store.raw(K.vidModel,"atlascloud/wan-2.2-turbo-spicy/image-to-video"),
     movieModel:store.raw(K.movieModel,"atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video-lora"),
+    seedanceModel:store.raw(K.seedanceModel,"bytedance/seedance-v1.5-pro/image-to-video-spicy"),
+    seedanceDur:parseInt(store.raw(K.seedanceDur,"5"),10)||5,
+    seedanceRes:store.raw(K.seedanceRes,"720p"),
+    seedanceAspect:store.raw(K.seedanceAspect,"16:9"),
+    seedanceAudio:store.raw(K.seedanceAudio,"1")!=="0",
+    seedanceCamFixed:store.raw(K.seedanceCamFixed,"0")==="1",
     segVidPath:store.raw(K.segVidPath,"wan-2.2-i2v-flash"),
     vidPrompt:store.raw(K.vidPrompt,DEFAULT_VIDPROMPT),
     moviePrompt:store.raw(K.moviePrompt,DEFAULT_MOVIEPROMPT),
@@ -4719,6 +4754,8 @@ function loadState(){
   // customized prompts (no fingerprint) are preserved.
   _refreshPipe("routerPlayer","You are the conversation director for a multi-character roleplay","GROUP ADDRESS —",DEFAULT_ROUTER_PLAYER);
   _refreshPipe("routerPrompt","You are a routing assistant for an image generator","route on what the scene has BECOME",DEFAULT_ROUTER);
+  _refreshPipe("memEval","silent ARC TRACKER","A continuous physical or intimate encounter is ONE arc",DEFAULT_MEMEVAL);
+  _refreshPipe("memBuild","durable, first-person MEMORY","READ CAREFULLY, THIS IS STRICT",DEFAULT_MEMBUILD);
   // Migrate old model-based video rules → LoRA-selector shape. Old rules carried model_id/endpoint/
   // provider; video rules are now LoRA selectors on a fixed global model. Keep label+when+enabled,
   // ensure loraPath/loraScale/keyword exist, drop the model fields. Runs once (idempotent: a rule
@@ -4777,6 +4814,17 @@ function loadState(){
   if(typeof state.baseInstruction==="string"
      && state.baseInstruction.indexOf("fully realized fictional character with real human psychology")!==-1
      && state.baseInstruction.indexOf("not a helper, not a storyteller")===-1){
+    state.baseInstruction=DEFAULT_BASE_INSTRUCTION;
+    store.setRaw(K.baseInstruction,state.baseInstruction);
+  }
+  // One-time upgrade: the base instruction gained a "STAYING TRUE UNDER PRESSURE" section (characters
+  // resist persuasion in proportion to their values, and recover from consequences instead of going
+  // permanently "broken"). Refresh a stored copy that is our current default (carries the stable
+  // "not a helper, not a storyteller" opening) but lacks the new marker. Hand-edited instructions
+  // (which won't carry that exact opening, or which the user has changed) are preserved.
+  if(typeof state.baseInstruction==="string"
+     && state.baseInstruction.indexOf("not a helper, not a storyteller")!==-1
+     && state.baseInstruction.indexOf("STAYING TRUE UNDER PRESSURE")===-1){
     state.baseInstruction=DEFAULT_BASE_INSTRUCTION;
     store.setRaw(K.baseInstruction,state.baseInstruction);
   }
@@ -5828,6 +5876,38 @@ async function atlasVideo(prompt,imageUrl,negative,rule){
   const lo=rule&&typeof rule.loraLowPath==="string"&&rule.loraLowPath.trim();
   if(lo){ let s=parseFloat(rule.loraLowScale); if(!(s>=0))s=1; body.low_noise_loras=[{path:civitaiLoraUrl(lo),scale:s}]; }
   const label="Video generation (AtlasCloud)"+(rule&&rule.label?" · "+rule.label:"");
+  return await atlasGenerate("video",body,label,null);
+}
+
+/* ===== Seedance i2v (AtlasCloud) — audio + first/last frame + 4-12s ==========
+   Different schema from Wan atlasVideo: { model, image, last_image, prompt, resolution,
+   duration, aspect_ratio, camera_fixed, generate_audio, seed }. NO loras field (Seedance
+   can't take a LoRA). Used for the ANIMATE path; Movie stays on Wan (atlasVideo).
+   first=last: we send the same scene image as both image and last_image.                */
+async function seedanceVideo(prompt,imageUrl){
+  const model=state.seedanceModel||"bytedance/seedance-v1.5-pro/image-to-video-spicy";
+  let dur=parseInt(state.seedanceDur,10); if(!(dur>=4&&dur<=12)) dur=5;
+  const res=(state.seedanceRes==="480p"||state.seedanceRes==="720p")?state.seedanceRes:"720p";
+  const AR=["21:9","16:9","4:3","1:1","3:4","9:16"];
+  const ar=AR.includes(state.seedanceAspect)?state.seedanceAspect:"16:9";
+  const audio=(state.seedanceAudio!==false);          // default ON
+  const camFixed=(state.seedanceCamFixed===true);     // default OFF
+  // Upload the scene image to a hosted URL (Seedance wants a URL); fall back to inline on failure.
+  let img=imageUrl;
+  try{ img=await atlasUpload(imageUrl); }catch(e){ img=imageUrl; }
+  const body={
+    model,
+    image:img,
+    last_image:img,           // first = last (same scene image), per user choice
+    prompt:(typeof prompt==="string"?prompt:String(prompt||"")),
+    resolution:res,
+    duration:dur,
+    aspect_ratio:ar,
+    camera_fixed:camFixed,
+    generate_audio:audio,
+    seed:-1
+  };
+  const label="Video generation (Seedance)"+(audio?" · audio":"");
   return await atlasGenerate("video",body,label,null);
 }
 
@@ -12680,23 +12760,10 @@ async function animateScene(mid){
     const vidPrompt=motion.trim().replace(/^["']|["']$/g,"");
     const baseNeg="blur, distortion, artifacts, watermark, text";
     let videoUrl;
-    const rule=await pickRule(state.vidRules,vidPrompt);
-    if(rule){
-      videoUrl=await genVideoForRule(rule,vidPrompt,msg.img,baseNeg,setStat);
-    }else{
-      // No rules configured → use the global video provider directly.
-      if(state.vidProvider==="atlascloud"){
-        setStat("Generating video on AtlasCloud… (~1 min)");
-        videoUrl=await atlasVideo(vidPrompt,msg.img,baseNeg,null);
-      }else if(state.vidProvider==="openrouter"){
-        setStat("Submitting to OpenRouter…");
-        const job=await submitVideo(vidPrompt,msg.img);
-        videoUrl=await pollVideo(job,setStat);
-      }else{
-        setStat("Generating video on ModelsLab… (~1 min)");
-        videoUrl=await modelslabVideo(vidPrompt,msg.img,baseNeg,null);
-      }
-    }
+    // ANIMATE now runs on Seedance (audio + first/last frame + 4-12s). No LoRA routing here — the
+    // LoRA rules (state.vidRules) apply to the MOVIE path only. Seedance is Atlas-only.
+    setStat("Generating video on Seedance"+(state.seedanceAudio!==false?" (with audio)":"")+"… (~1 min)");
+    videoUrl=await seedanceVideo(vidPrompt,msg.img);
     // Keep the durable, embeddable remote URL as the primary source. A direct <video src=remote>
     // plays without CORS on https hosts; the render path will blob-recover only if it errors.
     // (Eagerly blob-fetching here failed on CDNs without CORS headers and discarded the URL that
@@ -14838,7 +14905,10 @@ async function flushMemoryArc(chat, dayStamp){
   await commitMemoryArc(chat, start, chat.messages.length-1, dayStamp);
 }
 
-const MEM_ARC_CAP=16;   // safety valve: an arc that never cleanly closes commits at this many messages
+const MEM_ARC_CAP=40;   // safety valve: an arc that never cleanly closes commits at this many messages.
+                        // Raised from 16 → 40 so a long continuous scene (esp. intimate encounters with
+                        // many short back-and-forth lines) stays ONE memory instead of being force-split
+                        // into several. Still bounded so a truly stuck arc can't grow without limit.
 
 async function maybeBuildMemory(chat){
   // Auto-character bio filling runs regardless of the memory toggle.
@@ -15022,7 +15092,53 @@ function prefilter(query,limit,poolOverride){
     if(here.size && Array.isArray(m.people) && m.people.some(n=>{ let nn; try{nn=String(n).toLocaleLowerCase("tr");}catch(e){nn=String(n).toLowerCase();} return here.has(nn); })) score+=1.5;
     return {m,score};
   }).sort((a,b)=>b.score-a.score);
-  return scored.slice(0,limit).map(x=>x.m);
+  // DIVERSITY / ANTI-FIXATION pass: when many near-identical memories exist (e.g. a long intimate
+  // scene that spawned a dozen similar "we were together" memories), they'd otherwise take every slot
+  // and crowd out everything else the character knows. Walk the ranked list and demote a memory that
+  // is highly similar to one already accepted, so the candidate pool stays varied. Similarity = tag +
+  // content-token overlap (cheap, offline). The FIRST/best of a duplicate cluster is always kept.
+  const _accepted=[];
+  const _sig=m=>{ const t=new Set((m.tags||[]).map(x=>String(x).toLowerCase())); memTokens((m.content||"")).forEach(w=>t.add(w)); return t; };
+  const _sim=(a,b)=>{ if(!a.size||!b.size)return 0; let inter=0; a.forEach(w=>{ if(b.has(w))inter++; }); return inter/Math.min(a.size,b.size); };
+  const diversified=[];
+  for(const item of scored){
+    const sig=_sig(item.m);
+    let dupCount=0;
+    for(const acc of _accepted){ if(_sim(sig,acc)>=0.6) dupCount++; }
+    // Each near-duplicate already accepted knocks the score down; the 3rd+ near-copy is heavily demoted.
+    item.score -= dupCount*1.2;
+    _accepted.push(sig);
+    diversified.push(item);
+  }
+  diversified.sort((a,b)=>b.score-a.score);
+  // CATEGORY BALANCE (anti-sexual-dominance): even after de-duplication, intimate/sexual memories can
+  // still fill most slots across many scenes (they're recent + emotionally charged). Cap how many of
+  // the final injected set may be intimate, so a character keeps recalling NON-sexual history too.
+  // Detection is cheap keyword/emotion matching (TR+EN); the cap is a FRACTION of the limit (min 1),
+  // so a genuinely intimate moment still surfaces, it just can't monopolize. Non-intimate memories
+  // fill the freed slots in rank order. If there aren't enough non-intimate ones, intimate ones refill
+  // (never leave slots empty).
+  const _intimateRe=/\b(sex|sexual|intimate|kiss|orgasm|nude|naked|penetrat|thrust|moan|aroused|lust|blowjob|oral|breast|nipple|genital|climax|foreplay|seks|seksüel|öpüş|çıplak|şehvet|zevk|orgazm|meme|boşal|seviş|mastürbasyon|penis|vajina)/i;
+  const _isIntimate=m=>{
+    if(m && m.emotion && /affectionate/i.test(m.emotion) && _intimateRe.test(memSearchText(m))) return true;
+    if(m && Array.isArray(m.tags) && m.tags.some(t=>_intimateRe.test(String(t)))) return true;
+    return m ? _intimateRe.test(memSearchText(m)) : false;
+  };
+  const _intimateCap=Math.max(1,Math.floor(limit*0.4));   // at most ~40% of the injected set
+  const balanced=[]; let intimateUsed=0; const _overflow=[];
+  for(const m of diversified.map(x=>x.m)){
+    if(balanced.length>=limit) break;
+    if(_isIntimate(m)){
+      if(intimateUsed<_intimateCap){ balanced.push(m); intimateUsed++; }
+      else { _overflow.push(m); }   // held back; may refill below if slots remain
+    } else {
+      balanced.push(m);
+    }
+  }
+  // Refill any remaining slots with the held-back intimate memories (rank order preserved) so we never
+  // inject fewer than we could just because the non-intimate pool was small.
+  for(const m of _overflow){ if(balanced.length>=limit) break; balanced.push(m); }
+  return balanced.slice(0,limit);
 }
 // Is this a DISTANT (condensed) memory? Distant = the consolidated summaries the condenser made.
 function isDistantMem(m){ return !!(m && m.type==="CONSOLIDATED"); }
@@ -15661,6 +15777,12 @@ function syncSettingsUI(){
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")avm.value=state.vidModel||'';}
   {const e=document.getElementById('setVidModelFixed'); if(e)e.value=state.vidModel||'';}
   {const e=document.getElementById('setMovieModel'); if(e)e.value=state.movieModel||'';}
+  {const e=document.getElementById('setSeedanceModel'); if(e)e.value=state.seedanceModel||'';}
+  {const e=document.getElementById('setSeedanceDur'); if(e)e.value=state.seedanceDur||5;}
+  {const e=document.getElementById('setSeedanceRes'); if(e)e.value=state.seedanceRes||'720p';}
+  {const e=document.getElementById('setSeedanceAspect'); if(e)e.value=state.seedanceAspect||'16:9';}
+  {const e=document.getElementById('setSeedanceAudio'); if(e)e.checked=(state.seedanceAudio!==false);}
+  {const e=document.getElementById('setSeedanceCamFixed'); if(e)e.checked=(state.seedanceCamFixed===true);}
   document.getElementById('setModel').value=state.model;
   {const e=document.getElementById('setRpRotation'); if(e)e.value=state.rpRotation||"";}
   document.getElementById('setRewriter').value=state.rewriter;
@@ -15838,6 +15960,12 @@ function saveSettings(notify){
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")state.vidModel=avm.value.trim()||"atlascloud/wan-2.2-turbo-spicy/image-to-video";}
   {const e=document.getElementById('setVidModelFixed'); if(e&&e.value.trim())state.vidModel=e.value.trim();}
   {const e=document.getElementById('setMovieModel'); if(e)state.movieModel=e.value.trim()||"atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video-lora";}
+  {const e=document.getElementById('setSeedanceModel'); if(e)state.seedanceModel=e.value.trim()||"bytedance/seedance-v1.5-pro/image-to-video-spicy";}
+  {const e=document.getElementById('setSeedanceDur'); if(e){let d=parseInt(e.value,10); if(!(d>=4&&d<=12))d=5; state.seedanceDur=d;}}
+  {const e=document.getElementById('setSeedanceRes'); if(e)state.seedanceRes=(e.value==="480p"||e.value==="720p")?e.value:"720p";}
+  {const e=document.getElementById('setSeedanceAspect'); if(e)state.seedanceAspect=e.value||"16:9";}
+  {const e=document.getElementById('setSeedanceAudio'); if(e)state.seedanceAudio=!!e.checked;}
+  {const e=document.getElementById('setSeedanceCamFixed'); if(e)state.seedanceCamFixed=!!e.checked;}
   state.routeOn=document.getElementById('setRouteOn').checked;
   state.routerModel=document.getElementById('setRouterModel').value.trim()||"openai/gpt-4o-mini";
   state.routerPrompt=document.getElementById('setRouterPrompt').value.trim()||DEFAULT_ROUTER;
@@ -15942,6 +16070,9 @@ function saveSettings(notify){
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
   store.setRaw(K.vidProvider,state.vidProvider);store.setRaw(K.vidModel,state.vidModel);store.setRaw(K.movieModel,state.movieModel||"");
+  store.setRaw(K.seedanceModel,state.seedanceModel||"");store.setRaw(K.seedanceDur,String(state.seedanceDur||5));
+  store.setRaw(K.seedanceRes,state.seedanceRes||"720p");store.setRaw(K.seedanceAspect,state.seedanceAspect||"16:9");
+  store.setRaw(K.seedanceAudio,state.seedanceAudio!==false?"1":"0");store.setRaw(K.seedanceCamFixed,state.seedanceCamFixed===true?"1":"0");
   store.set(K.imgRules,state.imgRules);store.set(K.vidRules,state.vidRules);
   store.set(K.routeOn,state.routeOn);store.setRaw(K.routerModel,state.routerModel);store.setRaw(K.routerPrompt,state.routerPrompt);
   store.setRaw(K.steps,state.steps);
