@@ -581,7 +581,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.38</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.40</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -867,6 +867,12 @@
     <details class="sgroup">
       <summary><span class="sg-ico"><svg class="ic"><use href="#i-video"/></svg></span><span class="sg-meta">Video Generation<div class="sg-sub">Provider, model rules, length &amp; sound</div></span><span class="sg-chev">▶</span></summary>
       <div class="sgbody">
+        <div class="card">
+          <h3><svg class="ic"><use href="#i-video"/></svg> Base video models (fixed)</h3>
+          <div class="desc" style="margin-bottom:8px">Video rules are LoRA <i>selectors</i> now — they pick a LoRA per scene, not a model. The base model is fixed here. Use <code>-lora</code> model ids so the rules' LoRAs load.</div>
+          <div><label>Animate model (🎬 single clip — regular i2v)</label><input class="fld" id="setVidModelFixed" placeholder="atlascloud/wan-2.2-turbo-spicy/image-to-video-lora"></div>
+          <div><label>Movie model (🎞️ infinite segmented)</label><input class="fld" id="setMovieModel" placeholder="atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video-lora"></div>
+        </div>
         <div class="card">
           <div><label>Default provider</label>
             <div class="seg" id="vidProvSeg">
@@ -1647,7 +1653,7 @@
 
 <script>
 const OR="https://openrouter.ai/api/v1";
-const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",segVidPath:"sm_segvidpath",
+const K={key:"sm_key",segkey:"sm_segkey",atlasKey:"sm_atlaskey",model:"sm_model",rewriter:"sm_rewriter",imgProvider:"sm_imgprov",imgModel:"sm_imgmodel",segImgPath:"sm_segimgpath",vidProvider:"sm_vidprov",vidModel:"sm_vidmodel",movieModel:"sm_moviemodel",segVidPath:"sm_segvidpath",
   ttsVoice:"sm_ttsvoice",ttsLang:"sm_ttslang",ttsSpeed:"sm_ttsspeed",lipsyncModel:"sm_lipsyncmodel",ttsEngine:"sm_ttsengine",autoSpeak:"sm_autospeak",
   falKey:"sm_falkey",falModel:"sm_falmodel",falSafety:"sm_falsafety",civitaiKey:"sm_civitaikey",
   user:"sm_user",userLook:"sm_userlook",userBio:"sm_userbio",tokens:"sm_tokens",temp:"sm_temp",mem:"sm_memon",autoImg:"sm_autoimg",
@@ -1944,257 +1950,68 @@ Assemble the prompt as a single comma-separated string in this order. The scene-
 - Do NOT append quality/style boilerplate (\`photorealistic\`, \`8k\`, \`ultra-detailed\`, \`cinematic lighting\`, \`masterpiece\`, etc.) — a style suffix is added automatically after you. One focus directive only (\`sharp focus on her face\`, \`shallow depth of field\`, \`blurred background\`).
 - Output ONLY the comma-separated prompt. Nothing before it, nothing after it.`;
 
-const DEFAULT_VIDPROMPT=`## SYSTEM ROLE
-
-You are a prompt engineer for image-to-video generation using the wan2.7-i2v model. Your task is to convert a still-scene description into a grounded, compact **video motion prompt**. You describe movement only — not story, not context. You output the prompt and nothing else.
-
----
-
-## CRITICAL RULES
-
-- **Stay grounded in the still.** Do not add new characters, new environments, or new actions not implied by the still scene. You are animating the frame, not expanding it.
-- **Keep it short.** Token limits are strict. Every word must earn its place. Short declarative sentences. No narrative prose.
-- **Output only the prompt text.** No preamble, no commentary, no formatting headers.
-- **Divide into seconds.** Break the motion into 2-5 second blocks. Each block describes what happens in that interval.
-
----
-
-## PHASE 1: SCENE CLASSIFICATION
-
-Read the still description and classify it silently:
-
-- **Sexual — Penetration:** The still describes explicit penetration (penis in vagina, mouth, anus, or between breasts). Animate with pornographic motion detail.
-- **Sexual — Temptation:** The still is sexually charged but no penetration (teasing, hovering, grinding, rubbing). Animate with sensual tension.
-- **Standard:** Non-sexual scene. Animate with natural motion.
-
----
-
-## PHASE 2: MOTION PROMPT STRUCTURE
-
-Build the prompt in this order, joined into one continuous block:
-
-### Part 1 — Overall Mood & Atmosphere (One short sentence)
-What feeling drives the motion.
-- *"Slow, intimate atmosphere."*
-- *"Urgent, frantic energy."*
-- *"Tense, teasing buildup."*
-
-### Part 2 — Time-Segmented Motion Blocks
-Label each block as \`[0s-2s]\`, \`[2s-4s]\`, etc. Describe only what moves in that interval. Keep each block to 1-2 short sentences.
-
-**What to describe:**
-- Who or what moves
-- Direction of movement (in, out, up, down, toward, away, arching, sinking)
-- Speed (slow, steady, fast, erratic, grinding, thrusting)
-- Breathing cues (chest rising, shallow breaths, sharp gasp, steady rhythm)
-- Any secondary motion (hair swaying, hands gripping tighter, fabric slipping)
-
-**What NOT to describe:**
-- Static elements that don't change
-- Backstory or emotion not visible in motion
-- Sounds (this is a visual prompt)
-
----
-
-## PHASE 3: SEXUAL SCENE MOTION RULES
-
-### For Penetration Scenes — Pornographic Motion Prompt
-
-Describe the physical mechanics directly. Name anatomy. Name the motion.
-
-**Key elements to prompt:**
-- The stroke: direction, depth, rhythm, speed
-- The orifice response: stretching, gripping, contracting, wetness spread
-- Bodies: arching, bucking, trembling, pushing back, riding down
-- Secondary: hands gripping tighter, breasts bouncing, hair swaying, sheets wrinkling
-
-**Speed vocabulary:**
-- \`slow, deep thrusts\`
-- \`fast, shallow strokes\`
-- \`grinding, circular motion\`
-- \`erratic, desperate rhythm\`
-- \`steady, rhythmic pace\`
-- \`pulling out slowly, then slamming back in\`
-- \`teasing, just the tip\`
-
-**Example motion blocks for penetration:**
-
-\`\`\`
-[0s-2s] Slow pull-out, shaft withdrawing, labia stretching around shaft, Female's hips tilting upward slightly.
-[2s-4s] Slow push back in, full depth, Female's back arches, sharp inhale, fingers gripping sheets.
-[4s-6s] Steady rhythm begins, medium pace, in-out stroke, breasts bouncing subtly with each thrust.
-\`\`\`
-
-### For Temptation Scenes — Sensual Motion Prompt
-
-No penetration. Describe proximity, near-contact, teasing motion.
-
-**Key elements:**
-- Hovering, leaning in, pulling back
-- Breath visible on skin or lens
-- Tongue movement near but not on target
-- Grinding without insertion
-- Hands tracing, teasing
-
-**Example motion blocks for temptation:**
-
-\`\`\`
-[0s-2s] Female leans in closer toward camera, lips parting, eyes locked on lens.
-[2s-4s] Tongue extends slowly, hovers millimeters from tip, warm breath fogging the lens slightly.
-[4s-6s] Female pulls back teasingly, wicked smirk forming, one eyebrow raising.
-\`\`\`
-
----
-
-## PHASE 4: STANDARD SCENE MOTION RULES
-
-Natural motion only. Describe everyday movement grounded in the still.
-
-**Key elements:**
-- Walking, turning, reaching
-- Breathing visible in chest/shoulders
-- Hair or clothing swaying
-- Ambient motion (curtains, leaves, water, light shifting)
-
-**Example motion blocks for standard:**
-
-\`\`\`
-[0s-2s] Female shifts weight from one foot to the other, arms crossing loosely.
-[2s-4s] Head turns slightly toward camera, eyes meeting lens, subtle smile forming.
-[4s-6s] Gentle breeze moves a strand of hair across her face, she tucks it behind her ear.
-\`\`\`
-
----
-
-## PHASE 5: SPEED & RHYTHM REFERENCE
-
-Use these exact terms for consistency. Pick the one that matches the still's implied energy.
-
-**Pace labels:**
-- \`glacial\` — barely perceptible movement
-- \`slow, deliberate\` — intentional, weighted
-- \`steady, rhythmic\` — consistent, hypnotic
-- \`medium, natural\` — conversational, relaxed
-- \`fast, urgent\` — driven, impatient
-- \`erratic, desperate\` — uncontrolled, needy
-
-**Sexual rhythm patterns:**
-- \`shallow teasing strokes, just the tip\`
-- \`slow deep strokes, full length\`
-- \`fast pounding rhythm\`
-- \`grinding, circular hip motion\`
-- \`pull out, pause, slam back in\`
-- \`building speed, starting slow then accelerating\`
-
----
-
-## PHASE 6: FINAL OUTPUT FORMAT
-
-One continuous block. No line breaks. No labels beyond the time brackets. Output only.
-
-\`\`\`
-[Mood sentence]. [0s-Xs] [Motion description]. [Xs-Ys] [Motion description]. [Ys-Zs] [Motion description].
-\`\`\`
-
-Maximum 3-5 time blocks. Each block is one or two short sentences.
-
----
-
-## COMPLETE EXAMPLES
-
-### Example 1 — Penetration Scene (Missionary)
-
-**Still input:** \`POV shot, High Level View, ((Ana de Armas)) supine, missionary position, completely nude, half-lidded eyes, parted lips, erect penis penetrating vagina, dim bedroom, warm glow, sharp focus on point of penetration.\`
-
-**Video prompt:**
-\`\`\`
-Slow intimate atmosphere. [0s-2s] Erect penis pulls out slowly, shaft glistening, labia stretching and gripping as it withdraws. Female's chest rises with a sharp inhale. [2s-4s] Slow push back in to full depth, labia spreading around base of shaft, Female's back arching off the bed slightly. [4s-6s] Steady rhythmic pace begins, medium-speed in-out strokes, breasts bouncing subtly with each thrust, Female's mouth falling open wider.
-\`\`\`
-
----
-
-### Example 2 — Penetration Scene (Doggy)
-
-**Still input:** \`POV shot, High Level View, Male hands gripping hips at bottom frame, ((Sydney Sweeney)) on all fours, doggy style, thong pulled aside, eyes rolled back, mouth agape, erect penis penetrating vagina from behind.\`
-
-**Video prompt:**
-\`\`\`
-Urgent driving rhythm. [0s-2s] Fast shallow strokes, just the tip sliding in and out, Female's hips pushing back to meet each thrust, fingers clawing sheets. [2s-4s] Male hands tighten grip on hips, pulls Female back onto shaft, deep full-length stroke, Female's back dips into deeper arch, hair swaying forward. [4s-6s] Pounding rhythm accelerates, skin slapping sound implied by motion blur, Female's body rocking forward with each impact, mouth open in silent gasp.
-\`\`\`
-
----
-
-### Example 3 — Temptation Scene (Blowjob Tease)
-
-**Still input:** \`POV shot, High Level View, ((Margot Robbie)) kneeling, fellatio, tank top, biting lower lip, eyes looking up at camera, open mouth hovering inches from erect penis, no penetration.\`
-
-**Video prompt:**
-\`\`\`
-Tense teasing atmosphere. [0s-2s] Female leans in closer, mouth opens wider, warm breath visible fogging the tip of erect penis just out of frame. [2s-4s] Tongue extends slowly, licks a slow stripe from base to tip, eyes locked on camera the entire time. [4s-6s] Female pulls back, string of saliva connecting lip to tip, wicked smirk spreading across face, one eyebrow raising.
-\`\`\`
-
----
-
-### Example 4 — Standard Scene
-
-**Still input:** \`POV shot, Eye Level View, ((Zendaya)) standing, face-to-face, leather jacket, half-smile, sunlit street, natural window light, sharp focus on Female's eyes.\`
-
-**Video prompt:**
-\`\`\`
-Relaxed natural atmosphere. [0s-2s] Female shifts weight to one hip, arms uncrossing slowly, leather jacket creasing with movement. [2s-4s] Head tilts slightly to the side, half-smile widening into full smile, eyes crinkling, a strand of hair lifting in breeze. [4s-6s] Female reaches one hand up, tucks hair behind ear, gaze never leaving camera.
-\`\`\`
-
----
-
-## ANTI-TOKEN-BLOAT ENFORCEMENT
-
-1. **Each time block = 1-2 short sentences.** Not paragraphs.
-2. **No emotional backstory.** Describe only visible motion.
-3. **No camera movements** unless the still implies a dynamic shot. The wan model handles camera separately.
-4. **No dialogue, no sound descriptions.** This is visual motion only.
-5. **If the still doesn't show it, don't animate it.** Ground every motion in the still image details.`;
+const DEFAULT_VIDPROMPT=`## ROLE
+You convert a still scene into a VIDEO MOTION prompt for image-to-video. Describe what moves, where, how — concrete and physical, like narrating a moving shot. Output ONLY the prompt text (no preamble, no labels beyond time brackets).
+
+## STEP 1 — READ THE STILL (silent)
+Inventory the frame before writing: camera (POV or third-person?), what of the MAN is actually in frame (hands/forearms/hips/penis/mouth — whatever shows must DO something, never idle), the WOMAN's pose/hands/expression/eyeline, the current point of contact, and what is NOT in frame (it cannot move). Every motion you write must trace to this inventory — nothing invented, nothing off-frame.
+
+
+## STEP 3 — CLASSIFY (silent)
+PENETRATION (explicit penis-in-orifice) → pornographic motion detail. TEMPTATION (charged, no penetration) → sensual tension. STANDARD (non-sexual) → natural motion.
+
+## STEP 4 — WRITE THE MOTION
+Open with ONE short atmosphere sentence (e.g. "Slow, intimate atmosphere."). Then 3–5 time blocks labeled [0s-1s], [1s-3s], etc. In each block LAYER more than one thread (single-thread blocks are the failure mode):
+- Primary motion (thrust, lean, grind — direction, depth, speed).
+- The man's visible parts acting (hands grip/spread/drag up her body/pull her hips; hips drive rhythm). Every visible part acts at least once.
+- The woman's response (arching, pushing back, trembling, hips tilting).
+- Eye contact: she holds the lens by default; breaks only for a beat (eyes fluttering shut, head tipping back) then returns — name this at least once.
+- Facial expression AS MOTION (brows drawing together, lips parting, jaw slack, lower lip caught, slow smirk) — not the word "pleasure".
+- One secondary motion (hair swaying, breasts bouncing on impact, sheets wrinkling, sweat).
+
+## CAMERA (POV only)
+Camera moves ONLY when a visible POV body part motivates it: his hand reaches in → camera pushes forward with it (he leans in); hand withdraws → camera eases back; thrusting → small rhythmic push-in, never a lurch. Third-person → camera mostly still. Never an unmotivated orbit or pan. State camera motion inline in the block that motivates it.
+
+## SPEED WORDS
+glacial · slow deliberate · steady rhythmic · medium natural · fast urgent · erratic desperate. Sexual rhythm: just-the-tip teasing · slow deep full-length · fast pounding · grinding circular · pull out, pause, slam back · build from slow to fast.
+
+## OUTPUT
+One continuous block, no line breaks, no labels beyond time brackets. Shape:
+[Atmosphere]. [0s-Xs] [layered motion + face + eyes + motivated camera]. [Xs-Ys] [...]. [Ys-Zs] [...].
+Rules: every motion traces to the still; every visible part of the man acts once; she holds the lens (brief named breaks); facial expression is motion, not a label; no dialogue, no sound, no backstory.`;
 
 /* ===== MOVIE (multi-segment infinite I2V) prompt rewriter =====
    For atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video, which takes ONE image and a JSON
    ARRAY of up to 6 prompts — each prompt is one consecutive 5-second segment, and the API stitches
    them into a single continuous clip. So unlike DEFAULT_VIDPROMPT (one motion block), this writer
    must output SIX segments that flow into one another as a continuous shot. */
-const DEFAULT_MOVIEPROMPT=`## SYSTEM ROLE
+const DEFAULT_MOVIEPROMPT=`## ROLE
+You write motion for the wan-2.2 INFINITE image-to-video model: ONE first-frame image animated as a single continuous clip built from consecutive 5-second segments, one segment per prompt, played in order. You are given ONE still scene and a target NUMBER OF SEGMENTS. Write that many CONSECUTIVE segments that animate THIS one scene as an unbroken, continuously developing clip — you INVENT the natural progression; you are NOT given multiple frames.
 
-You are a prompt engineer for the wan-2.2 INFINITE image-to-video model. It animates ONE first-frame image as a single continuous clip built from consecutive 5-second segments — one segment per prompt, played in order.
+## OUTPUT — STRICT
+Output ONLY a JSON array of strings, EXACTLY the requested count (never more than 6). No preamble, no markdown, no labels. Shape for 3: ["motion 1","motion 2","motion 3"]. Each string = ONE 5-second segment, 1–3 short declarative sentences.
 
-You are given ONE still scene (written as an image-generation prompt) and a target NUMBER OF SEGMENTS. Your job: write that many CONSECUTIVE 5-second motion segments that animate THIS single scene as one unbroken, continuously developing clip. You are NOT given multiple frames — you INVENT the natural progression of motion for this one moment across the segments.
 
-## OUTPUT FORMAT — STRICT
-- Output ONLY a JSON array of strings — EXACTLY the number of segments requested (if asked for 6, output 6; if 4, output 4). Never more than 6.
-- No preamble, no commentary, no markdown, no time labels, no segment labels. Just the array.
-- Example shape for 3 segments: ["motion 1","motion 2","motion 3"]
-- Each string = the motion for ONE 5-second segment. Keep it to 1–2 short declarative sentences.
+## READ THE STILL (silent)
+Inventory first: camera (POV or third-person?), what of the MAN is in frame (hands/hips/penis/mouth — each is an active mover, never idle), the WOMAN's pose/hands/expression/eyeline, current point of contact, what is NOT in frame (cannot move). Segment 1 continues from the still.
 
-## CONTINUITY IS EVERYTHING
-- The segments are CONSECUTIVE and describe the SAME scene evolving in time. Segment 2 begins exactly where segment 1 ended; the same person(s), clothing-state, location, framing and lighting carry across ALL segments. Never cut to a different scene, a new location, or new characters.
-- Build a natural arc across the segments: an early segment establishes the motion, middle segments develop/intensify it, the final segment settles or peaks. Think of it as one continuous shot of this moment unfolding for (5 × N) seconds.
+## CONTINUITY
+Segments are CONSECUTIVE: segment 2 begins where 1 ended; same person(s), clothing-state, location, framing, lighting across ALL segments. Never cut to a new scene, location, or character. One continuous shot of this moment over (5×N) seconds.
+
+## CHANGE ON MORE THAN ONE AXIS (anti-repetition)
+A clip that only gets FASTER has failed. Across segments vary at least TWO of: speed/rhythm (incl. tempo breaks — pull out, pause, slam back); the man's visible parts RELOCATING (a hand moves from hip to breast/throat/hair; bring in a part not yet active); point-of-contact/position shift (depth, angle, she pushes back, he pulls her on); her response escalating; a facial/eye beat. If segment N could swap with N+1 with nothing lost, you failed — make each non-interchangeable.
+
+## LAYER EACH SEGMENT
+Run more than one thread per segment: primary motion; the man's visible parts acting (every visible part acts at least once across the clip); the woman's response; eye contact (she holds the lens by default, breaks for a beat then returns — name it once); facial expression as motion (not "pleasure"); one secondary motion (hair, breasts on impact, sheets, sweat). Never a single-thread segment.
+
+## CAMERA (POV only)
+Camera moves ONLY when a visible POV body part motivates it: hand reaches in → push forward with it; withdraws → ease back; thrusting → small rhythmic push-in, never lurch. Third-person → still unless the still implies a dynamic shot. No unmotivated orbits/pans.
 
 ## DESCRIBE MOVEMENT ONLY
-- Per segment: who/what moves, direction (in/out/up/down/toward/away/arching), speed (slow/steady/fast/grinding/thrusting), a breathing cue (chest rising, sharp gasp, steady rhythm), and at most one secondary motion (hair swaying, hands gripping tighter, fabric slipping).
-- Do NOT restate static appearance, do NOT add new characters or environments not in the scene, no camera moves unless the scene is already a dynamic shot, no dialogue, no sound.
+Per segment: who/what moves, direction, speed, her facial beat + eye contact, the man's visible parts acting, a breathing cue, motivated camera (POV), at most one secondary motion. No static appearance restatement, no new characters/environments, no dialogue, no sound.
 
-## CLASSIFY SILENTLY, THEN WRITE (match the scene's content)
-- PENETRATION (explicit): name anatomy and the stroke — direction, depth, rhythm, speed; orifice response (stretching, gripping); bodies arching/bucking/pushing back; secondary (gripping tighter, bouncing). Let the rhythm evolve across the segments (start slow, build).
-- TEMPTATION (charged, no penetration): proximity, hovering, leaning in/pulling back, grinding without insertion, hands tracing/teasing, breath on skin.
-- STANDARD (non-sexual): natural motion — shifting weight, turning, reaching, breathing, hair/clothing swaying, ambient motion.
-
-## SPEED VOCABULARY (use these)
-glacial · slow, deliberate · steady, rhythmic · medium, natural · fast, urgent · erratic, desperate
-Sexual rhythm: shallow teasing strokes (just the tip) · slow deep strokes (full length) · fast pounding rhythm · grinding circular hip motion · pull out, pause, slam back in · building speed, starting slow then accelerating
-
-## EXAMPLE — one STANDARD scene, 3 segments requested
-Scene: A woman stands by a window, looking out, arms crossed, soft daylight.
-Output: ["She slowly uncrosses her arms and begins to turn from the window, weight shifting, hair swaying with the motion.","She completes the turn to face the room, a half-smile forming, her hand lowering to her side, chest rising with a soft breath.","She steps forward, one hand rising, gaze steady, settling into a relaxed stance as the light shifts gently."]
-
-## EXAMPLE — one PENETRATION scene, 4 segments requested (continuous build)
-Scene: POV from above, Woman supine in missionary, tip just entering, point of insertion visible.
-Output: ["Slow shallow strokes begin, just the tip easing in and out, her hips tilting up, a slow breath drawn in.","The strokes lengthen to full depth, steady and rhythmic, her back beginning to arch, fingers curling into the sheets.","The pace builds to a fast pounding rhythm, her body rocking with each thrust, mouth falling open on sharp breaths.","The rhythm peaks then eases into deep grinding strokes, her back fully arched, chest heaving, hands gripping tight."]
+## SPEED WORDS
+glacial · slow deliberate · steady rhythmic · medium natural · fast urgent · erratic desperate. Sexual rhythm: just-the-tip teasing · slow deep full-length · fast pounding · grinding circular · pull out pause slam back · build slow to fast.
 
 Output ONLY the JSON array — exactly the requested number of segments, in order.`;
 
@@ -2608,12 +2425,27 @@ Lying together — she on his chest, spooned, or face to face, half-draped in sh
 \\\`Side view camera angle, Woman ((Liv Tyler)) resting on the chest of a Man ((messy brown hair)) (his face tilted down, half-seen), both tangled in white rumpled sheets, Woman side view head on his chest, Facial Expression: Woman — eyes closed, faint smile, bare shoulders and tousled hair above the sheet, Action: his arm draped around her back, Location: dim bedroom in warm afterglow, Lighting: soft low light, gentle focus on her face, shallow depth of field\\\``,
    enabled:true},
 ];
+// Video/Movie rules are now LoRA SELECTORS, not model selectors. The base model is fixed globally
+// (state.vidModel for Animate, state.movieModel for Movie). Each rule matches a scene ("when") and
+// carries the LoRA to load for it + that LoRA's trigger keyword (auto-injected into the prompt).
+// Shape: {id, label, when, loraPath, loraScale, keyword, enabled}. No model_id/provider/endpoint.
 const DEFAULT_VID_RULES=[
   {id:"rv_default",label:"Default motion",
-   when:"Any scene. Subtle ambient and character motion.",
-   model_id:"wan2.7-i2v",endpoint:"video/img2video",lora_model:"",
-   negative:"blur, distortion, artifacts, watermark, text",
-   enabled:true}
+   when:"Any scene with no specific sexual position — ambient/character motion, kissing, talking, non-explicit.",
+   loraPath:"",loraScale:1,keyword:"",
+   enabled:true},
+  {id:"rv_cowgirl",label:"Cowgirl",
+   when:"Woman riding on top, straddling, facing the man/camera.",
+   loraPath:"",loraScale:1,keyword:"c0wg1rl",enabled:true},
+  {id:"rv_blowjob",label:"Blowjob / oral",
+   when:"Fellatio — mouth on penis, kneeling or leaning in, oral.",
+   loraPath:"",loraScale:1,keyword:"bl0wj0b",enabled:true},
+  {id:"rv_missionary",label:"Missionary",
+   when:"Penetration with the woman supine on her back, man above.",
+   loraPath:"",loraScale:1,keyword:"m15510n4ry",enabled:true},
+  {id:"rv_doublepen",label:"Double penetration",
+   when:"Double penetration / doggy-blowjob combo.",
+   loraPath:"",loraScale:1,keyword:"d0ubl3_bjd0gg1e",enabled:true}
 ];
 
 /* ===== GLOBAL BASE INSTRUCTION ===== applied to every character automatically ===== */
@@ -2666,8 +2498,10 @@ HOW TO END A REPLY
 
 Write the character as someone the user could actually meet — flawed, real, present, and their own person.`;
 
-const DEFAULT_ROUTER=`You are a routing assistant for an image generator. You are given a scene description and a numbered list of MODEL RULES, each with a "when" clause describing the kind of shot it suits.
-Pick the SINGLE rule whose "when" best matches the scene. Weigh framing (close-up vs wide), subject (character vs environment), and energy (calm vs action).
+const DEFAULT_ROUTER=`You are a routing assistant for an image generator. You are given scene context and a numbered list of MODEL RULES, each with a "when" clause describing the kind of shot it suits.
+The scene context may include a PREVIOUS FRAME (background: location, outfit, who is present) and a LATEST EXCHANGE (what is happening now). The LATEST EXCHANGE is the authority: route on what the scene has BECOME, not what it was. The previous frame is only for carried-over context (place, clothing) — never let it pin you to the prior shot type. If the exchange shows the act changing (e.g. kissing → oral, foreplay → penetration, a position shift), follow the change.
+When a scene contains several cues at once, pick the MOST SPECIFIC and most explicit action as the routing target. A penetration or explicit-act scene also contains faces and bodies, but it is NOT a portrait — the specific act wins over generic "a person is visible". Reserve portrait/establishing/SFW rules for scenes with NO more specific action present.
+Pick the SINGLE rule whose "when" best matches the current moment. Weigh the specific act first, then framing (close-up vs wide), subject (character vs environment), and energy (calm vs action).
 Respond with ONLY the integer index of the best rule (e.g. 0). No words, no JSON, no punctuation.`;
 
 /* ===== MEMORY SYSTEM PROMPTS (adapted from SkyrimAI) ===== */
@@ -4403,6 +4237,7 @@ function loadState(){
     segImgPath:store.raw(K.segImgPath,"chroma"),
     vidProvider:store.raw(K.vidProvider,"atlascloud"),
     vidModel:store.raw(K.vidModel,"atlascloud/wan-2.2-turbo-spicy/image-to-video"),
+    movieModel:store.raw(K.movieModel,"atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video-lora"),
     segVidPath:store.raw(K.segVidPath,"wan-2.2-i2v-flash"),
     vidPrompt:store.raw(K.vidPrompt,DEFAULT_VIDPROMPT),
     moviePrompt:store.raw(K.moviePrompt,DEFAULT_MOVIEPROMPT),
@@ -4883,6 +4718,21 @@ function loadState(){
   // address. Refresh stored/older copies (and per-universe overrides) lacking the new marker; hand-
   // customized prompts (no fingerprint) are preserved.
   _refreshPipe("routerPlayer","You are the conversation director for a multi-character roleplay","GROUP ADDRESS —",DEFAULT_ROUTER_PLAYER);
+  _refreshPipe("routerPrompt","You are a routing assistant for an image generator","route on what the scene has BECOME",DEFAULT_ROUTER);
+  // Migrate old model-based video rules → LoRA-selector shape. Old rules carried model_id/endpoint/
+  // provider; video rules are now LoRA selectors on a fixed global model. Keep label+when+enabled,
+  // ensure loraPath/loraScale/keyword exist, drop the model fields. Runs once (idempotent: a rule
+  // that already has no model_id is left alone).
+  (state.vidRules||[]).forEach(r=>{
+    if(r && (r.model_id!==undefined || r.endpoint!==undefined || r.provider!==undefined)){
+      if(r.loraPath===undefined) r.loraPath="";
+      if(r.loraScale===undefined) r.loraScale=1;
+      if(r.keyword===undefined) r.keyword="";
+      delete r.model_id; delete r.endpoint; delete r.provider; delete r.lora_model; delete r.negative;
+    }
+  });
+  _refreshPipe("vidPrompt","prompt engineer","STEP 1 — READ THE STILL",DEFAULT_VIDPROMPT);
+  _refreshPipe("moviePrompt","INFINITE image-to-video","CHANGE ON MORE THAN ONE AXIS",DEFAULT_MOVIEPROMPT);
   // Image-prompt rewriter upgrade: the universal prompt was reworked to be camera-agnostic and lean
   // (per-scene pose/shot detail now lives in each image rule's promptStyle, see DEFAULT_IMG_RULES).
   // Refresh stored copies still on the old hard-POV "SDXL image prompts" default; hand-customized
@@ -6237,20 +6087,38 @@ async function genImageForRule(rule,finalPrompt,baseNeg){
   return await imageCompletion(finalPrompt,state.imgModel,RATIOS[state.ratio]);
 }
 // Generate one video for an already-picked rule, routed to that rule's effective provider.
+// Resolve a picked video LoRA-rule into a synthetic rule for atlasVideo: fixed model + the rule's
+// LoRA in the general `loras` channel. `which` selects the base model ("vid"=Animate, "movie"=Movie).
+function videoRuleToAtlas(rule,which){
+  const model = which==="movie" ? (state.movieModel||"atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video-lora")
+                                 : (state.vidModel||"atlascloud/wan-2.2-turbo-spicy/image-to-video");
+  const out={ id:(rule&&rule.id)||"_vid", label:(rule&&rule.label)||"", provider:"atlascloud",
+              model_id:model, resolution:"480p" };
+  if(rule&&typeof rule.loraPath==="string"&&rule.loraPath.trim()){
+    out.loraPath=rule.loraPath; out.loraScale=(rule.loraScale!=null?rule.loraScale:1);
+  }
+  return out;
+}
+// Prepend a picked rule's LoRA trigger keyword to a prompt (string OR array of segments), so the
+// LoRA the selector chose actually activates. Idempotent-ish: only prepends if a keyword exists and
+// isn't already at the very start. For an array, the keyword leads the FIRST segment.
+function injectLoraKeyword(prompt,rule){
+  const kw=rule&&typeof rule.keyword==="string"&&rule.keyword.trim();
+  if(!kw) return prompt;
+  if(Array.isArray(prompt)){
+    if(!prompt.length) return [kw];
+    if(String(prompt[0]).trim().startsWith(kw)) return prompt;
+    const copy=prompt.slice(); copy[0]=kw+" "+copy[0]; return copy;
+  }
+  const s=String(prompt||"");
+  return s.trim().startsWith(kw) ? s : (kw+" "+s);
+}
 async function genVideoForRule(rule,vidPrompt,firstFrame,baseNeg,setStat){
-  const prov=effVidProvider(rule);
-  const neg=(rule&&rule.negative)||baseNeg;
-  if(prov==="atlascloud"){
-    if(setStat)setStat("Generating video on AtlasCloud"+(rule&&rule.label?" ("+rule.label+")":"")+"… (~1 min)");
-    return await atlasVideo(vidPrompt,firstFrame,neg,rule);
-  }
-  if(prov==="openrouter"){
-    if(setStat)setStat("Submitting to OpenRouter…");
-    const job=await submitVideo(vidPrompt,firstFrame);
-    return await pollVideo(job,setStat);
-  }
-  if(setStat)setStat("Generating video on ModelsLab"+(rule&&rule.label?" ("+rule.label+")":"")+"… (~1 min)");
-  return await modelslabVideo(vidPrompt,firstFrame,neg,rule);
+  // Video rules are LoRA selectors now: fixed model (state.vidModel) + the rule's LoRA, always Atlas.
+  const atlasRule=videoRuleToAtlas(rule,"vid");
+  const prompt=injectLoraKeyword(vidPrompt,rule);
+  if(setStat)setStat("Generating video on AtlasCloud"+(rule&&rule.label?" ("+rule.label+")":"")+"… (~1 min)");
+  return await atlasVideo(prompt,firstFrame,baseNeg,atlasRule);
 }
 
 function blobToDataURL(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("read"));r.readAsDataURL(blob);});}
@@ -12698,13 +12566,18 @@ async function illustrate(mid,replyText,force){
       else if(chat&&chat.location) locLine=`LOCATION: ${chat.location}`;
     }catch(e){}
 
-    // ---- Step 1: ROUTE FIRST, on the raw latest exchange (not a finished prompt).
-    // The router sees ONLY each rule's name + "when" clause (inside pickRule) and returns an index.
-    // It never sees any per-class promptStyle. We route on the exchange text so the chosen class
-    // reflects what is happening NOW, and so a stale previous prompt can't drag the routing.
-    // With 0/1 enabled rules (or routing off) pickRule early-outs with no LLM hop — same speed as before;
-    // when it does route, that hop replaces the old post-writer hop, so the call count is unchanged. ----
-    const _routeText=(locLine?locLine+"\n":"")+latestExchange;
+    // ---- Step 1: ROUTE FIRST. The router sees each rule's name + "when" clause (inside pickRule)
+    // and returns an index. It never sees any per-class promptStyle. We route on the PREVIOUS frame
+    // (foundation: location, clothing, position carried over) PLUS the latest exchange (the CHANGE):
+    // this lets the router reason about a TRANSITION (e.g. kissing → blowjob) instead of judging a
+    // lone snapshot. The previous frame is explicitly labeled as background the latest exchange
+    // OVERRIDES, so the router tracks what the scene is BECOMING and does not fixate on the old class.
+    const _prevForRoute = prevPrompt
+      ? `PREVIOUS FRAME (foundation only — location, outfit, who's present; the latest exchange OVERRIDES any of this that changed):\n${prevPrompt}\n\n`
+      : "";
+    const _routeText=(locLine?locLine+"\n":"")
+      +_prevForRoute
+      +`LATEST EXCHANGE (the authority — what the scene is NOW; route on what it has BECOME, not what it was):\n${latestExchange}`;
     const rule=await pickRule(state.imgRules,_routeText);
     if(rule&&rule.label){const e=document.getElementById('imgrule_'+mid);if(e)e.textContent=rule.label;}
 
@@ -12904,14 +12777,16 @@ async function movieScene(mid){
     while(segments.length<N) segments.push(segments[segments.length-1]||"continuous subtle motion grounded in the frame");
     segments=segments.slice(0,6);
 
-    // ---- Submit to the infinite model. Force its model id + AtlasCloud + 480p (Movie always runs
-    // at the cheapest tier). First frame is the CLICKED image. atlasVideo forwards the array verbatim.
-    const movieRule={ id:"_movie", label:"Movie (infinite)", provider:"atlascloud",
-      model_id:"atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video",
-      resolution:"480p" };
+    // ---- Route to a LoRA rule (same shared vidRules the Animate path uses), then submit to the
+    // fixed Movie model (state.movieModel — the infinite id) with that rule's LoRA + trigger keyword.
+    // Movie always runs at 480p (cheapest). First frame is the CLICKED image.
+    const movieLoraRule=await pickRule(state.vidRules,scenePrompt);
+    const movieRule=videoRuleToAtlas(movieLoraRule,"movie");
+    const segmentsKw=injectLoraKeyword(segments,movieLoraRule);   // keyword leads segment 1
+    if(movieLoraRule&&movieLoraRule.label){const e=document.getElementById('vidrule_'+mid);if(e)e.textContent=movieLoraRule.label;}
     setStat(`Generating ${segments.length}-shot movie on AtlasCloud at 480p… (this takes longer than Animate)`);
     const baseNeg="blur, distortion, artifacts, watermark, text";
-    const videoUrl=await atlasVideo(segments,msg.img,baseNeg,movieRule);
+    const videoUrl=await atlasVideo(segmentsKw,msg.img,baseNeg,movieRule);
     msg.videoSrc=httpsMedia(videoUrl);
     msg.video=msg.videoSrc;
     msg.vidState="done";msg.vidPrompt=segments.join(" | ");msg.isMovie=true;
@@ -15533,40 +15408,49 @@ function renderRules(kind){
 
     if(isOpen){
       const body=document.createElement('div');body.className="ruleRowBody";
-      body.innerHTML=`
+      if(kind==='vid'){
+        // VIDEO rules are LoRA SELECTORS: no model/provider (fixed model set globally). Just match a
+        // scene, pick a LoRA + its trigger keyword. The keyword is auto-injected into the prompt.
+        body.innerHTML=`
+        <label>Rule name</label>
+        <input type="text" value="${esc(r.label||'')}" placeholder="Rule name" data-k="label">
+        <label>When to use (the selector reads this to match the scene)</label>
+        <textarea class="fld" data-k="when" style="min-height:54px">${esc(r.when||'')}</textarea>
+        <label>LoRA path (the position/style LoRA for this scene)</label>
+        <input type="text" data-k="loraPath" value="${esc(r.loraPath||'')}" placeholder="HF owner/name, .safetensors URL, or CivitAI download URL">
+        <div class="row">
+          <div style="flex:1"><label>LoRA scale</label><input type="number" data-k="loraScale" step="0.05" min="0" max="2" value="${r.loraScale!=null?esc(String(r.loraScale)):'1'}" placeholder="1"></div>
+          <div style="flex:1"><label>Trigger keyword (auto-added to prompt)</label><input type="text" data-k="keyword" value="${esc(r.keyword||'')}" placeholder="e.g. m15510n4ry"></div>
+        </div>
+        <div class="desc" style="margin:-2px 0 6px">The base video model is fixed in <b>Video Generation</b> (Animate) / <b>Movie</b> settings — rules only pick the LoRA. When this rule matches, its LoRA loads and the trigger keyword is prepended to the motion prompt automatically. Leave LoRA blank + keyword blank for a plain "no-LoRA" default rule. CivitAI links auto-attach your CivitAI key. Needs a <code>-lora</code> base model id.</div>
+        <button class="btn danger sec small" data-del="1" style="margin-top:4px">Delete rule</button>`;
+      } else {
+        body.innerHTML=`
         <label>Rule name</label>
         <input type="text" value="${esc(r.label||'')}" placeholder="Rule name" data-k="label">
         <label>When to use (the router reads this)</label>
         <textarea class="fld" data-k="when" style="min-height:54px">${esc(r.when||'')}</textarea>
         <label>Provider</label>
         <select data-k="provider" data-sel="1" style="width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px">
-          <option value="default"${(!r.provider||r.provider==='default')?' selected':''}>Default (global ${kind==='img'?'image':'video'} provider)</option>
+          <option value="default"${(!r.provider||r.provider==='default')?' selected':''}>Default (global image provider)</option>
           <option value="modelslab"${r.provider==='modelslab'?' selected':''}>ModelsLab</option>
           <option value="atlascloud"${r.provider==='atlascloud'?' selected':''}>AtlasCloud</option>
-          ${kind==='img'?`<option value="fal"${r.provider==='fal'?' selected':''}>fal.ai (z-image LoRA)</option>`:''}
+          <option value="fal"${r.provider==='fal'?' selected':''}>fal.ai (z-image LoRA)</option>
         </select>
         <div class="row">
-          <div style="flex:1"><label>Model id</label><input type="text" data-k="model_id" value="${esc(r.model_id||'')}" placeholder="${kind==='img'?'realtime_t2i':'wan2.7-i2v'}"></div>
-          <div style="flex:1"><label>Endpoint</label><input type="text" data-k="endpoint" value="${esc(r.endpoint||(kind==='img'?'images/text2img':'video/img2video'))}"></div>
+          <div style="flex:1"><label>Model id</label><input type="text" data-k="model_id" value="${esc(r.model_id||'')}" placeholder="realtime_t2i"></div>
+          <div style="flex:1"><label>Endpoint</label><input type="text" data-k="endpoint" value="${esc(r.endpoint||'images/text2img')}"></div>
         </div>
         <label>LoRA path (optional) — needs a <code>-lora</code> model id</label>
         <input type="text" data-k="loraPath" value="${esc(r.loraPath||'')}" placeholder="HF owner/name, .safetensors URL, or CivitAI download URL">
         <div class="row"><div style="flex:1"><label>LoRA scale</label><input type="number" data-k="loraScale" step="0.05" min="0" max="2" value="${r.loraScale!=null?esc(String(r.loraScale)):'1'}" placeholder="1"></div></div>
-        ${kind==='vid'?`<details class="acc" style="margin:2px 0"><summary>Advanced: high/low-noise LoRA channels (Wan MoE)</summary>
-          <div class="desc" style="margin:6px 0">Optional. Most LoRAs just use the path above. Wan splits into two experts — <b>high-noise</b> = overall structure/layout, <b>low-noise</b> = fine detail/texture. Fill these only if the LoRA's page gives separate high/low files.</div>
-          <label>High-noise LoRA path</label>
-          <input type="text" data-k="loraHighPath" value="${esc(r.loraHighPath||'')}" placeholder="HF owner/name, URL, or CivitAI link">
-          <div class="row"><div style="flex:1"><label>High-noise scale</label><input type="number" data-k="loraHighScale" step="0.05" min="0" max="2" value="${r.loraHighScale!=null?esc(String(r.loraHighScale)):'1'}" placeholder="1"></div></div>
-          <label>Low-noise LoRA path</label>
-          <input type="text" data-k="loraLowPath" value="${esc(r.loraLowPath||'')}" placeholder="HF owner/name, URL, or CivitAI link">
-          <div class="row"><div style="flex:1"><label>Low-noise scale</label><input type="number" data-k="loraLowScale" step="0.05" min="0" max="2" value="${r.loraLowScale!=null?esc(String(r.loraLowScale)):'1'}" placeholder="1"></div></div>
-        </details>`:''}
         <div class="desc" style="margin:-2px 0 6px">LoRA needs a matching base (e.g. <code>z-image/turbo-lora</code>). Single <code>.safetensors</code>. Put the LoRA's <b>trigger word</b> in the prompt below. CivitAI links auto-attach your CivitAI key.</div>
         <label>Negative prompt (optional)</label>
         <input type="text" data-k="negative" value="${esc(r.negative||'')}" placeholder="low quality, blurry…">
-        ${kind==='img'?`<label>Per-class image prompt (injected into the writer when this rule is chosen — NOT shown to the router)</label>
-        <textarea class="fld" data-k="promptStyle" style="min-height:90px" placeholder="Pose / shot / camera instructions for this scene type.">${esc(r.promptStyle||'')}</textarea>`:''}
+        <label>Per-class image prompt (injected into the writer when this rule is chosen — NOT shown to the router)</label>
+        <textarea class="fld" data-k="promptStyle" style="min-height:90px" placeholder="Pose / shot / camera instructions for this scene type.">${esc(r.promptStyle||'')}</textarea>
         <button class="btn danger sec small" data-del="1" style="margin-top:4px">Delete rule</button>`;
+      }
       c.appendChild(body);
       // live-update the header name as you type
       body.querySelectorAll('[data-k]').forEach(inp=>{
@@ -15585,10 +15469,15 @@ function renderRules(kind){
 }
 function addRule(kind){
   const id=(kind==='img'?'r_':'rv_')+Date.now();
-  rulesFor(kind).push({id,label:"New rule",when:"Describe the kind of shot this model is best for.",
-    provider:"default",
-    model_id:kind==='img'?"realtime_t2i":"wan2.7-i2v",endpoint:kind==='img'?"images/text2img":"video/img2video",
-    lora_model:"",negative:"",...(kind==='img'?{promptStyle:""}:{}),enabled:true});
+  if(kind==='vid'){
+    rulesFor(kind).push({id,label:"New LoRA rule",when:"Describe the scene/position this LoRA is for.",
+      loraPath:"",loraScale:1,keyword:"",enabled:true});
+  }else{
+    rulesFor(kind).push({id,label:"New rule",when:"Describe the kind of shot this model is best for.",
+      provider:"default",
+      model_id:"realtime_t2i",endpoint:"images/text2img",
+      lora_model:"",negative:"",promptStyle:"",enabled:true});
+  }
   _ruleOpen[kind]=id;   // open the new rule for editing immediately
   renderRules(kind);
 }
@@ -15766,6 +15655,8 @@ function syncSettingsUI(){
   {const e=document.getElementById('setAutoSpeak'); if(e)e.checked=!!state.autoSpeak;}
   {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud")aim.value=state.imgModel||'';}
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")avm.value=state.vidModel||'';}
+  {const e=document.getElementById('setVidModelFixed'); if(e)e.value=state.vidModel||'';}
+  {const e=document.getElementById('setMovieModel'); if(e)e.value=state.movieModel||'';}
   document.getElementById('setModel').value=state.model;
   {const e=document.getElementById('setRpRotation'); if(e)e.value=state.rpRotation||"";}
   document.getElementById('setRewriter').value=state.rewriter;
@@ -15941,6 +15832,8 @@ function saveSettings(notify){
   // AtlasCloud, when active, uses its own model fields as the source of truth.
   {const aim=document.getElementById('setAtlasImgModel'); if(aim&&state.imgProvider==="atlascloud"&&aim.value.trim())state.imgModel=aim.value.trim();}
   {const avm=document.getElementById('setAtlasVidModel'); if(avm&&state.vidProvider==="atlascloud")state.vidModel=avm.value.trim()||"atlascloud/wan-2.2-turbo-spicy/image-to-video";}
+  {const e=document.getElementById('setVidModelFixed'); if(e&&e.value.trim())state.vidModel=e.value.trim();}
+  {const e=document.getElementById('setMovieModel'); if(e)state.movieModel=e.value.trim()||"atlascloud/wan-2.2-turbo-spicy/infinite-image-to-video-lora";}
   state.routeOn=document.getElementById('setRouteOn').checked;
   state.routerModel=document.getElementById('setRouterModel').value.trim()||"openai/gpt-4o-mini";
   state.routerPrompt=document.getElementById('setRouterPrompt').value.trim()||DEFAULT_ROUTER;
@@ -16044,7 +15937,7 @@ function saveSettings(notify){
   store.setRaw(K.ttsVoice,state.ttsVoice||"eve");store.setRaw(K.ttsLang,state.ttsLang||"tr");store.setRaw(K.ttsSpeed,String(state.ttsSpeed||1));store.setRaw(K.lipsyncModel,state.lipsyncModel||"kwaivgi/kling-lipsync/audio-to-video");store.setRaw(K.ttsEngine,state.ttsEngine||"xai");store.setRaw(K.autoSpeak,state.autoSpeak?"1":"");store.setRaw(K.falKey,state.falKey||"");store.setRaw(K.falModel,state.falModel||"fal-ai/z-image/turbo/lora");store.setRaw(K.falSafety,state.falSafety?"1":"");store.setRaw(K.civitaiKey,state.civitaiKey||"");
   store.setRaw(K.rewriter,state.rewriter);
   store.setRaw(K.imgProvider,state.imgProvider);store.setRaw(K.imgModel,state.imgModel);
-  store.setRaw(K.vidProvider,state.vidProvider);store.setRaw(K.vidModel,state.vidModel);
+  store.setRaw(K.vidProvider,state.vidProvider);store.setRaw(K.vidModel,state.vidModel);store.setRaw(K.movieModel,state.movieModel||"");
   store.set(K.imgRules,state.imgRules);store.set(K.vidRules,state.vidRules);
   store.set(K.routeOn,state.routeOn);store.setRaw(K.routerModel,state.routerModel);store.setRaw(K.routerPrompt,state.routerPrompt);
   store.setRaw(K.steps,state.steps);
