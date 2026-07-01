@@ -581,7 +581,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.40</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.41</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -5662,8 +5662,12 @@ function atlasMsg(s){
 // ?token= / &token= query param (CivitAI's documented auth for login-gated downloads). Non-CivitAI
 // paths (HF owner/name, other URLs) pass through untouched. Idempotent (won't double-append).
 function civitaiLoraUrl(path){
-  const p=String(path||"").trim(); if(!p) return p;
-  if(!/civitai\.com\/api\/download\/models\//i.test(p)) return p;   // only CivitAI download links
+  let p=String(path||"").trim(); if(!p) return p;
+  // Match CivitAI download links on EITHER host (civitai.com or the civitai.red mirror).
+  if(!/civitai\.(com|red)\/api\/download\/models\//i.test(p)) return p;
+  // Normalize the .red mirror to .com — token auth is documented for civitai.com, and providers'
+  // fetchers resolve it more reliably than the mirror.
+  p=p.replace(/(^https?:\/\/)([^\/]*\.)?civitai\.red\//i,"$1civitai.com/");
   if(/[?&]token=/i.test(p)) return p;                                // already has a token
   const tok=(state.civitaiKey||"").trim(); if(!tok) return p;        // no token to add
   return p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(tok);
