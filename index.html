@@ -581,7 +581,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div class="screen" id="screen-settings">
-  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.46</div></header>
+  <header><div>Settings</div><div style="font-size:11px;opacity:.6;font-weight:400" id="buildStamp">v18.48</div></header>
   <div class="pad">
     <!-- ============ 1 · API KEYS ============ -->
     <details class="sgroup" open>
@@ -822,9 +822,6 @@
           <div id="atlasImgWrap" style="display:none"><label>AtlasCloud image model (default)</label><input type="text" id="setAtlasImgModel" placeholder="seedream-3.0"><div class="desc">Used when a rule has no model id of its own.</div></div>
           <div id="orImgWrap"><label>OpenRouter image model</label><input type="text" id="setImgModel" value="x-ai/grok-imagine-image-quality"></div>
           <div>
-            <div><label>Sampling steps (ModelsLab): <span id="stepsVal">25</span></label>
-              <input type="range" id="setSteps" min="10" max="50" step="1" value="25">
-              <div class="desc">Higher = more detail but slower &amp; more credits. 20–30 is a good phone-scale range.</div></div>
             <div class="kvline"><span><svg class="ic"><use href="#i-brain"/></svg> Smart routing — let an LLM pick the rule per scene</span>
               <label class="switchLbl"><input type="checkbox" id="setRouteOn" checked><span class="sl"></span></label></div>
             <div class="desc">When on, the router reads each scene and chooses a rule below. When off, the first enabled rule is always used. (Router model lives in the LLMs section.)</div>
@@ -889,8 +886,10 @@
               <option value="4:3">4:3</option><option value="1:1">1:1 (square)</option>
               <option value="3:4">3:4</option><option value="9:16">9:16 (portrait)</option>
             </select></div>
-          <label class="switchLbl" style="margin-top:8px"><span>Generate audio</span><input type="checkbox" id="setSeedanceAudio"></label>
-          <label class="switchLbl"><span>Fix camera (no camera movement)</span><input type="checkbox" id="setSeedanceCamFixed"></label>
+          <div class="kvline" style="padding:6px 0 0"><label>Generate audio</label>
+            <label class="switchLbl"><input type="checkbox" id="setSeedanceAudio"><span class="sl"></span></label></div>
+          <div class="kvline" style="padding:6px 0 0"><label>Fix camera (no camera movement)</label>
+            <label class="switchLbl"><input type="checkbox" id="setSeedanceCamFixed"><span class="sl"></span></label></div>
         </div>
         <div class="card">
           <div><label>Default provider</label>
@@ -4490,6 +4489,34 @@ function loadState(){
       store.setRaw("sm_promptscope_v1","done");
     }
   }catch(e){}
+  // ---- Prompt-scope cleanup v2 (gentler, re-runnable-safe via its own flag) ------------------
+  // The v1 pass stripped ALL non-tunable overrides once, but an override can get re-added later
+  // (e.g. the old "paste global into universe" button, or saving a universe that carried a frozen
+  // copy). This pass removes only universe prompt overrides whose text EQUALS the current global or
+  // the hard-coded default — i.e. redundant copies that would silently shadow future global edits —
+  // while PRESERVING (a) the 4 living-engine tunable keys and (b) any genuinely divergent manual
+  // override. This is exactly "keep universe prompts empty unless meaningfully different".
+  try{
+    if(!store.raw("sm_promptscope_v2","")){
+      const TUNABLE=new Set(["gossipPrompt","intentForm","intentTick","confrontJudge"]);
+      let stripped=0;
+      (state.universes||[]).forEach(u=>{
+        if(u&&u.prompts&&typeof u.prompts==="object"){
+          Object.keys(u.prompts).forEach(k=>{
+            if(TUNABLE.has(k))return;                     // living-engine tuned — keep
+            const reg=PROMPT_BY_KEY[k];
+            const cur=String(u.prompts[k]||"").trim();
+            const def=(reg&&reg.def&&reg.def()||"").trim();
+            const g=(typeof state[k]==="string"&&state[k].trim()!=="")?state[k].trim():def; // effective global
+            if(cur===""||cur===def||cur===g){ delete u.prompts[k]; stripped++; }  // redundant copy → inherit global
+          });
+          if(!Object.keys(u.prompts).length) delete u.prompts;
+        }
+      });
+      if(stripped)persistUniverses();
+      store.setRaw("sm_promptscope_v2","done");
+    }
+  }catch(e){}
   // ---- Structured-appearance migration ------------------------------------------------------
   // `look` is now an object {face_map,hair,face,body,raw}. STEP 1 (synchronous, every load): any
   // persona whose look is still a legacy STRING is converted to {…,raw:<string>} so every consumer
@@ -5546,7 +5573,7 @@ async function modelslabImage(prompt,negative,rule){
     prompt,
     negative_prompt:negative||"low quality, blurry, deformed, bad anatomy, watermark, text",
     width:String(w),height:String(h),
-    samples:"1",num_inference_steps:String(state.steps||25),guidance_scale:7.5,
+    samples:"1",num_inference_steps:String((rule&&rule.steps)||state.steps||25),guidance_scale:7.5,
     safety_checker:"no",enhance_prompt:"no",
     scheduler:"DPMSolverMultistepScheduler"
   };
@@ -5761,7 +5788,7 @@ async function falImage(prompt,negative,rule){
   const body={
     prompt,
     image_size:falImageSize(),
-    num_inference_steps:8,
+    num_inference_steps:(rule&&rule.steps)||8,
     num_images:1,
     enable_safety_checker:!!state.falSafety,   // OFF by default
     output_format:"png",
@@ -9120,13 +9147,15 @@ function globalPromptValue(key){
   const reg=PROMPT_BY_KEY[key];
   return reg?(reg.def?reg.def():""):"";
 }
-// "Set to default": copy the effective global INTO this universe as an explicit override snapshot.
-// This freezes a copy — the universe will NOT track later global edits (that's the ↺ revert button).
+// "Use global": clear any per-universe override so this universe INHERITS the current global prompt
+// (and keeps tracking future global edits). Previously this froze a COPY of the global into the
+// universe, which then shadowed later global edits — the classic "I edited the global but it reverts"
+// bug. Inheriting is almost always what's wanted; to truly diverge, edit the text in the prompt editor.
 function setUePromptToGlobal(key){
   const reg=PROMPT_BY_KEY[key]; if(!reg)return;
-  _uePrompts[key]=globalPromptValue(key);
+  delete _uePrompts[key];
   renderUePrompts();
-  toast("Pasted current global into this universe — Save the universe to apply");
+  toast("Now inheriting the global prompt — Save the universe to apply");
 }
 
 // Open the prompt editor for either a universe override or a global prompt.
@@ -9157,9 +9186,12 @@ function promptEditSave(){
   const val=document.getElementById('peEditText').value;
   if(_promptEditScope==="universe"){
     const def=reg.def?reg.def():"";
-    // If the user left it exactly equal to the default, treat it as "inherit global"
-    // rather than storing a redundant override.
-    if(val.trim()===def.trim()||val.trim()===""){ delete _uePrompts[_promptEditKey]; }
+    const glob=globalPromptValue(_promptEditKey);   // effective global (customized global, else default)
+    // Keep a universe override ONLY if it genuinely differs from what the character would get
+    // anyway (current global, which itself falls back to the default). If it equals the global or
+    // the default, storing it would just freeze a stale copy that shadows future global edits —
+    // so we drop it and let the universe inherit the global.
+    if(val.trim()===""||val.trim()===def.trim()||val.trim()===glob.trim()){ delete _uePrompts[_promptEditKey]; }
     else { _uePrompts[_promptEditKey]=val; }
     renderUePrompts();
     toast("Prompt set — Save the universe to apply");
@@ -15567,6 +15599,8 @@ function renderRules(kind){
         <div class="desc" style="margin:-2px 0 6px">LoRA needs a matching base (e.g. <code>z-image/turbo-lora</code>). Single <code>.safetensors</code>. Put the LoRA's <b>trigger word</b> in the prompt below. CivitAI links auto-attach your CivitAI key.</div>
         <label>Negative prompt (optional)</label>
         <input type="text" data-k="negative" value="${esc(r.negative||'')}" placeholder="low quality, blurry…">
+        <label>Inference steps (${r.steps||state.steps||25}) — higher = more detail/slower; z-image/turbo ignores this</label>
+        <input type="range" data-k="steps" data-num="1" min="4" max="50" step="1" value="${r.steps||state.steps||25}" style="width:100%">
         <label>Per-class image prompt (injected into the writer when this rule is chosen — NOT shown to the router)</label>
         <textarea class="fld" data-k="promptStyle" style="min-height:90px" placeholder="Pose / shot / camera instructions for this scene type.">${esc(r.promptStyle||'')}</textarea>
         <button class="btn danger sec small" data-del="1" style="margin-top:4px">Delete rule</button>`;
@@ -15578,7 +15612,10 @@ function renderRules(kind){
         const isSel=inp.tagName==='SELECT';
         const ev=(inp.type==='checkbox'||isSel)?'change':'input';
         inp.addEventListener(ev,()=>{
-          r[key]= inp.type==='checkbox'?inp.checked:inp.value;
+          if(inp.type==='checkbox') r[key]=inp.checked;
+          else if(inp.dataset.num) r[key]=(parseFloat(inp.value)||0);
+          else r[key]=inp.value;
+          if(inp.dataset.num){ const lb=inp.previousElementSibling; if(lb&&lb.tagName==='LABEL') lb.textContent=lb.textContent.replace(/\((\d+)\)/,'('+inp.value+')'); }
           if(key==='label'){ const nm=head.querySelector('.ruleName'); if(nm)nm.textContent=inp.value||'(unnamed rule)'; }
         });
       });
@@ -15596,7 +15633,7 @@ function addRule(kind){
     rulesFor(kind).push({id,label:"New rule",when:"Describe the kind of shot this model is best for.",
       provider:"default",
       model_id:"realtime_t2i",endpoint:"images/text2img",
-      lora_model:"",negative:"",promptStyle:"",enabled:true});
+      lora_model:"",negative:"",steps:(state.steps||25),promptStyle:"",enabled:true});
   }
   _ruleOpen[kind]=id;   // open the new rule for editing immediately
   renderRules(kind);
@@ -15791,7 +15828,7 @@ function syncSettingsUI(){
   document.getElementById('setRouteOn').checked=state.routeOn;
   document.getElementById('setRouterModel').value=state.routerModel;
   document.getElementById('setRouterPrompt').value=state.routerPrompt;
-  document.getElementById('setSteps').value=state.steps;document.getElementById('stepsVal').textContent=state.steps;
+  {const e=document.getElementById('setSteps'); if(e)e.value=state.steps;} {const v=document.getElementById('stepsVal'); if(v)v.textContent=state.steps;}
   renderRules('img');renderRules('vid');
   setProvSeg('imgProvSeg',state.imgProvider);
   setProvSeg('vidProvSeg',state.vidProvider);
@@ -15969,7 +16006,7 @@ function saveSettings(notify){
   state.routeOn=document.getElementById('setRouteOn').checked;
   state.routerModel=document.getElementById('setRouterModel').value.trim()||"openai/gpt-4o-mini";
   state.routerPrompt=document.getElementById('setRouterPrompt').value.trim()||DEFAULT_ROUTER;
-  state.steps=+document.getElementById('setSteps').value;
+  {const e=document.getElementById('setSteps'); if(e)state.steps=+e.value;}
   state.autoImg=document.getElementById('setAutoImg').checked;
   state.vidSound=document.getElementById('setVidSound').checked;
   state.rewritePrompt=document.getElementById('setRewritePrompt').value.trim()||DEFAULT_REWRITE;
